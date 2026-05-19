@@ -33,6 +33,7 @@ let frameFetchInFlight = false;
 let controlsInitialized = false;
 let backendBusy = false;
 let selectedCheckpointDigits = null;
+let checkpointListSignature = "";
 const expandedPartySlots = new Set();
 
 function speedFromSlider() {
@@ -353,11 +354,15 @@ function renderCheckpoints(checkpoints, currentDigits) {
     row.textContent = "No checkpoints";
     checkpointsEl.replaceChildren(row);
     selectedCheckpointDigits = null;
+    checkpointListSignature = "";
     loadCheckpointButton.disabled = true;
     return;
   }
 
   const checkpointItems = checkpoints.map(checkpointInfo);
+  const nextSignature = checkpointItems
+    .map((checkpoint) => `${checkpoint.digits}:${checkpoint.filename}`)
+    .join("|");
   if (
     selectedCheckpointDigits === null
     || !checkpointItems.some((checkpoint) => checkpoint.digits === selectedCheckpointDigits)
@@ -368,6 +373,16 @@ function renderCheckpoints(checkpoints, currentDigits) {
   }
   loadCheckpointButton.disabled = backendBusy || selectedCheckpointDigits === null;
 
+  if (nextSignature === checkpointListSignature && checkpointsEl.children.length === checkpointItems.length) {
+    for (const row of checkpointsEl.children) {
+      const digits = Number(row.dataset.digits);
+      row.classList.toggle("is-current", digits === Number(currentDigits));
+      row.classList.toggle("is-selected", digits === selectedCheckpointDigits);
+    }
+    return;
+  }
+
+  const scrollTop = checkpointsEl.scrollTop;
   checkpointsEl.replaceChildren(
     ...checkpointItems.map((checkpoint) => {
       const row = document.createElement("li");
@@ -392,6 +407,8 @@ function renderCheckpoints(checkpoints, currentDigits) {
       return row;
     }),
   );
+  checkpointListSignature = nextSignature;
+  checkpointsEl.scrollTop = scrollTop;
 }
 
 function checkpointInfo(checkpoint) {
