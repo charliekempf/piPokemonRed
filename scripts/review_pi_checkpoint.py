@@ -104,7 +104,7 @@ class ReviewSession:
 
     def set_speed(self, speed: float) -> None:
         with self._lock:
-            self.speed = max(1, min(100, int(round(speed))))
+            self.speed = max(1, min(1000, int(round(speed))))
             self.pyboy.set_emulation_speed(self.speed)
 
     def set_paused(self, paused: bool) -> None:
@@ -288,15 +288,17 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
         session.set_speed(10 ** float(value))
 
     ttk.Label(root, text="Speed").grid(row=2, column=0, padx=(10, 4), sticky="w")
-    speed_slider = ttk.Scale(root, from_=0, to=2, variable=speed_var, command=speed_changed, length=320)
+    speed_slider = ttk.Scale(root, from_=0, to=3, variable=speed_var, command=speed_changed, length=320)
     speed_slider.grid(row=2, column=1, columnspan=3, padx=(0, 10), pady=4, sticky="ew")
+    for column, label in enumerate(("1x", "10x", "100x", "1000x"), start=1):
+        ttk.Label(root, text=label).grid(row=3, column=column - 1, padx=4, pady=(0, 4))
     rewind_digits_var = tk.StringVar(value="1000")
 
     def toggle_pause() -> None:
         info = session.info()
         session.set_paused(info["status"] != "paused")
 
-    ttk.Button(root, text="Pause/Resume", command=toggle_pause).grid(row=3, column=0, padx=10, pady=8)
+    ttk.Button(root, text="Pause/Resume", command=toggle_pause).grid(row=4, column=0, padx=10, pady=8)
     rewind_menu = ttk.Combobox(
         root,
         textvariable=rewind_digits_var,
@@ -304,11 +306,11 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
         width=10,
         state="readonly",
     )
-    rewind_menu.grid(row=3, column=1, padx=4, pady=8)
+    rewind_menu.grid(row=4, column=1, padx=4, pady=8)
     ttk.Button(root, text="Rewind Digits", command=lambda: session.request_rewind(int(rewind_digits_var.get()))).grid(
-        row=3, column=2, padx=4, pady=8
+        row=4, column=2, padx=4, pady=8
     )
-    ttk.Button(root, text="Quit", command=lambda: (session.stop(), root.destroy())).grid(row=3, column=3, padx=10, pady=8)
+    ttk.Button(root, text="Quit", command=lambda: (session.stop(), root.destroy())).grid(row=4, column=3, padx=10, pady=8)
 
     def refresh_screen() -> None:
         image = session.frame_image()
