@@ -4,12 +4,10 @@ const statDigitsEl = document.querySelector("#stat-digits");
 const statProgressEl = document.querySelector("#stat-progress span");
 const statLocationEl = document.querySelector("#stat-location");
 const statSpeedEl = document.querySelector("#stat-speed");
-const statLimiterEl = document.querySelector("#stat-limiter");
 const statVolumeEl = document.querySelector("#stat-volume");
 const screenShellEl = document.querySelector(".screen-shell");
 const speedEl = document.querySelector("#speed");
 const volumeEl = document.querySelector("#volume");
-const limiterEl = document.querySelector("#limiter");
 const pauseEl = document.querySelector("#pause");
 const rewindEl = document.querySelector("#rewind");
 const rewindButton = document.querySelector("#rewind-button");
@@ -39,8 +37,16 @@ let selectedCheckpointDigits = null;
 let checkpointListSignature = "";
 const expandedPartySlots = new Set();
 
+function speedSliderIsUnlimited() {
+  return Number(speedEl.value) >= Number(speedEl.max);
+}
+
 function speedFromSlider() {
-  return Math.max(1, Math.min(1000, Math.round(10 ** Number(speedEl.value))));
+  return speedSliderIsUnlimited() ? 1000 : Math.max(1, Math.min(1000, Math.round(10 ** Number(speedEl.value))));
+}
+
+function speedLabelFromSlider() {
+  return speedSliderIsUnlimited() ? "Unlimited" : `${speedFromSlider()}x`;
 }
 
 function create2dRenderer(canvas) {
@@ -178,11 +184,9 @@ async function post(path, body = {}) {
 }
 
 speedEl.addEventListener("input", () => {
+  statSpeedEl.textContent = speedLabelFromSlider();
   post("/api/speed", { speed: speedFromSlider() });
-});
-
-limiterEl.addEventListener("change", () => {
-  post("/api/limiter", { enabled: limiterEl.checked });
+  post("/api/limiter", { enabled: !speedSliderIsUnlimited() });
 });
 
 volumeEl.addEventListener("input", () => {
@@ -514,9 +518,10 @@ function setInitialControls(state) {
   if (controlsInitialized) {
     return;
   }
-  speedEl.value = Math.log10(Math.max(1, Math.min(1000, Number(state.speed))));
+  speedEl.value = state.speed_limiter_enabled === "off"
+    ? speedEl.max
+    : Math.log10(Math.max(1, Math.min(1000, Number(state.speed))));
   volumeEl.value = String(Math.max(0, Math.min(100, Number(state.sound_volume ?? 100))));
-  limiterEl.checked = state.speed_limiter_enabled === "on";
   controlsInitialized = true;
 }
 
@@ -549,8 +554,7 @@ function renderStats(state) {
   statLocationEl.textContent = state.location || "-";
   statLocationEl.title = state.map_id === undefined ? "" : `Map $${Number(state.map_id).toString(16).toUpperCase().padStart(2, "0")}`;
   statProgressEl.style.width = `${progress}%`;
-  statSpeedEl.textContent = `${state.speed}x`;
-  statLimiterEl.textContent = state.speed_limiter_enabled;
+  statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Unlimited" : `${state.speed}x`;
   statVolumeEl.textContent = `${Math.max(0, Math.min(100, Number(state.sound_volume ?? 100)))}%`;
 
   jumpButton.disabled = backendBusy;
@@ -585,7 +589,6 @@ async function refresh() {
     statLocationEl.title = "";
     statProgressEl.style.width = "0";
     statSpeedEl.textContent = "-";
-    statLimiterEl.textContent = "-";
     statVolumeEl.textContent = "-";
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);

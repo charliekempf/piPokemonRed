@@ -331,7 +331,7 @@ body {
 .speed-row,
 .volume-row {
   display: grid;
-  grid-template-columns: 64px 1fr 54px;
+  grid-template-columns: 64px 1fr 78px;
   gap: 10px;
   align-items: center;
 }
@@ -349,37 +349,21 @@ input[type="range"] {
 
 .scale {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   margin-left: 74px;
-  margin-right: 64px;
+  margin-right: 88px;
   color: #aeb4c0;
   font-size: 12px;
 }
 
 .scale span:nth-child(2),
-.scale span:nth-child(3) {
+.scale span:nth-child(3),
+.scale span:nth-child(4) {
   text-align: center;
 }
 
 .scale span:last-child {
   text-align: right;
-}
-
-.check {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  color: #e4e1d7;
-}
-
-.check strong {
-  min-width: 28px;
-  padding: 2px 7px;
-  border: 1px solid #555c6c;
-  border-radius: 999px;
-  color: #fff4b8;
-  font-size: 12px;
-  text-align: center;
 }
 
 .transport {
