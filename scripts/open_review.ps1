@@ -1,5 +1,5 @@
 param(
-    [string]$RunName = "pi_1m_hold2_release1",
+    [string]$RunName = "pi_10m_two_digit",
     [string]$Digits = "data\pi_10m_digits.txt",
     [int]$MaxDigits = 0,
     [string]$Checkpoint = "latest",

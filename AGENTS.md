@@ -18,7 +18,7 @@ Current core approach:
   - `94-98` -> B
   - `99` -> Start
 - Current verified timing is hold button for 2 frames, then release for 1 frame. One-frame taps were tested and often did not affect Pokemon Red gameplay.
-- Current verified run is `pi_1m_hold2_release1`: first 1,000,000 digits, checkpoints/screenshots every 100,000 digits.
+- Current verified run is `pi_10m_two_digit`: first 10,000,000 digits, checkpoints/screenshots every 1,000,000 digits.
 
 Important scripts:
 
@@ -32,7 +32,7 @@ Important scripts:
 Typical commands:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_digits.txt --max-digits 1000000 --checkpoint-digits 100000 --hold-frames 2 --release-frames 1
+py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000 --hold-frames 2 --release-frames 1
 .\scripts\open_review.ps1
 ```
 

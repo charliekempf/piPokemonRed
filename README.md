@@ -84,12 +84,6 @@ Add `--fresh` to ignore existing checkpoints and restart from reset.
 
 Checkpoints are saved in `saves/pi_10m_two_digit/`, screenshots in `results/pi_10m_two_digit/screenshots/`, and progress metadata in `results/pi_10m_two_digit/progress.json`. These generated files are intentionally ignored by git.
 
-The current verified run uses the first million digits with checkpoints every 100k:
-
-```powershell
-py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_digits.txt --max-digits 1000000 --checkpoint-digits 100000 --hold-frames 2 --release-frames 1
-```
-
 Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`.
 
 Review a checkpoint in the local web UI:
