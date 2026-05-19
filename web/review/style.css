@@ -154,6 +154,7 @@ body {
 #pause[data-state^="fast-forwarding"],
 #pause[data-state^="simulating"],
 #pause[data-state^="jumping"],
+#pause[data-state^="finding-next-battle"],
 #pause[data-state="pause-pending"] {
   border-color: #7a6ca7;
   background: #3e3755;
@@ -280,6 +281,11 @@ select {
 
 .primary-control {
   min-width: 118px;
+}
+
+.wide-control {
+  width: 100%;
+  margin-top: 8px;
 }
 
 button:hover,

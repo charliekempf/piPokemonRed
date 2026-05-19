@@ -15,6 +15,7 @@ const rewindButton = document.querySelector("#rewind-button");
 const fastForwardButton = document.querySelector("#fast-forward-button");
 const jumpDigitsEl = document.querySelector("#jump-digits");
 const jumpButton = document.querySelector("#jump-button");
+const nextBattleButton = document.querySelector("#next-battle-button");
 const simulateEl = document.querySelector("#simulate-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
@@ -192,6 +193,10 @@ jumpButton.addEventListener("click", () => {
   post("/api/jump", { digits });
 });
 
+nextBattleButton.addEventListener("click", () => {
+  post("/api/next-battle");
+});
+
 simulateButton.addEventListener("click", () => {
   post("/api/simulate", { digits: Number(simulateEl.value) });
 });
@@ -316,6 +321,9 @@ function displayState(status) {
   if (value.startsWith("jumping")) {
     return "Jumping";
   }
+  if (value.startsWith("finding next battle")) {
+    return "Finding battle";
+  }
   if (value.startsWith("rewound")) {
     return "Rewound";
   }
@@ -329,7 +337,8 @@ function renderStats(state) {
   setStateClass(state.status);
   backendBusy = String(state.status).startsWith("fast forwarding")
     || String(state.status).startsWith("simulating")
-    || String(state.status).startsWith("jumping");
+    || String(state.status).startsWith("jumping")
+    || String(state.status).startsWith("finding next battle");
   screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
   statProgressEl.style.width = `${progress}%`;
@@ -339,6 +348,7 @@ function renderStats(state) {
   statLastEl.textContent = String(state.last_button).toUpperCase();
 
   jumpButton.disabled = backendBusy;
+  nextBattleButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
   if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;

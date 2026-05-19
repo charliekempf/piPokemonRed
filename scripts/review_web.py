@@ -83,7 +83,12 @@ class ReviewWebApp:
         self.refresh_available_digits()
         info = self.session.info()
         status = str(info["status"])
-        if not (status.startswith("fast forwarding") or status.startswith("simulating") or status.startswith("jumping")):
+        if not (
+            status.startswith("fast forwarding")
+            or status.startswith("simulating")
+            or status.startswith("jumping")
+            or status.startswith("finding next battle")
+        ):
             image = self.session.frame_image()
             frame_digest = hashlib.blake2s(image.tobytes(), digest_size=8).hexdigest() if image else ""
             if frame_digest != self._last_frame_digest:
@@ -150,6 +155,10 @@ def make_handler(app: ReviewWebApp):
                 app.refresh_available_digits()
                 rounded_digits = app.session.request_jump(int(body.get("digits", 0)))
                 self._send_json({"ok": True, "digits": rounded_digits})
+            elif path == "/api/next-battle":
+                app.refresh_available_digits()
+                app.session.request_next_battle()
+                self._send_json({"ok": True})
             else:
                 self.send_error(404)
 
