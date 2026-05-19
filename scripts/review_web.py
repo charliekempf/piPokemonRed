@@ -30,6 +30,7 @@ from run_pi_pyboy import (
     ROM,
     RUN_NAME,
     RUN_CONFIG_FILENAME,
+    config_display_name,
     latest_checkpoint,
     load_input_config,
     resolve_configured_run_name,
@@ -75,7 +76,7 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
         if config_available:
             try:
                 config = load_input_config(config_path)
-                label = f"{run_dir.name} ({config.digits_per_input}d, {config.on_frames}/{config.off_frames})"
+                label = f"{config_display_name(config_path)} ({config.digits_per_input}d, {config.on_frames}/{config.off_frames})"
             except Exception:
                 config_available = False
         highest_digits = max((int(checkpoint["digits"]) for checkpoint in checkpoints), default=0)

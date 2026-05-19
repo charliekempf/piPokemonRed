@@ -98,8 +98,20 @@ def canonical_config_text(config_path: Path) -> str:
     return json.dumps(raw, indent=2, sort_keys=True) + "\n"
 
 
+def compatibility_config_text(config_path: Path) -> str:
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    raw.pop("name", None)
+    return json.dumps(raw, indent=2, sort_keys=True) + "\n"
+
+
+def config_display_name(config_path: Path) -> str:
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    name = str(raw.get("name", "")).strip()
+    return name or config_path.parent.name or config_path.stem
+
+
 def config_run_suffix(config_path: Path) -> str:
-    digest = hashlib.sha1(canonical_config_text(config_path).encode("utf-8")).hexdigest()[:10]
+    digest = hashlib.sha1(compatibility_config_text(config_path).encode("utf-8")).hexdigest()[:10]
     stem = re.sub(r"[^A-Za-z0-9_-]+", "_", config_path.stem).strip("_") or "config"
     return f"{stem}_{digest}"
 
@@ -111,14 +123,15 @@ def resolve_configured_run_name(
     results_root: Path = Path("results"),
 ) -> str:
     config_text = canonical_config_text(config_path)
+    compatibility_text = compatibility_config_text(config_path)
     configured_run_name = run_name
     run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
-    if run_config_path.exists() and run_config_path.read_text(encoding="utf-8") != config_text:
+    if run_config_path.exists() and compatibility_config_text(run_config_path) != compatibility_text:
         configured_run_name = f"{run_name}_{config_run_suffix(config_path)}"
         run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
 
     run_config_path.parent.mkdir(parents=True, exist_ok=True)
-    if not run_config_path.exists():
+    if not run_config_path.exists() or run_config_path.read_text(encoding="utf-8") != config_text:
         run_config_path.write_text(config_text, encoding="utf-8")
 
     results_config_path = results_root / configured_run_name / RUN_CONFIG_FILENAME

@@ -1,4 +1,5 @@
 {
+  "name": "Statistical Spread",
   "on_frames": 2,
   "off_frames": 1,
   "digits_per_input": 2,

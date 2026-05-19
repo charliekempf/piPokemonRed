@@ -4,22 +4,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from run_pi_pyboy import RUN_CONFIG_FILENAME, resolve_configured_run_name
+from run_pi_pyboy import RUN_CONFIG_FILENAME, config_display_name, resolve_configured_run_name
 
 
-def write_config(path: Path, a_max: int) -> None:
+def write_config(path: Path, a_max: int, name: str | None = None) -> None:
+    payload = {
+        "on_frames": 2,
+        "off_frames": 1,
+        "digits_per_input": 2,
+        "mapping": [
+            {"min": 0, "max": a_max, "button": "a"},
+            {"min": a_max + 1, "max": 99, "button": "start"},
+        ],
+    }
+    if name is not None:
+        payload["name"] = name
     path.write_text(
-        json.dumps(
-            {
-                "on_frames": 2,
-                "off_frames": 1,
-                "digits_per_input": 2,
-                "mapping": [
-                    {"min": 0, "max": a_max, "button": "a"},
-                    {"min": a_max + 1, "max": 99, "button": "start"},
-                ],
-            }
-        ),
+        json.dumps(payload),
         encoding="utf-8",
     )
 
@@ -50,3 +51,17 @@ def test_different_config_gets_separate_run_folder(tmp_path: Path) -> None:
     assert second.startswith("experiment_alternate_")
     assert second != first
     assert (tmp_path / "saves" / second / RUN_CONFIG_FILENAME).exists()
+
+
+def test_config_name_does_not_create_separate_run_folder(tmp_path: Path) -> None:
+    first_config = tmp_path / "mapping.json"
+    renamed_config = tmp_path / "renamed.json"
+    write_config(first_config, 53)
+    write_config(renamed_config, 53, name="Statistical Spread")
+
+    first = resolve_configured_run_name("experiment", first_config, tmp_path / "saves", tmp_path / "results")
+    renamed = resolve_configured_run_name("experiment", renamed_config, tmp_path / "saves", tmp_path / "results")
+
+    assert first == "experiment"
+    assert renamed == "experiment"
+    assert config_display_name(tmp_path / "saves" / "experiment" / RUN_CONFIG_FILENAME) == "Statistical Spread"
