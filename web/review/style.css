@@ -532,14 +532,13 @@ button:disabled {
 
 .event-panel label {
   display: block;
-  margin-bottom: 6px;
   color: #aeb4c0;
   font-size: 12px;
 }
 
 .warp-actions {
   display: grid;
-  grid-template-columns: minmax(132px, 180px) minmax(150px, 180px) 118px;
+  grid-template-columns: auto minmax(132px, 180px) minmax(150px, 180px) 118px;
   gap: 8px;
   align-items: center;
 }
