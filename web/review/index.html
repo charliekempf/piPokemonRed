@@ -15,6 +15,21 @@
         <h1>Checkpoints</h1>
         <ol id="checkpoints" class="checkpoint-list"></ol>
         <button id="load-checkpoint-button" class="primary-control" disabled>Load checkpoint</button>
+        <div class="simulator-panel">
+          <div>
+            <span class="simulator-label">Headless simulator</span>
+            <strong id="simulate-status">Ready</strong>
+          </div>
+          <div class="simulator-actions">
+            <select id="simulate-digits" aria-label="Digits to simulate">
+              <option value="1000">1,000 digits</option>
+              <option value="10000" selected>10,000 digits</option>
+              <option value="100000">100,000 digits</option>
+              <option value="1000000">1,000,000 digits</option>
+            </select>
+            <button id="simulate-button" class="primary-control">Simulate</button>
+          </div>
+        </div>
       </aside>
       <section class="screen-panel">
         <div class="screen-shell">
@@ -64,21 +79,6 @@
             <label for="jump-digits">Jump to digit</label>
             <input id="jump-digits" type="number" min="0" step="1" inputmode="numeric" placeholder="12,000,000" />
             <button id="jump-button" class="primary-control">Jump</button>
-          </div>
-          <div class="simulator-panel">
-            <div>
-              <span class="simulator-label">Headless simulator</span>
-              <strong id="simulate-status">Ready</strong>
-            </div>
-            <div class="simulator-actions">
-              <select id="simulate-digits" aria-label="Digits to simulate">
-                <option value="1000">1,000 digits</option>
-                <option value="10000" selected>10,000 digits</option>
-                <option value="100000">100,000 digits</option>
-                <option value="1000000">1,000,000 digits</option>
-              </select>
-              <button id="simulate-button" class="primary-control">Simulate</button>
-            </div>
           </div>
         </div>
       </section>

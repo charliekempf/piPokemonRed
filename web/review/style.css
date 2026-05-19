@@ -81,7 +81,7 @@ body {
   overflow: hidden;
   padding: 12px;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
   gap: 10px;
 }
 
@@ -425,6 +425,23 @@ input[type="range"] {
   grid-template-columns: minmax(132px, 150px) 118px;
   gap: 8px;
   align-items: center;
+}
+
+.checkpoint-panel .simulator-panel {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.checkpoint-panel .simulator-panel strong {
+  max-width: 100%;
+}
+
+.checkpoint-panel .simulator-actions {
+  grid-template-columns: 1fr;
+}
+
+.checkpoint-panel .simulator-actions .primary-control {
+  width: 100%;
 }
 
 button,
