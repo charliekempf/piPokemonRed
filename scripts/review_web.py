@@ -27,6 +27,19 @@ from run_pi_pyboy import PI_DIGITS, ROM, RUN_NAME
 WEB_ROOT = Path("web/review")
 
 
+def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Image | None:
+    screenshot_path = (
+        Path("results")
+        / run_name
+        / "screenshots"
+        / f"checkpoint_{digits_consumed:08d}_digits.png"
+    )
+    if not screenshot_path.exists():
+        return None
+    with Image.open(screenshot_path) as image:
+        return image.convert("RGB").copy()
+
+
 def image_to_png(image: Image.Image | None, scale: int) -> bytes:
     if image is None:
         image = Image.new("RGB", (160, 144), "black")
@@ -173,7 +186,7 @@ def main() -> None:
     )
     with checkpoint.open("rb") as state_file:
         pyboy.load_state(state_file)
-    initial_image = render_loaded_state(pyboy)
+    initial_image = load_checkpoint_screenshot(args.run_name, start_digits) or render_loaded_state(pyboy)
 
     session = ReviewSession(
         pyboy=pyboy,
