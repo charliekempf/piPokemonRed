@@ -48,6 +48,14 @@ CURRENT_MAP_ADDR = 0xD35E
 EVO_OLD_SPECIES_ADDR = 0xCEE9
 EVO_NEW_SPECIES_ADDR = 0xCEEA
 EVOLUTION_OCCURRED_ADDR = 0xD121
+POKEDEX_OWNED_ADDR = 0xD2F7
+POKEDEX_SEEN_ADDR = 0xD30A
+POKEDEX_FLAG_BYTES = 19
+PLAYER_MONEY_ADDR = 0xD347
+PLAY_TIME_HOURS_ADDR = 0xDA40
+PLAY_TIME_MINUTES_ADDR = 0xDA42
+PLAY_TIME_SECONDS_ADDR = 0xDA44
+NUM_POKEMON = 151
 BADGE_NAMES = [
     "Boulder",
     "Cascade",
@@ -1014,6 +1022,36 @@ def read_u16_be(pyboy: PyBoy, address: int) -> int:
     return (int(pyboy.memory[address]) << 8) | int(pyboy.memory[address + 1])
 
 
+def read_bcd_money(pyboy: PyBoy) -> int:
+    value = 0
+    for offset in range(3):
+        byte = int(pyboy.memory[PLAYER_MONEY_ADDR + offset])
+        value = (value * 100) + (((byte >> 4) & 0x0F) * 10) + (byte & 0x0F)
+    return value
+
+
+def count_pokedex_flags(pyboy: PyBoy, start_address: int) -> int:
+    count = 0
+    bits_seen = 0
+    for offset in range(POKEDEX_FLAG_BYTES):
+        byte = int(pyboy.memory[start_address + offset])
+        for bit in range(8):
+            if bits_seen >= NUM_POKEMON:
+                return count
+            if byte & (1 << bit):
+                count += 1
+            bits_seen += 1
+    return count
+
+
+def play_time(pyboy: PyBoy) -> dict[str, int]:
+    return {
+        "hours": int(pyboy.memory[PLAY_TIME_HOURS_ADDR + 1]),
+        "minutes": int(pyboy.memory[PLAY_TIME_MINUTES_ADDR + 1]),
+        "seconds": int(pyboy.memory[PLAY_TIME_SECONDS_ADDR]),
+    }
+
+
 def status_label(value: int) -> str:
     if value == 0:
         return "OK"
@@ -1462,6 +1500,16 @@ class ReviewSession:
             }
             for index, name in enumerate(BADGE_NAMES)
         ]
+
+    def player_info(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "money": read_bcd_money(self.pyboy),
+                "pokedex_seen": count_pokedex_flags(self.pyboy, POKEDEX_SEEN_ADDR),
+                "pokedex_caught": count_pokedex_flags(self.pyboy, POKEDEX_OWNED_ADDR),
+                "pokedex_total": NUM_POKEMON,
+                "time": play_time(self.pyboy),
+            }
 
     def run(self) -> None:
         self.pyboy.set_emulation_speed(self.speed)

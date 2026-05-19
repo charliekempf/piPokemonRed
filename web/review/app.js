@@ -32,9 +32,10 @@ const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
 const partyEl = document.querySelector("#party");
-const badgesPanelEl = document.querySelector("#badges-panel");
+const playerPanelEl = document.querySelector("#player-panel");
 const badgesToggleEl = document.querySelector("#badges-toggle");
 const badgesCountEl = document.querySelector("#badges-count");
+const playerInfoEl = document.querySelector("#player-info");
 const badgesEl = document.querySelector("#badges");
 const inputsEl = document.querySelector("#inputs");
 
@@ -311,7 +312,7 @@ simulateButton.addEventListener("click", () => {
 
 badgesToggleEl.addEventListener("click", () => {
   badgesExpanded = !badgesExpanded;
-  badgesPanelEl.classList.toggle("is-collapsed", !badgesExpanded);
+  playerPanelEl.classList.toggle("is-collapsed", !badgesExpanded);
   badgesToggleEl.setAttribute("aria-expanded", String(badgesExpanded));
 });
 
@@ -517,6 +518,27 @@ function renderBadges(badges) {
       state.textContent = badge.earned ? "Earned" : "Locked";
       row.append(mark, name, state);
       return row;
+    }),
+  );
+}
+
+function renderPlayerInfo(info = {}) {
+  const time = info.time || {};
+  const hours = Number(time.hours) || 0;
+  const minutes = Number(time.minutes) || 0;
+  const seconds = Number(time.seconds) || 0;
+  const rows = [
+    ["Money", `$${fmt(info.money || 0)}`],
+    ["Pokedex", `${fmt(info.pokedex_seen || 0)} seen / ${fmt(info.pokedex_caught || 0)} caught`],
+    ["Time", `${fmt(hours)}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`],
+  ];
+  playerInfoEl.replaceChildren(
+    ...rows.flatMap(([label, value]) => {
+      const term = document.createElement("dt");
+      const detail = document.createElement("dd");
+      term.textContent = label;
+      detail.textContent = value;
+      return [term, detail];
     }),
   );
 }
@@ -749,6 +771,7 @@ async function refresh() {
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
     renderParty(state.party || []);
+    renderPlayerInfo(state.player_info || {});
     renderBadges(state.badges || []);
     renderInputs(state.inputs || []);
   } catch (error) {
@@ -766,6 +789,7 @@ async function refresh() {
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);
+    renderPlayerInfo({});
     renderBadges([]);
     renderInputs([]);
   } finally {
