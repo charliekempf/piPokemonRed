@@ -57,6 +57,7 @@ BADGE_NAMES = [
 WARP_STATE_LABELS = {
     "battle": "battle",
     "blackout": "blackout",
+    "level_up": "level up",
     "scene_change": "scene change",
 }
 MAP_NAMES = {
@@ -901,6 +902,18 @@ def is_party_blackout(pyboy: PyBoy) -> bool:
     return True
 
 
+def party_levels(pyboy: PyBoy) -> tuple[int, ...]:
+    count = int(pyboy.memory[PARTY_COUNT_ADDR])
+    if count <= 0 or count > PARTY_SIZE:
+        return ()
+    return tuple(int(pyboy.memory[PARTY_MONS_ADDR + (index * PARTY_MON_SIZE) + 33]) for index in range(count))
+
+
+def has_party_level_up(pyboy: PyBoy, starting_levels: tuple[int, ...]) -> bool:
+    levels = party_levels(pyboy)
+    return any(level > starting_levels[index] for index, level in enumerate(levels[: len(starting_levels)]))
+
+
 class ReviewSession:
     def __init__(
         self,
@@ -1551,6 +1564,7 @@ class ReviewSession:
             battle_seen = is_in_battle(simulator)
             blackout_seen = is_party_blackout(simulator)
             starting_map = current_map_id(simulator)
+            starting_levels = party_levels(simulator)
             while digits_consumed < self.max_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 button = button_for_value(value, self.input_config)
@@ -1579,6 +1593,9 @@ class ReviewSession:
                     elif blackout:
                         found = True
                         break
+                elif target_state == "level_up" and has_party_level_up(simulator, starting_levels):
+                    found = True
+                    break
                 elif current_map_id(simulator) != starting_map:
                     found = True
                     break
