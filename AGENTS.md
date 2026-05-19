@@ -9,7 +9,7 @@ Current core approach:
 - Use PyBoy for the main simulator and checkpoint reviewer.
 - Use a legally obtained local Pokemon Red ROM in `roms/`; the ROM is ignored and must never be committed.
 - Use local pi digit text files in `data/`; these are ignored and must not be committed.
-- The active public/review run is `pi_10m_two_digit`; older `pi_1m_hold2_release1` and `smoke_hold2_release1` generated runs were removed locally.
+- The active public/review run is `pi_50m_two_digit`; older `pi_1m_hold2_release1` and `smoke_hold2_release1` generated runs were removed locally.
 - Current input mapping consumes two decimal digits at a time:
   - `00-53` -> A
   - `54-63` -> Up
@@ -19,11 +19,12 @@ Current core approach:
   - `94-98` -> B
   - `99` -> Start
 - Current verified timing is hold button for 2 frames, then release for 1 frame. One-frame taps were tested and often did not affect Pokemon Red gameplay.
-- Input timing and digit-to-button ranges are configured in `config/pi_input.json`. The current config is `on_frames: 2`, `off_frames: 1`, `digits_per_input: 2`, with the two-digit mapping below.
-- Runs are now config-scoped. `scripts/run_pi_pyboy.py`, `scripts/review_web.py`, and `scripts/review_pi_checkpoint.py` write a canonical `input_config.json` into the run's checkpoint folder. If the same `--run-name` is used with a different config, the scripts automatically use a separate run/checkpoint folder named with the config stem and hash, preventing incompatible button mappings from sharing savestates.
-- Current verified run is `pi_10m_two_digit`: first 10,000,000 digits, checkpoints/screenshots every 1,000,000 digits.
-- Highest digit reached for README/status purposes is 10,000,000 digits consumed in `pi_10m_two_digit`.
-- The current web reviewer normally starts from the latest playable checkpoint, which is 9,000,000/10,000,000 for the local 10M run.
+- Input timing, digit-to-button ranges, config display name, and Pokemon game metadata are configured in `config/pi_input.json`. The current config is named `Statistical Spread` and targets `Pokemon Red` version `1.0`, region `USA/Europe`.
+- Current config values are `on_frames: 2`, `off_frames: 1`, `digits_per_input: 2`, with the two-digit mapping below.
+- Runs are config-scoped. `scripts/run_pi_pyboy.py`, `scripts/review_web.py`, and `scripts/review_pi_checkpoint.py` write a canonical `input_config.json` into the run's checkpoint folder. If the same `--run-name` is used with an incompatible config, the scripts automatically use a separate run/checkpoint folder named with the config stem and hash, preventing incompatible button mappings or game versions from sharing savestates. Adding new game metadata remains backward-compatible with older runs that did not yet record it.
+- Current verified run is `pi_50m_two_digit`, using `data/pi_1b_digits.txt`, with checkpoints/screenshots every 1,000,000 digits.
+- Highest digit reached for README/status purposes is 196,000,000 digits consumed in `pi_50m_two_digit`.
+- The current web reviewer normally starts from the penultimate playable checkpoint, so it opens one checkpoint behind the newest available state while the digit limit follows the newest checkpoint.
 
 Important scripts:
 
@@ -37,7 +38,7 @@ Important scripts:
 Typical commands:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000
+py scripts\run_pi_pyboy.py --run-name pi_50m_two_digit --digits data\pi_1b_digits.txt --checkpoint-digits 1000000 --max-digits 50000000
 .\scripts\open_review.ps1
 ```
 
@@ -46,13 +47,24 @@ Current reviewer UI behavior:
 - The browser UI is served locally, usually at `http://127.0.0.1:8765/`.
 - The screen is a WebGL-backed canvas fed by raw RGBA frames from `scripts/review_web.py`; Canvas 2D is the fallback.
 - The status under the emulator is a stat-card grid, not a pipe-separated status line.
-- The right-hand `Next` panel shows upcoming pi digit pairs and buttons; if no pairs remain, it shows `Out of digits` / `Download more`.
-- The transport controls are `Pause/Resume`, `<<`, a digit-distance dropdown, and `>>`.
+- The right-hand `Inputs` panel shows the last three inputs greyed out, the current input highlighted, and upcoming pi digit pairs/buttons. If no pairs remain but local pi digits are exhausted, it shows `Out of digits` / `Download more`.
+- The main controls are a square Play/Pause button, a square mute/unmute audio button, a speed box, a Jump strip, and an Event Finder strip pinned to the bottom of the emulator pane.
+- The speed slider ranges from `0.1x` through `1000x` to `Unlimited`, and the UI shows requested speed, actual measured playback speed, and digit rate.
+- The Jump strip has `Jump`, `<<`, a digit-distance dropdown, `>>`, an arbitrary digit input, and a `Jump` button. The text labels are styled to match adjacent dropdown text for continuity.
 - `<<` rewinds by the selected digit count using in-memory savestate snapshots.
-- `>>` fast-forwards by the selected digit count by transferring the current state into a separate headless PyBoy backend simulator with sound/rendering disabled, running the real pi-derived input stream there, loading the resulting state back into the reviewer, darkening the emulator frame with a buffering spinner, then pausing at an input boundary.
-- The `Headless simulator` panel advances the real run by the selected digit count using the same backend simulator path, then writes a checkpoint, screenshot, and `results/<run>/progress.json` so the headless run can continue from the new state.
+- `>>` fast-forwards by the selected digit count by transferring the current state into a separate headless PyBoy backend simulator with sound/rendering disabled, running the real pi-derived input stream there, loading the resulting state back into the reviewer, darkening the emulator frame with a buffering spinner/progress bar, then pausing at an input boundary.
+- Arbitrary jump uses the nearest checkpoint at or before the target when possible, then simulates the remaining gap.
+- Event Finder is a matching strip below Jump with `Warp to next`, an alphabetized dropdown (`Battle`, `Blackout`, `Evolution`, `Item pickup`, `Level up`, `Location change`, `Trainer battle`, `Wild Pokemon battle`), `Warp`, `Timeout`, and a digit-limit dropdown.
+- Clicking `Warp` sets reviewer playback to `1x` before searching.
+- The `Headless simulator` panel in the checkpoint pane advances the real run to an absolute `Simulate up to` target with a configurable `Checkpoint every` interval, then writes checkpoints, screenshots, and `results/<run>/progress.json` so the headless run can continue from the new state.
+- Headless charting simulation must be a separate PyBoy instance/process from the reviewer jump/seek backend. Killing the headless simulator means only processes whose command line includes `run_pi_pyboy.py`; do not kill the reviewer unless asked.
+- The headless simulator UI reports charting status, progress, speed in digits/s, and ETA, and should remember a running chart operation instead of claiming `Ready`.
 - After backend fast-forward, automatic in-memory snapshot capture is disabled for that review session because PyBoy can hang when saving reviewer snapshots after loading the backend-simulated state.
 - Checkpoint and rewind frame displays use a one-frame render/restore path so the screen is populated after loading state.
+- The Player panel combines money, Pokedex seen/caught, actual elapsed emulator time computed from frames (not the capped in-game 255-hour clock), elapsed days in brackets, bag contents, and badges.
+- The Party panel shows Pokemon names, levels, HP bars with in-game health colors, expandable moves, and PP shown as current/max.
+- The Config panel lives below the timeline and shows game/version/region, digits per input, button ranges, and a pie chart of the mapping spread.
+- The timeline shows checkpoint-charted progress in blue and lets users click checkpointed regions to jump to the nearest checkpoint.
 
 ## Git Workflow
 
@@ -84,6 +96,6 @@ Current reviewer UI behavior:
 - The launcher uses the full local pi digit file by default; pass `-MaxDigits <n>` only when a capped review is wanted.
 - The launcher and web reviewer default to `penultimate` checkpoint selection so review opens one checkpoint behind the newest available checkpoint while the digit limit follows the newest checkpoint.
 - The reviewer default speed is `10x`; pass `-Speed 1` or `--speed 1` when audio fidelity matters.
-- The launcher default run is `pi_10m_two_digit`; do not switch it back to removed old runs.
+- The launcher default run should be `pi_50m_two_digit`; do not switch it back to removed old runs.
 - Before opening a reviewer, close any older running reviewer process.
 - Only target processes whose command line includes `review_web.py` or `review_pi_checkpoint.py`; do not stop unrelated Python processes.
