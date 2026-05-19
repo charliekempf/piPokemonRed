@@ -45,6 +45,9 @@ BATTLE_FLAG_ADDR = 0xD057
 BATTLE_TRAINER_VALUE = 2
 OBTAINED_BADGES_ADDR = 0xD356
 CURRENT_MAP_ADDR = 0xD35E
+EVO_OLD_SPECIES_ADDR = 0xCEE9
+EVO_NEW_SPECIES_ADDR = 0xCEEA
+EVOLUTION_OCCURRED_ADDR = 0xD121
 BADGE_NAMES = [
     "Boulder",
     "Cascade",
@@ -1107,6 +1110,26 @@ def has_party_evolution(pyboy: PyBoy, starting_species: tuple[int, ...]) -> bool
     return any(value != starting_species[index] for index, value in enumerate(species[: len(starting_species)]))
 
 
+def evolution_marker(pyboy: PyBoy) -> tuple[int, int, int]:
+    return (
+        int(pyboy.memory[EVOLUTION_OCCURRED_ADDR]),
+        int(pyboy.memory[EVO_OLD_SPECIES_ADDR]),
+        int(pyboy.memory[EVO_NEW_SPECIES_ADDR]),
+    )
+
+
+def is_evolution_active(pyboy: PyBoy) -> bool:
+    occurred, old_species, new_species = evolution_marker(pyboy)
+    return occurred != 0 or (old_species != 0 and new_species != 0 and old_species != new_species)
+
+
+def has_evolution_started(pyboy: PyBoy, starting_marker: tuple[int, int, int], starting_species: tuple[int, ...]) -> bool:
+    return (evolution_marker(pyboy) != starting_marker and is_evolution_active(pyboy)) or has_party_evolution(
+        pyboy,
+        starting_species,
+    )
+
+
 class ReviewSession:
     def __init__(
         self,
@@ -1984,6 +2007,8 @@ class ReviewSession:
             starting_map = current_map_id(simulator)
             starting_levels = party_levels(simulator)
             starting_species = party_species(simulator)
+            starting_evolution_marker = evolution_marker(simulator)
+            evolution_seen = is_evolution_active(simulator)
             while digits_consumed < end_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 button = button_for_value(value, self.input_config)
@@ -2033,9 +2058,16 @@ class ReviewSession:
                 elif target_state == "level_up" and has_party_level_up(simulator, starting_levels):
                     found = True
                     break
-                elif target_state == "evolution" and has_party_evolution(simulator, starting_species):
-                    found = True
-                    break
+                elif target_state == "evolution":
+                    in_evolution = is_evolution_active(simulator)
+                    if evolution_seen:
+                        if not in_evolution:
+                            evolution_seen = False
+                            starting_evolution_marker = evolution_marker(simulator)
+                            starting_species = party_species(simulator)
+                    elif has_evolution_started(simulator, starting_evolution_marker, starting_species):
+                        found = True
+                        break
                 elif current_map_id(simulator) != starting_map:
                     found = True
                     break
