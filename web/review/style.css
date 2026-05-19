@@ -695,9 +695,8 @@ button:disabled {
 
 .screen-panel .event-panel {
   margin-top: 0;
-  padding: 10px 0 0;
+  padding: 0;
   border: 0;
-  border-top: 1px solid #3c404a;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -808,9 +807,10 @@ button:disabled {
 }
 
 .warp-actions label {
-  color: #aeb4c0;
-  font-size: 12px;
-  font-weight: 700;
+  color: #f3f1e8;
+  font-family: Arial, sans-serif;
+  font-size: 13.3333px;
+  font-weight: 400;
   white-space: nowrap;
 }
 
