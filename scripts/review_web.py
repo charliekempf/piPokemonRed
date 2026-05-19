@@ -27,15 +27,16 @@ from run_pi_pyboy import INPUT_CONFIG, PI_DIGITS, ROM, RUN_NAME, latest_checkpoi
 WEB_ROOT = Path("web/review")
 
 
-def list_checkpoints(run_name: str) -> list[int]:
+def list_checkpoints(run_name: str) -> list[dict[str, int | str]]:
     checkpoint_dir = Path("saves") / run_name
-    checkpoints: list[int] = []
+    checkpoints: list[dict[str, int | str]] = []
     for checkpoint_path in checkpoint_dir.glob("checkpoint_*_digits.state"):
         try:
-            checkpoints.append(checkpoint_digits(checkpoint_path, None))
+            digits = checkpoint_digits(checkpoint_path, None)
         except ValueError:
             continue
-    return sorted(checkpoints)
+        checkpoints.append({"digits": digits, "filename": checkpoint_path.name})
+    return sorted(checkpoints, key=lambda checkpoint: int(checkpoint["digits"]))
 
 
 def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Image | None:

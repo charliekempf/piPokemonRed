@@ -310,11 +310,16 @@ function renderCheckpoints(checkpoints, currentDigits) {
   }
 
   checkpointsEl.replaceChildren(
-    ...checkpoints.map((digits) => {
+    ...checkpoints.map((checkpoint) => {
+      const digits = typeof checkpoint === "object" ? checkpoint.digits : checkpoint;
+      const filename = typeof checkpoint === "object"
+        ? checkpoint.filename
+        : `checkpoint_${String(digits).padStart(8, "0")}_digits.state`;
       const row = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = fmt(digits);
+      button.textContent = filename;
+      button.title = filename;
       button.dataset.digits = String(digits);
       button.className = Number(digits) === Number(currentDigits) ? "is-current" : "";
       button.disabled = backendBusy;
