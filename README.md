@@ -40,3 +40,17 @@ py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digi
 Add `--fresh` to ignore existing checkpoints and restart from reset.
 
 Checkpoints are saved in `saves/pi_10m_two_digit/`, screenshots in `results/pi_10m_two_digit/screenshots/`, and progress metadata in `results/pi_10m_two_digit/progress.json`. These generated files are intentionally ignored by git.
+
+Review a checkpoint with full PyBoy graphics and sound:
+
+```powershell
+py scripts\review_pi_checkpoint.py --checkpoint latest --speed 1
+```
+
+Open a specific checkpoint by digit count:
+
+```powershell
+py scripts\review_pi_checkpoint.py --checkpoint 5000000 --speed 1
+```
+
+The review window continues the same pi input stream from the checkpoint. The control panel has a speed slider from paused real-time review through high-speed playback, plus rewind buttons backed by in-memory savestate snapshots.
