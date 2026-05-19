@@ -15,6 +15,7 @@ const fastForwardButton = document.querySelector("#fast-forward-button");
 const jumpDigitsEl = document.querySelector("#jump-digits");
 const jumpButton = document.querySelector("#jump-button");
 const warpStateEl = document.querySelector("#warp-state");
+const warpLimitEl = document.querySelector("#warp-limit");
 const warpStateButton = document.querySelector("#warp-state-button");
 const simulateEl = document.querySelector("#simulate-digits");
 const simulateButton = document.querySelector("#simulate-button");
@@ -213,7 +214,7 @@ jumpButton.addEventListener("click", () => {
 });
 
 warpStateButton.addEventListener("click", () => {
-  post("/api/warp-state", { state: warpStateEl.value });
+  post("/api/warp-state", { state: warpStateEl.value, limit_digits: Number(warpLimitEl.value) });
 });
 
 simulateButton.addEventListener("click", () => {

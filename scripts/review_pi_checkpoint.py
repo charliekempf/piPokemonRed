@@ -985,6 +985,7 @@ class ReviewSession:
         self._simulate_target_digits: int | None = None
         self._jump_target_digits: int | None = None
         self._warp_target_state: str | None = None
+        self._warp_limit_digits = 1_000_000
         self._simulation_started_at: float | None = None
         self._last_simulation: dict[str, int | float | str] | None = None
         self._auto_snapshots_enabled = True
@@ -1103,13 +1104,15 @@ class ReviewSession:
             self.status = f"jumping to {target:,} digits"
         return target
 
-    def request_warp_state(self, target_state: str) -> str:
+    def request_warp_state(self, target_state: str, limit_digits: int = 1_000_000) -> str:
         target_state = target_state.lower().strip()
         if target_state not in WARP_STATE_LABELS:
             raise ValueError(f"Unsupported warp state: {target_state}")
         label = WARP_STATE_LABELS[target_state]
+        limit_digits = self._normalize_digit_distance(limit_digits)
         with self._lock:
             self._warp_target_state = target_state
+            self._warp_limit_digits = limit_digits
             self._rewind_digits_requested = 0
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
@@ -1117,7 +1120,7 @@ class ReviewSession:
             self.paused = False
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
-            self.status = f"finding next {label}"
+            self.status = f"finding next {label} within {limit_digits:,} digits"
         return target_state
 
     def stop(self) -> None:
@@ -1218,6 +1221,7 @@ class ReviewSession:
                     simulate_target = self._simulate_target_digits
                     jump_target = self._jump_target_digits
                     warp_target_state = self._warp_target_state
+                    warp_limit_digits = self._warp_limit_digits
 
                 if rewind_digits:
                     self._rewind(rewind_digits)
@@ -1228,7 +1232,7 @@ class ReviewSession:
                     continue
 
                 if warp_target_state is not None:
-                    self._find_next_warp_state_with_backend(warp_target_state)
+                    self._find_next_warp_state_with_backend(warp_target_state, warp_limit_digits)
                     continue
 
                 if paused or pause_requested:
@@ -1556,11 +1560,14 @@ class ReviewSession:
             self.latest_image = image
             self._auto_snapshots_enabled = False
 
-    def _find_next_warp_state_with_backend(self, target_state: str) -> None:
+    def _find_next_warp_state_with_backend(self, target_state: str, limit_digits: int) -> None:
         with self._lock:
             start_digits = self.digits_consumed
             if self.paused or self.pause_requested or self._warp_target_state is None:
                 return
+            end_digits = min(self.max_digits, start_digits + limit_digits)
+            if end_digits % self.input_config.digits_per_input:
+                end_digits -= end_digits % self.input_config.digits_per_input
             state_buffer = io.BytesIO()
             self.pyboy.save_state(state_buffer)
 
@@ -1586,7 +1593,7 @@ class ReviewSession:
             starting_map = current_map_id(simulator)
             starting_levels = party_levels(simulator)
             starting_species = party_species(simulator)
-            while digits_consumed < self.max_digits:
+            while digits_consumed < end_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 button = button_for_value(value, self.input_config)
                 simulator.button_press(button)
@@ -1643,7 +1650,7 @@ class ReviewSession:
                 self.paused = True
                 self._warp_target_state = None
                 self.pyboy.set_emulation_speed(self.speed)
-                self.status = f"no {WARP_STATE_LABELS[target_state]} before limit"
+                self.status = f"no {WARP_STATE_LABELS[target_state]} within {limit_digits:,} digits"
             return
 
         final_state.seek(0)

@@ -171,11 +171,14 @@ def make_handler(app: ReviewWebApp):
                 self._send_json({"ok": True, "digits": rounded_digits})
             elif path == "/api/next-battle":
                 app.refresh_available_digits()
-                app.session.request_warp_state("battle")
+                app.session.request_warp_state("battle", int(body.get("limit_digits", 1_000_000)))
                 self._send_json({"ok": True})
             elif path == "/api/warp-state":
                 app.refresh_available_digits()
-                target_state = app.session.request_warp_state(str(body.get("state", "battle")))
+                target_state = app.session.request_warp_state(
+                    str(body.get("state", "battle")),
+                    int(body.get("limit_digits", 1_000_000)),
+                )
                 self._send_json({"ok": True, "state": target_state})
             else:
                 self.send_error(404)
