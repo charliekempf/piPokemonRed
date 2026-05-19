@@ -22,6 +22,7 @@ body {
 }
 
 .screen-panel,
+.party-panel,
 .next-panel {
   background: #24262d;
   border: 1px solid #3c404a;
@@ -310,12 +311,17 @@ button:disabled {
   opacity: 0.6;
 }
 
-.next-panel {
-  padding: 12px;
+.side-stack {
   display: grid;
   gap: 14px;
 }
 
+.party-panel,
+.next-panel {
+  padding: 12px;
+}
+
+.party-panel h1,
 .next-panel h1 {
   margin: 0 0 10px;
   font-size: 16px;
