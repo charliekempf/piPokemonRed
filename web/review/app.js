@@ -2,6 +2,7 @@ const screen = document.querySelector("#screen");
 const statusEl = document.querySelector("#status");
 const statDigitsEl = document.querySelector("#stat-digits");
 const statProgressEl = document.querySelector("#stat-progress span");
+const statLocationEl = document.querySelector("#stat-location");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statLimiterEl = document.querySelector("#stat-limiter");
 const screenShellEl = document.querySelector(".screen-shell");
@@ -489,6 +490,8 @@ function renderStats(state) {
     || String(state.status).startsWith("finding next");
   screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
+  statLocationEl.textContent = state.location || "-";
+  statLocationEl.title = state.map_id === undefined ? "" : `Map $${Number(state.map_id).toString(16).toUpperCase().padStart(2, "0")}`;
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = `${state.speed}x`;
   statLimiterEl.textContent = state.speed_limiter_enabled;
@@ -520,6 +523,8 @@ async function refresh() {
   } catch (error) {
     setStateClass("disconnected");
     statDigitsEl.textContent = "-";
+    statLocationEl.textContent = "-";
+    statLocationEl.title = "";
     statProgressEl.style.width = "0";
     statSpeedEl.textContent = "-";
     statLimiterEl.textContent = "-";
