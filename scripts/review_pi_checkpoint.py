@@ -14,7 +14,7 @@ from tkinter import ttk
 
 from pyboy import PyBoy
 
-from run_pi_pyboy import GAMEBOY_FPS, PI_DIGITS, ROM, RUN_NAME, button_for_pair, latest_checkpoint
+from run_pi_pyboy import PI_DIGITS, ROM, RUN_NAME, button_for_pair, latest_checkpoint
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d{8})_digits\.state$")
@@ -36,8 +36,8 @@ class ReviewSession:
         max_digits: int,
         hold_frames: int,
         release_frames: int,
-        rewind_interval_frames: int,
-        rewind_history_frames: int,
+        rewind_interval_digits: int,
+        rewind_history_digits: int,
     ) -> None:
         self.pyboy = pyboy
         self.digits = digits
@@ -47,8 +47,8 @@ class ReviewSession:
         self.release_frames = release_frames
         self.frames_per_input = hold_frames + release_frames
         self.frames_elapsed = (digits_consumed // 2) * self.frames_per_input
-        self.rewind_interval_frames = rewind_interval_frames
-        self.max_snapshots = max(2, rewind_history_frames // rewind_interval_frames)
+        self.rewind_interval_digits = rewind_interval_digits
+        self.max_snapshots = max(2, rewind_history_digits // rewind_interval_digits)
         self.snapshots: deque[Snapshot] = deque(maxlen=self.max_snapshots)
         self.running = True
         self.paused = False
@@ -57,8 +57,8 @@ class ReviewSession:
         self.inputs_sent = 0
         self.last_button = "-"
         self._lock = threading.Lock()
-        self._rewind_frames_requested = 0
-        self._last_snapshot_frame = -rewind_interval_frames
+        self._rewind_digits_requested = 0
+        self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._take_snapshot()
 
     def set_speed(self, speed: float) -> None:
@@ -71,9 +71,9 @@ class ReviewSession:
             self.paused = paused
             self.status = "paused" if paused else "running"
 
-    def request_rewind(self, seconds: int) -> None:
+    def request_rewind(self, digits: int) -> None:
         with self._lock:
-            self._rewind_frames_requested = max(self._rewind_frames_requested, int(seconds * GAMEBOY_FPS))
+            self._rewind_digits_requested = max(self._rewind_digits_requested, digits)
 
     def stop(self) -> None:
         with self._lock:
@@ -100,11 +100,11 @@ class ReviewSession:
                     if not self.running:
                         break
                     paused = self.paused
-                    rewind_frames = self._rewind_frames_requested
-                    self._rewind_frames_requested = 0
+                    rewind_digits = self._rewind_digits_requested
+                    self._rewind_digits_requested = 0
 
-                if rewind_frames:
-                    self._rewind(rewind_frames)
+                if rewind_digits:
+                    self._rewind(rewind_digits)
                     continue
 
                 if paused:
@@ -131,7 +131,7 @@ class ReviewSession:
                     self.inputs_sent += 1
                     self.last_button = button
 
-                if self.frames_elapsed - self._last_snapshot_frame >= self.rewind_interval_frames:
+                if self.digits_consumed - self._last_snapshot_digits >= self.rewind_interval_digits:
                     self._take_snapshot()
         finally:
             self.pyboy.stop()
@@ -151,18 +151,18 @@ class ReviewSession:
                     state=buffer.getvalue(),
                 )
             )
-            self._last_snapshot_frame = self.frames_elapsed
+            self._last_snapshot_digits = self.digits_consumed
 
-    def _rewind(self, frames: int) -> None:
+    def _rewind(self, digits: int) -> None:
         with self._lock:
-            target = max(0, self.frames_elapsed - frames)
-            candidates = [snapshot for snapshot in self.snapshots if snapshot.frames_elapsed <= target]
+            target = max(0, self.digits_consumed - digits)
+            candidates = [snapshot for snapshot in self.snapshots if snapshot.digits_consumed <= target]
             snapshot = candidates[-1] if candidates else self.snapshots[0]
             self.pyboy.load_state(io.BytesIO(snapshot.state))
             self.digits_consumed = snapshot.digits_consumed
             self.frames_elapsed = snapshot.frames_elapsed
             self.status = f"rewound to {snapshot.digits_consumed:,} digits"
-            self._last_snapshot_frame = snapshot.frames_elapsed
+            self._last_snapshot_digits = snapshot.digits_consumed
 
 
 def checkpoint_digits(path: Path, explicit_digits: int | None) -> int:
@@ -216,14 +216,24 @@ def build_control_panel(session: ReviewSession) -> tk.Tk:
     ttk.Label(root, text="Speed").grid(row=1, column=0, padx=(10, 4), sticky="w")
     speed_slider = ttk.Scale(root, from_=0, to=2, variable=speed_var, command=speed_changed, length=320)
     speed_slider.grid(row=1, column=1, columnspan=3, padx=(0, 10), pady=4, sticky="ew")
+    rewind_digits_var = tk.StringVar(value="1000")
 
     def toggle_pause() -> None:
         info = session.info()
         session.set_paused(info["status"] != "paused")
 
     ttk.Button(root, text="Pause/Resume", command=toggle_pause).grid(row=2, column=0, padx=10, pady=8)
-    ttk.Button(root, text="Rewind 5s", command=lambda: session.request_rewind(5)).grid(row=2, column=1, padx=4, pady=8)
-    ttk.Button(root, text="Rewind 30s", command=lambda: session.request_rewind(30)).grid(row=2, column=2, padx=4, pady=8)
+    rewind_menu = ttk.Combobox(
+        root,
+        textvariable=rewind_digits_var,
+        values=("10", "100", "1000", "10000", "100000", "1000000"),
+        width=10,
+        state="readonly",
+    )
+    rewind_menu.grid(row=2, column=1, padx=4, pady=8)
+    ttk.Button(root, text="Rewind Digits", command=lambda: session.request_rewind(int(rewind_digits_var.get()))).grid(
+        row=2, column=2, padx=4, pady=8
+    )
     ttk.Button(root, text="Quit", command=lambda: (session.stop(), root.destroy())).grid(row=2, column=3, padx=10, pady=8)
 
     def refresh_status() -> None:
@@ -254,8 +264,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scale", type=int, default=4)
     parser.add_argument("--sound-volume", type=int, default=100)
     parser.add_argument("--sound-sample-rate", type=int, default=48000)
-    parser.add_argument("--rewind-history-seconds", type=int, default=300)
-    parser.add_argument("--rewind-interval-frames", type=int, default=60)
+    parser.add_argument("--rewind-history-digits", type=int, default=1_000_000)
+    parser.add_argument("--rewind-interval-digits", type=int, default=100)
     return parser.parse_args()
 
 
@@ -265,6 +275,10 @@ def main() -> None:
         raise ValueError("--hold-frames must be at least 1")
     if args.release_frames < 0:
         raise ValueError("--release-frames must be at least 0")
+    if args.rewind_interval_digits < 2:
+        raise ValueError("--rewind-interval-digits must be at least 2")
+    if args.rewind_history_digits < args.rewind_interval_digits:
+        raise ValueError("--rewind-history-digits must be at least --rewind-interval-digits")
 
     digits = args.digits.read_text(encoding="ascii").strip()
     max_digits = min(args.max_digits or len(digits), len(digits))
@@ -300,8 +314,8 @@ def main() -> None:
         max_digits=max_digits,
         hold_frames=args.hold_frames,
         release_frames=args.release_frames,
-        rewind_interval_frames=args.rewind_interval_frames,
-        rewind_history_frames=int(args.rewind_history_seconds * GAMEBOY_FPS),
+        rewind_interval_digits=args.rewind_interval_digits,
+        rewind_history_digits=args.rewind_history_digits,
     )
     session.set_speed(args.speed)
 
