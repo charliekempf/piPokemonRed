@@ -1287,7 +1287,7 @@ class ReviewSession:
         return target
 
     def request_jump(self, digits: int) -> int:
-        target = max(0, min(self.max_digits, int(digits)))
+        target = max(0, min(len(self.digits), int(digits)))
         if target % self.input_config.digits_per_input:
             target -= target % self.input_config.digits_per_input
         with self._lock:
@@ -1891,7 +1891,7 @@ class ReviewSession:
             self._end_seek_unlocked()
 
     def _jump_to(self, target: int) -> None:
-        target = max(0, min(self.max_digits, target))
+        target = max(0, min(len(self.digits), target))
         if target % self.input_config.digits_per_input:
             target -= target % self.input_config.digits_per_input
 
@@ -1936,6 +1936,7 @@ class ReviewSession:
         image = render_loaded_state(self.pyboy)
         with self._lock:
             self.digits_consumed = digits_consumed
+            self.max_digits = max(self.max_digits, digits_consumed)
             self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
             self.inputs_sent = inputs_sent
             if inputs_sent:
