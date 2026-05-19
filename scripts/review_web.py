@@ -27,6 +27,17 @@ from run_pi_pyboy import INPUT_CONFIG, PI_DIGITS, ROM, RUN_NAME, latest_checkpoi
 WEB_ROOT = Path("web/review")
 
 
+def list_checkpoints(run_name: str) -> list[int]:
+    checkpoint_dir = Path("saves") / run_name
+    checkpoints: list[int] = []
+    for checkpoint_path in checkpoint_dir.glob("checkpoint_*_digits.state"):
+        try:
+            checkpoints.append(checkpoint_digits(checkpoint_path, None))
+        except ValueError:
+            continue
+    return sorted(checkpoints)
+
+
 def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Image | None:
     screenshot_path = (
         Path("results")
@@ -102,6 +113,7 @@ class ReviewWebApp:
                 for digit_index, pair, button in self.session.upcoming_buttons(12)
             ],
             "party": self.session.party(),
+            "checkpoints": list_checkpoints(self.run_name),
         }
 
     def frame_png(self) -> bytes:

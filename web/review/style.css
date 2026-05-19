@@ -15,13 +15,14 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: auto 280px;
+  grid-template-columns: 180px auto 280px;
   gap: 18px;
   align-items: start;
   padding: 18px;
 }
 
 .screen-panel,
+.checkpoint-panel,
 .jump-panel,
 .party-panel,
 .next-panel {
@@ -33,6 +34,52 @@ body {
 
 .screen-panel {
   padding: 14px;
+}
+
+.checkpoint-panel {
+  max-height: calc(100vh - 36px);
+  overflow: hidden;
+  padding: 12px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.checkpoint-panel h1 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.checkpoint-list {
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.checkpoint-list button {
+  width: 100%;
+  height: 32px;
+  text-align: left;
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+
+.checkpoint-list button.is-current {
+  border-color: #6f89af;
+  background: #344257;
+  color: #fff4b8;
+}
+
+.checkpoint-empty {
+  padding: 10px 8px;
+  color: #aeb4c0;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+  font-size: 13px;
 }
 
 .screen-shell {

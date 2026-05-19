@@ -20,6 +20,7 @@ const warpStateButton = document.querySelector("#warp-state-button");
 const simulateEl = document.querySelector("#simulate-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
+const checkpointsEl = document.querySelector("#checkpoints");
 const partyEl = document.querySelector("#party");
 const upcomingEl = document.querySelector("#upcoming");
 
@@ -296,6 +297,33 @@ function renderParty(members) {
   );
 }
 
+function renderCheckpoints(checkpoints, currentDigits) {
+  if (!checkpoints.length) {
+    const row = document.createElement("li");
+    row.className = "checkpoint-empty";
+    row.textContent = "No checkpoints";
+    checkpointsEl.replaceChildren(row);
+    return;
+  }
+
+  checkpointsEl.replaceChildren(
+    ...checkpoints.map((digits) => {
+      const row = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = fmt(digits);
+      button.dataset.digits = String(digits);
+      button.className = Number(digits) === Number(currentDigits) ? "is-current" : "";
+      button.disabled = backendBusy;
+      button.addEventListener("click", () => {
+        post("/api/jump", { digits: Number(button.dataset.digits) });
+      });
+      row.append(button);
+      return row;
+    }),
+  );
+}
+
 function setInitialControls(state) {
   if (controlsInitialized) {
     return;
@@ -368,6 +396,7 @@ async function refresh() {
     const state = await response.json();
     setInitialControls(state);
     renderStats(state);
+    renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderParty(state.party || []);
     renderUpcoming(state.upcoming);
   } catch (error) {
@@ -378,6 +407,7 @@ async function refresh() {
     statLimiterEl.textContent = "-";
     statRendererEl.textContent = renderer.mode;
     statLastEl.textContent = "-";
+    renderCheckpoints([], 0);
     renderParty([]);
   } finally {
     setTimeout(refresh, 150);
