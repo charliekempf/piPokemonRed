@@ -1075,6 +1075,11 @@ button:disabled {
   position: relative;
   height: 80px;
   margin: 0 4px;
+  cursor: pointer;
+}
+
+.timeline-track:hover::before {
+  border-color: #6f89af;
 }
 
 .timeline-track::before {

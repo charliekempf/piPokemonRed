@@ -652,6 +652,19 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
 
   fill.style.width = `${Math.min(100, (Number(currentDigits) / timelineMax) * 100)}%`;
   cursor.style.left = `${Math.min(100, (Number(currentDigits) / timelineMax) * 100)}%`;
+  track.title = "Click to jump to the nearest checkpoint";
+  track.addEventListener("click", (event) => {
+    if (backendBusy || !checkpointItems.length) {
+      return;
+    }
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const targetDigits = ratio * timelineMax;
+    const nearest = checkpointItems.reduce((best, checkpoint) => {
+      return Math.abs(checkpoint.digits - targetDigits) < Math.abs(best.digits - targetDigits) ? checkpoint : best;
+    }, checkpointItems[0]);
+    post("/api/jump", { digits: nearest.digits });
+  });
 
   track.append(fill, cursor);
   timelineEl.replaceChildren(track);
