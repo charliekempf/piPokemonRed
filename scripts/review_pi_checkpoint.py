@@ -1120,6 +1120,10 @@ class AudioSink:
         if not self.device:
             return
 
+        if volume <= 0:
+            self.clear()
+            return
+
         head = pyboy.sound.raw_buffer_head
         if head <= 0:
             return
@@ -1133,6 +1137,10 @@ class AudioSink:
         if sdl2.SDL_GetQueuedAudioSize(self.device) > self.max_queued_bytes:
             sdl2.SDL_ClearQueuedAudio(self.device)
         sdl2.SDL_QueueAudio(self.device, data, len(data))
+
+    def clear(self) -> None:
+        if self.device:
+            sdl2.SDL_ClearQueuedAudio(self.device)
 
     def _sync_playback_speed(self, data: bytes, playback_speed: float) -> bytes:
         speed = max(0.1, min(1000.0, float(playback_speed or 1.0)))
@@ -1444,6 +1452,9 @@ class ReviewSession:
     def set_sound_volume(self, volume: int) -> None:
         with self._lock:
             self.sound_volume = max(0, min(100, int(volume)))
+            audio_sink = self.audio_sink
+        if audio_sink:
+            audio_sink.clear()
 
     def set_max_digits(self, max_digits: int) -> None:
         with self._lock:
