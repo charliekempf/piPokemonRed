@@ -1,0 +1,14 @@
+{
+  "on_frames": 2,
+  "off_frames": 1,
+  "digits_per_input": 2,
+  "mapping": [
+    { "min": 0, "max": 53, "button": "a" },
+    { "min": 54, "max": 63, "button": "up" },
+    { "min": 64, "max": 73, "button": "down" },
+    { "min": 74, "max": 83, "button": "left" },
+    { "min": 84, "max": 93, "button": "right" },
+    { "min": 94, "max": 98, "button": "b" },
+    { "min": 99, "max": 99, "button": "start" }
+  ]
+}

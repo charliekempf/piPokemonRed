@@ -74,13 +74,20 @@ The active input scheme consumes two decimal digits at a time and presses the ma
 - `94-98` -> B
 - `99` -> Start
 
+The input timing and mapping live in `config/pi_input.json`:
+
+- `on_frames` controls how many frames the selected button is held.
+- `off_frames` controls how many blank frames follow the button press.
+- `digits_per_input` controls how many pi digits are consumed for each input.
+- `mapping` assigns each decimal range to a Game Boy button.
+
 Run or resume the 10 million digit PyBoy test with:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000 --hold-frames 2 --release-frames 1
+py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000
 ```
 
-Add `--fresh` to ignore existing checkpoints and restart from reset.
+Add `--fresh` to ignore existing checkpoints and restart from reset. Pass `--hold-frames` or `--release-frames` only when intentionally overriding the config for an experiment.
 
 Checkpoints are saved in `saves/pi_10m_two_digit/`, screenshots in `results/pi_10m_two_digit/screenshots/`, and progress metadata in `results/pi_10m_two_digit/progress.json`. These generated files are intentionally ignored by git.
 

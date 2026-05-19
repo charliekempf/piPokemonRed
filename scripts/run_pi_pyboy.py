@@ -15,6 +15,23 @@ ROM = Path("roms/Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb")
 PI_DIGITS = Path("data/pi_10m_digits.txt")
 RUN_NAME = "pi_10m_two_digit"
 GAMEBOY_FPS = 4194304 / 70224
+INPUT_CONFIG = Path("config/pi_input.json")
+VALID_BUTTONS = {"a", "b", "start", "select", "up", "down", "left", "right"}
+
+
+@dataclass(frozen=True)
+class ButtonRange:
+    minimum: int
+    maximum: int
+    button: str
+
+
+@dataclass(frozen=True)
+class PiInputConfig:
+    on_frames: int
+    off_frames: int
+    digits_per_input: int
+    mapping: tuple[ButtonRange, ...]
 
 
 @dataclass
@@ -32,20 +49,57 @@ class Progress:
     last_state: str | None
 
 
+def load_input_config(config_path: Path = INPUT_CONFIG) -> PiInputConfig:
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    digits_per_input = int(raw["digits_per_input"])
+    if digits_per_input < 1:
+        raise ValueError("digits_per_input must be at least 1")
+
+    on_frames = int(raw["on_frames"])
+    off_frames = int(raw["off_frames"])
+    if on_frames < 1:
+        raise ValueError("on_frames must be at least 1")
+    if off_frames < 0:
+        raise ValueError("off_frames must be at least 0")
+
+    max_value = (10**digits_per_input) - 1
+    seen: set[int] = set()
+    ranges: list[ButtonRange] = []
+    for entry in raw["mapping"]:
+        minimum = int(entry["min"])
+        maximum = int(entry["max"])
+        button = str(entry["button"]).lower()
+        if button not in VALID_BUTTONS:
+            raise ValueError(f"Unsupported button in config: {button}")
+        if minimum < 0 or maximum > max_value or minimum > maximum:
+            raise ValueError(f"Invalid mapping range: {minimum}-{maximum}")
+        for value in range(minimum, maximum + 1):
+            if value in seen:
+                raise ValueError(f"Overlapping mapping value: {value}")
+            seen.add(value)
+        ranges.append(ButtonRange(minimum=minimum, maximum=maximum, button=button))
+
+    missing = set(range(max_value + 1)) - seen
+    if missing:
+        raise ValueError(f"Mapping does not cover {len(missing)} values for {digits_per_input} digits per input")
+
+    return PiInputConfig(
+        on_frames=on_frames,
+        off_frames=off_frames,
+        digits_per_input=digits_per_input,
+        mapping=tuple(ranges),
+    )
+
+
+def button_for_value(value: int, input_config: PiInputConfig) -> str:
+    for button_range in input_config.mapping:
+        if button_range.minimum <= value <= button_range.maximum:
+            return button_range.button
+    raise ValueError(f"No button mapping for value {value}")
+
+
 def button_for_pair(value: int) -> str:
-    if value <= 53:
-        return "a"
-    if value <= 63:
-        return "up"
-    if value <= 73:
-        return "down"
-    if value <= 83:
-        return "left"
-    if value <= 93:
-        return "right"
-    if value <= 98:
-        return "b"
-    return "start"
+    return button_for_value(value, load_input_config())
 
 
 def advance_pi_inputs(
@@ -56,20 +110,23 @@ def advance_pi_inputs(
     hold_frames: int,
     release_frames: int,
     render_final: bool = False,
+    input_config: PiInputConfig | None = None,
 ) -> tuple[int, int, str]:
+    config = input_config or load_input_config()
+    digits_per_input = config.digits_per_input
     digits_consumed = start_digits
     inputs_sent = 0
     last_button = "-"
     while digits_consumed < target_digits:
-        pair = int(digits[digits_consumed : digits_consumed + 2])
-        button = button_for_pair(pair)
-        finishing = digits_consumed + 2 >= target_digits
+        value = int(digits[digits_consumed : digits_consumed + digits_per_input])
+        button = button_for_value(value, config)
+        finishing = digits_consumed + digits_per_input >= target_digits
         pyboy.button_press(button)
         pyboy.tick(hold_frames, False, False)
         pyboy.button_release(button)
         if release_frames:
             pyboy.tick(release_frames, render_final and finishing, False)
-        digits_consumed += 2
+        digits_consumed += digits_per_input
         inputs_sent += 1
         last_button = button
     return digits_consumed, inputs_sent, last_button
@@ -119,10 +176,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Pokemon Red with pi-derived inputs in PyBoy.")
     parser.add_argument("--rom", type=Path, default=ROM)
     parser.add_argument("--digits", type=Path, default=PI_DIGITS)
+    parser.add_argument("--config", type=Path, default=INPUT_CONFIG)
     parser.add_argument("--run-name", default=RUN_NAME)
     parser.add_argument("--checkpoint-digits", type=int, default=1_000_000)
-    parser.add_argument("--hold-frames", type=int, default=2)
-    parser.add_argument("--release-frames", type=int, default=1)
+    parser.add_argument("--hold-frames", type=int, default=None)
+    parser.add_argument("--release-frames", type=int, default=None)
     parser.add_argument("--max-digits", type=int, default=None)
     parser.add_argument("--fresh", action="store_true", help="Ignore existing checkpoints and start from reset.")
     parser.add_argument("--no-screenshots", action="store_true")
@@ -131,15 +189,18 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.hold_frames < 1:
+    input_config = load_input_config(args.config)
+    hold_frames = input_config.on_frames if args.hold_frames is None else args.hold_frames
+    release_frames = input_config.off_frames if args.release_frames is None else args.release_frames
+    if hold_frames < 1:
         raise ValueError("--hold-frames must be at least 1")
-    if args.release_frames < 0:
+    if release_frames < 0:
         raise ValueError("--release-frames must be at least 0")
 
     digits = args.digits.read_text(encoding="ascii").strip()
     max_digits = min(args.max_digits or len(digits), len(digits))
-    if max_digits % 2:
-        max_digits -= 1
+    if max_digits % input_config.digits_per_input:
+        max_digits -= max_digits % input_config.digits_per_input
 
     checkpoint_dir = Path("saves") / args.run_name
     screenshot_dir = Path("results") / args.run_name / "screenshots"
@@ -177,8 +238,8 @@ def main() -> None:
     next_checkpoint = ((start_digits // args.checkpoint_digits) + 1) * args.checkpoint_digits
     next_checkpoint = min(next_checkpoint, max_digits)
     digits_consumed = start_digits
-    frames_per_input = args.hold_frames + args.release_frames
-    frames_elapsed = (digits_consumed // 2) * frames_per_input
+    frames_per_input = hold_frames + release_frames
+    frames_elapsed = (digits_consumed // input_config.digits_per_input) * frames_per_input
     started_at = time.perf_counter()
     last_state: Path | None = state_to_load
 
@@ -190,8 +251,9 @@ def main() -> None:
                 digits,
                 digits_consumed,
                 chunk_target,
-                args.hold_frames,
-                args.release_frames,
+                hold_frames,
+                release_frames,
+                input_config=input_config,
             )
             frames_elapsed += inputs_sent * frames_per_input
 
@@ -210,7 +272,7 @@ def main() -> None:
                     digits_path=str(args.digits),
                     rom_path=str(args.rom),
                     digits_consumed=digits_consumed,
-                    input_pairs_consumed=digits_consumed // 2,
+                    input_pairs_consumed=digits_consumed // input_config.digits_per_input,
                     frames_elapsed=frames_elapsed,
                     checkpoints_completed=digits_consumed // args.checkpoint_digits,
                     elapsed_seconds=elapsed,

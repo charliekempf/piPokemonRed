@@ -21,7 +21,7 @@ from review_pi_checkpoint import (
     render_loaded_state,
     resolve_checkpoint,
 )
-from run_pi_pyboy import PI_DIGITS, ROM, RUN_NAME
+from run_pi_pyboy import INPUT_CONFIG, PI_DIGITS, ROM, RUN_NAME, load_input_config
 
 
 WEB_ROOT = Path("web/review")
@@ -164,13 +164,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the piPokemon web reviewer.")
     parser.add_argument("--rom", type=Path, default=ROM)
     parser.add_argument("--digits", type=Path, default=PI_DIGITS)
+    parser.add_argument("--config", type=Path, default=INPUT_CONFIG)
     parser.add_argument("--run-name", default=RUN_NAME)
     parser.add_argument("--checkpoint", default="latest")
     parser.add_argument("--digits-consumed", type=int, default=None)
     parser.add_argument("--max-digits", type=int, default=None)
     parser.add_argument("--speed", type=int, default=1)
-    parser.add_argument("--hold-frames", type=int, default=2)
-    parser.add_argument("--release-frames", type=int, default=1)
+    parser.add_argument("--hold-frames", type=int, default=None)
+    parser.add_argument("--release-frames", type=int, default=None)
     parser.add_argument("--scale", type=int, default=4)
     parser.add_argument("--sound-volume", type=int, default=100)
     parser.add_argument("--sound-sample-rate", type=int, default=48000)
@@ -185,10 +186,18 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    input_config = load_input_config(args.config)
+    hold_frames = input_config.on_frames if args.hold_frames is None else args.hold_frames
+    release_frames = input_config.off_frames if args.release_frames is None else args.release_frames
+    if hold_frames < 1:
+        raise ValueError("--hold-frames must be at least 1")
+    if release_frames < 0:
+        raise ValueError("--release-frames must be at least 0")
+
     digits = args.digits.read_text(encoding="ascii").strip()
     max_digits = min(args.max_digits or len(digits), len(digits))
-    if max_digits % 2:
-        max_digits -= 1
+    if max_digits % input_config.digits_per_input:
+        max_digits -= max_digits % input_config.digits_per_input
 
     checkpoint = resolve_checkpoint(args.run_name, args.checkpoint, max_digits=max_digits)
     start_digits = checkpoint_digits(checkpoint, args.digits_consumed)
@@ -214,8 +223,8 @@ def main() -> None:
         digits=digits,
         digits_consumed=start_digits,
         max_digits=max_digits,
-        hold_frames=args.hold_frames,
-        release_frames=args.release_frames,
+        hold_frames=hold_frames,
+        release_frames=release_frames,
         rewind_interval_digits=args.rewind_interval_digits,
         rewind_history_digits=args.rewind_history_digits,
         sound_volume=args.sound_volume,
@@ -224,6 +233,7 @@ def main() -> None:
         rom_path=args.rom,
         run_name=args.run_name,
         digits_path=args.digits,
+        input_config=input_config,
     )
     session.set_speed(args.speed)
     if args.start_running:

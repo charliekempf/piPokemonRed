@@ -18,13 +18,16 @@ from pyboy import PyBoy
 
 from run_pi_pyboy import (
     GAMEBOY_FPS,
+    INPUT_CONFIG,
     PI_DIGITS,
     ROM,
     RUN_NAME,
+    PiInputConfig,
     Progress,
     advance_pi_inputs,
-    button_for_pair,
+    button_for_value,
     latest_checkpoint,
+    load_input_config,
     save_checkpoint,
     write_progress,
 )
@@ -89,18 +92,20 @@ class ReviewSession:
         rom_path: Path | None = None,
         run_name: str = RUN_NAME,
         digits_path: Path = PI_DIGITS,
+        input_config: PiInputConfig | None = None,
     ) -> None:
         self.pyboy = pyboy
         self.rom_path = rom_path
         self.run_name = run_name
         self.digits_path = digits_path
+        self.input_config = input_config or load_input_config()
         self.digits = digits
         self.digits_consumed = digits_consumed
         self.max_digits = max_digits
         self.hold_frames = hold_frames
         self.release_frames = release_frames
         self.frames_per_input = hold_frames + release_frames
-        self.frames_elapsed = (digits_consumed // 2) * self.frames_per_input
+        self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
         self.rewind_interval_digits = rewind_interval_digits
         self.max_snapshots = max(2, rewind_history_digits // rewind_interval_digits)
         self.snapshots: deque[Snapshot] = deque(maxlen=self.max_snapshots)
@@ -170,8 +175,8 @@ class ReviewSession:
         digits = self._normalize_digit_distance(digits)
         with self._lock:
             target = min(self.max_digits, self.digits_consumed + digits)
-            if target % 2:
-                target -= 1
+            if target % self.input_config.digits_per_input:
+                target -= target % self.input_config.digits_per_input
             if target <= self.digits_consumed:
                 self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
                 return
@@ -188,8 +193,8 @@ class ReviewSession:
             if self._simulate_target_digits is not None:
                 return
             target = min(self.max_digits, self.digits_consumed + digits)
-            if target % 2:
-                target -= 1
+            if target % self.input_config.digits_per_input:
+                target -= target % self.input_config.digits_per_input
             if target <= self.digits_consumed:
                 self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
                 return
@@ -264,16 +269,16 @@ class ReviewSession:
 
                 will_finish_fast_forward = (
                     fast_forward_target is not None
-                    and self.digits_consumed + 2 >= fast_forward_target
+                    and self.digits_consumed + self.input_config.digits_per_input >= fast_forward_target
                 )
-                pair = int(self.digits[self.digits_consumed : self.digits_consumed + 2])
-                button = button_for_pair(pair)
+                value = int(self.digits[self.digits_consumed : self.digits_consumed + self.input_config.digits_per_input])
+                button = button_for_value(value, self.input_config)
                 self.pyboy.button_press(button)
                 self._tick_frames(self.hold_frames)
                 self.pyboy.button_release(button)
                 self._tick_frames(self.release_frames, force_final_render=will_finish_fast_forward)
                 with self._lock:
-                    self.digits_consumed += 2
+                    self.digits_consumed += self.input_config.digits_per_input
                     self.frames_elapsed += self.frames_per_input
                     self.inputs_sent += 1
                     self.last_button = button
@@ -334,6 +339,7 @@ class ReviewSession:
                 target_digits,
                 self.hold_frames,
                 self.release_frames,
+                input_config=self.input_config,
             )
             final_state = io.BytesIO()
             simulator.save_state(final_state)
@@ -385,6 +391,7 @@ class ReviewSession:
                 target_digits,
                 self.hold_frames,
                 self.release_frames,
+                input_config=self.input_config,
             )
             checkpoint_dir = Path("saves") / self.run_name
             screenshot_dir = Path("results") / self.run_name / "screenshots"
@@ -409,8 +416,8 @@ class ReviewSession:
             digits_path=str(self.digits_path),
             rom_path=str(self.rom_path or ROM),
             digits_consumed=digits_consumed,
-            input_pairs_consumed=digits_consumed // 2,
-            frames_elapsed=(digits_consumed // 2) * self.frames_per_input,
+            input_pairs_consumed=digits_consumed // self.input_config.digits_per_input,
+            frames_elapsed=(digits_consumed // self.input_config.digits_per_input) * self.frames_per_input,
             checkpoints_completed=len(list(checkpoint_dir.glob("checkpoint_*_digits.state"))),
             elapsed_seconds=elapsed,
             effective_fps=effective_fps,
@@ -474,8 +481,8 @@ class ReviewSession:
     def _rewind(self, digits: int) -> None:
         with self._lock:
             target = max(0, self.digits_consumed - digits)
-            if target % 2:
-                target -= 1
+            if target % self.input_config.digits_per_input:
+                target -= target % self.input_config.digits_per_input
             candidates = [snapshot for snapshot in self.snapshots if snapshot.digits_consumed <= target]
             snapshot = candidates[-1] if candidates else self.snapshots[0]
             self.pyboy.load_state(io.BytesIO(snapshot.state))
@@ -491,6 +498,7 @@ class ReviewSession:
             target,
             self.hold_frames,
             self.release_frames,
+            input_config=self.input_config,
         )
         image = render_loaded_state(self.pyboy)
         with self._lock:
@@ -502,9 +510,10 @@ class ReviewSession:
             self.latest_image = image
 
     def _normalize_digit_distance(self, digits: int) -> int:
-        digits = max(2, int(digits))
-        if digits % 2:
-            digits -= 1
+        digits_per_input = self.input_config.digits_per_input
+        digits = max(digits_per_input, int(digits))
+        if digits % digits_per_input:
+            digits -= digits % digits_per_input
         return digits
 
     def _capture_frame(self) -> None:
@@ -521,12 +530,13 @@ class ReviewSession:
             start = self.digits_consumed
 
         buttons = []
-        for offset in range(0, count * 2, 2):
+        digits_per_input = self.input_config.digits_per_input
+        for offset in range(0, count * digits_per_input, digits_per_input):
             digit_index = start + offset
-            if digit_index + 1 >= self.max_digits:
+            if digit_index + digits_per_input > self.max_digits:
                 break
-            pair = self.digits[digit_index : digit_index + 2]
-            buttons.append((digit_index, pair, button_for_pair(int(pair))))
+            digits_slice = self.digits[digit_index : digit_index + digits_per_input]
+            buttons.append((digit_index, digits_slice, button_for_value(int(digits_slice), self.input_config)))
         return buttons
 
 
@@ -672,13 +682,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Review a piPokemon PyBoy checkpoint with graphics, sound, speed, and rewind.")
     parser.add_argument("--rom", type=Path, default=ROM)
     parser.add_argument("--digits", type=Path, default=PI_DIGITS)
+    parser.add_argument("--config", type=Path, default=INPUT_CONFIG)
     parser.add_argument("--run-name", default=RUN_NAME)
     parser.add_argument("--checkpoint", default="latest", help="latest, a state path, or a digit count such as 5000000")
     parser.add_argument("--digits-consumed", type=int, default=None)
     parser.add_argument("--max-digits", type=int, default=None)
     parser.add_argument("--speed", type=int, default=1)
-    parser.add_argument("--hold-frames", type=int, default=2)
-    parser.add_argument("--release-frames", type=int, default=1)
+    parser.add_argument("--hold-frames", type=int, default=None)
+    parser.add_argument("--release-frames", type=int, default=None)
     parser.add_argument("--scale", type=int, default=4)
     parser.add_argument("--sound-volume", type=int, default=100)
     parser.add_argument("--sound-sample-rate", type=int, default=48000)
@@ -690,9 +701,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.hold_frames < 1:
+    input_config = load_input_config(args.config)
+    hold_frames = input_config.on_frames if args.hold_frames is None else args.hold_frames
+    release_frames = input_config.off_frames if args.release_frames is None else args.release_frames
+    if hold_frames < 1:
         raise ValueError("--hold-frames must be at least 1")
-    if args.release_frames < 0:
+    if release_frames < 0:
         raise ValueError("--release-frames must be at least 0")
     if args.rewind_interval_digits < 2:
         raise ValueError("--rewind-interval-digits must be at least 2")
@@ -701,8 +715,8 @@ def main() -> None:
 
     digits = args.digits.read_text(encoding="ascii").strip()
     max_digits = min(args.max_digits or len(digits), len(digits))
-    if max_digits % 2:
-        max_digits -= 1
+    if max_digits % input_config.digits_per_input:
+        max_digits -= max_digits % input_config.digits_per_input
     checkpoint = resolve_checkpoint(args.run_name, args.checkpoint, max_digits=max_digits)
     start_digits = checkpoint_digits(checkpoint, args.digits_consumed)
     if start_digits >= max_digits:
@@ -731,8 +745,8 @@ def main() -> None:
         digits=digits,
         digits_consumed=start_digits,
         max_digits=max_digits,
-        hold_frames=args.hold_frames,
-        release_frames=args.release_frames,
+        hold_frames=hold_frames,
+        release_frames=release_frames,
         rewind_interval_digits=args.rewind_interval_digits,
         rewind_history_digits=args.rewind_history_digits,
         sound_volume=args.sound_volume,
@@ -741,6 +755,7 @@ def main() -> None:
         rom_path=args.rom,
         run_name=args.run_name,
         digits_path=args.digits,
+        input_config=input_config,
     )
     session.set_speed(args.speed)
     if args.start_running:

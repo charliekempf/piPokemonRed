@@ -19,6 +19,7 @@ Current core approach:
   - `94-98` -> B
   - `99` -> Start
 - Current verified timing is hold button for 2 frames, then release for 1 frame. One-frame taps were tested and often did not affect Pokemon Red gameplay.
+- Input timing and digit-to-button ranges are configured in `config/pi_input.json`. The current config is `on_frames: 2`, `off_frames: 1`, `digits_per_input: 2`, with the two-digit mapping below.
 - Current verified run is `pi_10m_two_digit`: first 10,000,000 digits, checkpoints/screenshots every 1,000,000 digits.
 - Highest digit reached for README/status purposes is 10,000,000 digits consumed in `pi_10m_two_digit`.
 - The current web reviewer normally starts from the latest playable checkpoint, which is 9,000,000/10,000,000 for the local 10M run.
@@ -35,7 +36,7 @@ Important scripts:
 Typical commands:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000 --hold-frames 2 --release-frames 1
+py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000
 .\scripts\open_review.ps1
 ```
 
