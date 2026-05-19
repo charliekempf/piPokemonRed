@@ -164,15 +164,6 @@
           <h1>Inputs</h1>
           <canvas id="inputs" class="inputs-canvas" role="img" aria-label="Upcoming pi inputs"></canvas>
         </section>
-        <section class="config-panel">
-          <h1>Config</h1>
-          <div class="config-summary">
-            <span>Digits/input</span>
-            <strong id="config-digits-per-input">-</strong>
-          </div>
-          <canvas id="config-spread-chart" class="config-chart" width="220" height="150" aria-label="Button mapping spread"></canvas>
-          <ol id="config-ranges" class="config-ranges"></ol>
-        </section>
         <section class="party-panel">
           <h1>Party</h1>
           <ol id="party" class="party-list"></ol>
@@ -193,6 +184,17 @@
       <section class="timeline-panel">
         <h1>Timeline</h1>
         <div id="timeline" class="timeline"></div>
+      </section>
+      <section class="config-panel">
+        <h1>Config</h1>
+        <div class="config-layout">
+          <div class="config-summary">
+            <span>Digits/input</span>
+            <strong id="config-digits-per-input">-</strong>
+          </div>
+          <canvas id="config-spread-chart" class="config-chart" width="220" height="150" aria-label="Button mapping spread"></canvas>
+          <ol id="config-ranges" class="config-ranges"></ol>
+        </div>
       </section>
     </main>
     <script src="/app.js"></script>
