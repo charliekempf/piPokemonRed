@@ -2,6 +2,12 @@
 
 Experiments for mapping digits of pi to Game Boy inputs and testing whether the resulting input stream can progress through Pokemon Red.
 
+## What This Is
+
+`piPokemon` is a local research toy for deterministic Pokemon Red input experiments. It maps digits of pi into Game Boy button presses, runs the game through PyBoy, saves periodic checkpoints, and provides a review UI for replaying checkpoints with graphics, sound, speed control, and rewind.
+
+The project is designed so the public repository contains only source code and documentation. You bring your own legally obtained ROM and local data files.
+
 ## Layout
 
 - `roms/` - local ROM files, ignored by git
@@ -33,6 +39,13 @@ Only source code, documentation, and placeholder files should appear in `git ls-
 ```powershell
 py -m pip install -r requirements.txt
 ```
+
+Expected local files:
+
+- `roms/Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb`
+- `data/pi_10m_digits.txt`
+
+The scripts assume those default paths, but most commands accept `--rom` and `--digits` overrides.
 
 ## Current Benchmark Baseline
 
@@ -71,6 +84,8 @@ The current verified run uses the first million digits with checkpoints every 10
 py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_digits.txt --max-digits 1000000 --checkpoint-digits 100000 --hold-frames 2 --release-frames 1
 ```
 
+Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`.
+
 Review a checkpoint with graphics, sound, and controls in one window:
 
 ```powershell
@@ -90,3 +105,17 @@ py scripts\review_pi_checkpoint.py --checkpoint 5000000 --speed 1
 ```
 
 The review window continues the same pi input stream from the checkpoint. It embeds the Game Boy screen and controls in a single window, with a logarithmic speed slider from `1x` to `100x`, an `inputs sent` counter, the last pi-derived button sent, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.
+
+## TAS Button Tally
+
+The TAS helper parses BizHawk `.bk2` movie files and counts button press frequency:
+
+```powershell
+py scripts\tally_tas_buttons.py path\to\movie.bk2
+```
+
+Downloaded TAS files and generated tally outputs are ignored by git.
+
+## Status
+
+This is experimental tooling, not a packaged emulator frontend. The current practical path is PyBoy for simulation and review; native libretro benchmark code is kept under `src/LibretroBench/` for comparison work.
