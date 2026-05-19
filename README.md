@@ -6,9 +6,33 @@ Experiments for mapping digits of pi to Game Boy inputs and testing whether the 
 
 - `roms/` - local ROM files, ignored by git
 - `saves/` - emulator RAM/save state files, ignored by git
+- `data/` - downloaded pi digit files, ignored by git
+- `tas/` - downloaded TAS/movie files, ignored by git
+- `tools/` - downloaded emulator cores and local tools, ignored by git
 - `src/` - project code
 - `scripts/` - local benchmark and utility scripts
 - `results/` - generated benchmark/output files, ignored by git
+
+## Publishing / Asset Policy
+
+This repository intentionally does not include Pokemon ROMs, save files, savestates, screenshots, downloaded TAS movies, pi digit dumps, emulator core binaries, or other generated/local assets.
+
+To run the experiments, provide your own legally obtained Pokemon Red ROM in `roms/` and download or generate pi digit files into `data/`. Those folders are kept in the repo only with `.gitkeep` placeholders.
+
+Before publishing or pushing changes, check:
+
+```powershell
+git status --short --ignored
+git ls-files
+```
+
+Only source code, documentation, and placeholder files should appear in `git ls-files`.
+
+## Setup
+
+```powershell
+py -m pip install -r requirements.txt
+```
 
 ## Current Benchmark Baseline
 

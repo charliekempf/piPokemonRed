@@ -1,0 +1,3 @@
+pyboy>=2.7.0
+Pillow>=10
+PySDL2>=0.9

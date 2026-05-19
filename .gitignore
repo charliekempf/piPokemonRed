@@ -6,6 +6,26 @@ tas/*
 data/*
 tools/*
 
+# Defensive ignores for copyrighted/local/generated artifacts anywhere
+*.gb
+*.gbc
+*.gba
+*.sgb
+*.sav
+*.srm
+*.ram
+*.state
+*.bk2
+*.tasproj
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.wav
+*.dll
+*.zip
+
 !.gitkeep
 !roms/.gitkeep
 !saves/.gitkeep
