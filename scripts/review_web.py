@@ -303,6 +303,22 @@ class ReviewWebApp:
             "chart_simulation": self.chart_simulation_info(),
         }
 
+    def input_state(self) -> dict[str, object]:
+        if self.session is None:
+            return {
+                "rom_missing": self.rom_missing,
+                "status": "ROM required",
+                "digits_consumed": 0,
+                "inputs": [],
+            }
+        info = self.session.info()
+        return {
+            "rom_missing": False,
+            "status": info["status"],
+            "digits_consumed": info["digits_consumed"],
+            "inputs": self.session.input_window(previous_count=3, next_count=11),
+        }
+
     def frame_png(self) -> bytes:
         if self.session is None:
             return image_to_png(None, self.scale)
@@ -322,6 +338,8 @@ def make_handler(app: ReviewWebApp):
                 self._serve_file(WEB_ROOT / "index.html")
             elif path == "/api/state":
                 self._send_json(app.state())
+            elif path == "/api/inputs":
+                self._send_json(app.input_state())
             elif path == "/api/frame.png":
                 self._send_bytes(app.frame_png(), "image/png")
             elif path == "/api/frame.rgba":

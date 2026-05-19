@@ -49,8 +49,11 @@ const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
 const INPUT_ROW_HEIGHT = 38;
 const INPUT_ROW_GAP = 6;
 const INPUT_CANVAS_PADDING = 0;
+const STATE_REFRESH_MS = 150;
+const INPUT_REFRESH_MS = 33;
 
 let frameFetchInFlight = false;
+let inputFetchInFlight = false;
 let controlsInitialized = false;
 let backendBusy = false;
 let romMissing = false;
@@ -862,8 +865,24 @@ async function refresh() {
     renderBadges([]);
     renderInputs([]);
   } finally {
-    setTimeout(refresh, 150);
+    setTimeout(refresh, STATE_REFRESH_MS);
   }
+}
+
+async function refreshInputs() {
+  if (!inputFetchInFlight) {
+    inputFetchInFlight = true;
+    try {
+      const response = await fetch("/api/inputs", { cache: "no-store" });
+      const state = await response.json();
+      renderInputs(state.inputs || []);
+    } catch (error) {
+      renderInputs([]);
+    } finally {
+      inputFetchInFlight = false;
+    }
+  }
+  setTimeout(refreshInputs, INPUT_REFRESH_MS);
 }
 
 async function drawFrameLoop() {
@@ -885,4 +904,5 @@ async function drawFrameLoop() {
 }
 
 refresh();
+refreshInputs();
 drawFrameLoop();
