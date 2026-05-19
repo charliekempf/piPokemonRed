@@ -680,9 +680,7 @@ button:disabled {
   gap: 5px;
 }
 
-.party-member.is-expanded .party-moves,
-.party-member:hover .party-moves,
-.party-member:focus-within .party-moves {
+.party-member.is-expanded .party-moves {
   display: grid;
 }
 
