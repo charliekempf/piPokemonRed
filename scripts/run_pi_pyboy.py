@@ -99,9 +99,28 @@ def canonical_config_text(config_path: Path) -> str:
 
 
 def compatibility_config_text(config_path: Path) -> str:
+    raw = compatibility_config_payload(config_path)
+    return json.dumps(raw, indent=2, sort_keys=True) + "\n"
+
+
+def compatibility_config_payload(config_path: Path) -> dict[str, object]:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
     raw.pop("name", None)
-    return json.dumps(raw, indent=2, sort_keys=True) + "\n"
+    return raw
+
+
+def configs_are_compatible(stored_config_path: Path, requested_config_path: Path) -> bool:
+    stored = compatibility_config_payload(stored_config_path)
+    requested = compatibility_config_payload(requested_config_path)
+    if stored == requested:
+        return True
+
+    if "game" not in stored:
+        requested_without_game = dict(requested)
+        requested_without_game.pop("game", None)
+        return stored == requested_without_game
+
+    return False
 
 
 def config_display_name(config_path: Path) -> str:
@@ -123,10 +142,9 @@ def resolve_configured_run_name(
     results_root: Path = Path("results"),
 ) -> str:
     config_text = canonical_config_text(config_path)
-    compatibility_text = compatibility_config_text(config_path)
     configured_run_name = run_name
     run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
-    if run_config_path.exists() and compatibility_config_text(run_config_path) != compatibility_text:
+    if run_config_path.exists() and not configs_are_compatible(run_config_path, config_path):
         configured_run_name = f"{run_name}_{config_run_suffix(config_path)}"
         run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
 

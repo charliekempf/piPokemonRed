@@ -46,6 +46,9 @@ const playerInfoEl = document.querySelector("#player-info");
 const badgesEl = document.querySelector("#badges");
 const inputsEl = document.querySelector("#inputs");
 const configDigitsPerInputEl = document.querySelector("#config-digits-per-input");
+const configGameTitleEl = document.querySelector("#config-game-title");
+const configGameVersionEl = document.querySelector("#config-game-version");
+const configGameRegionEl = document.querySelector("#config-game-region");
 const configSpreadChartEl = document.querySelector("#config-spread-chart");
 const configRangesEl = document.querySelector("#config-ranges");
 
@@ -462,7 +465,11 @@ function renderConfigInfo(config = {}) {
 
   const mapping = Array.isArray(config.mapping) ? config.mapping : [];
   const digitsPerInput = Number(config.digits_per_input) || 0;
+  const game = config.game || {};
   configDigitsPerInputEl.textContent = digitsPerInput ? String(digitsPerInput) : "-";
+  configGameTitleEl.textContent = game.title || "-";
+  configGameVersionEl.textContent = game.version || "-";
+  configGameRegionEl.textContent = game.region || "-";
 
   if (!mapping.length) {
     const empty = document.createElement("li");

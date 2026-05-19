@@ -95,9 +95,18 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
 
 def config_info(config_path: Path) -> dict[str, object]:
     config = load_input_config(config_path)
+    raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+    game = raw_config.get("game", {})
+    if not isinstance(game, dict):
+        game = {}
     total_values = 10**config.digits_per_input
     return {
         "name": config_display_name(config_path),
+        "game": {
+            "title": str(game.get("title", "")).strip(),
+            "version": str(game.get("version", "")).strip(),
+            "region": str(game.get("region", "")).strip(),
+        },
         "digits_per_input": config.digits_per_input,
         "on_frames": config.on_frames,
         "off_frames": config.off_frames,

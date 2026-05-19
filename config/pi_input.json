@@ -1,5 +1,10 @@
 {
   "name": "Statistical Spread",
+  "game": {
+    "title": "Pokemon Red",
+    "version": "1.0",
+    "region": "USA/Europe"
+  },
   "on_frames": 2,
   "off_frames": 1,
   "digits_per_input": 2,

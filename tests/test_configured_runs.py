@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from run_pi_pyboy import RUN_CONFIG_FILENAME, config_display_name, resolve_configured_run_name
 
 
-def write_config(path: Path, a_max: int, name: str | None = None) -> None:
+def write_config(path: Path, a_max: int, name: str | None = None, version: str | None = None) -> None:
     payload = {
         "on_frames": 2,
         "off_frames": 1,
@@ -19,6 +19,8 @@ def write_config(path: Path, a_max: int, name: str | None = None) -> None:
     }
     if name is not None:
         payload["name"] = name
+    if version is not None:
+        payload["game"] = {"title": "Pokemon Red", "version": version, "region": "USA/Europe"}
     path.write_text(
         json.dumps(payload),
         encoding="utf-8",
@@ -65,3 +67,31 @@ def test_config_name_does_not_create_separate_run_folder(tmp_path: Path) -> None
     assert first == "experiment"
     assert renamed == "experiment"
     assert config_display_name(tmp_path / "saves" / "experiment" / RUN_CONFIG_FILENAME) == "Statistical Spread"
+
+
+def test_game_version_change_gets_separate_run_folder(tmp_path: Path) -> None:
+    first_config = tmp_path / "mapping.json"
+    second_config = tmp_path / "alternate.json"
+    write_config(first_config, 53, version="1.0")
+    write_config(second_config, 53, version="1.1")
+
+    first = resolve_configured_run_name("experiment", first_config, tmp_path / "saves", tmp_path / "results")
+    second = resolve_configured_run_name("experiment", second_config, tmp_path / "saves", tmp_path / "results")
+
+    assert first == "experiment"
+    assert second.startswith("experiment_alternate_")
+    assert second != first
+
+
+def test_adding_game_metadata_keeps_existing_run_folder(tmp_path: Path) -> None:
+    old_config = tmp_path / "mapping.json"
+    updated_config = tmp_path / "mapping_with_game.json"
+    write_config(old_config, 53)
+    write_config(updated_config, 53, version="1.0")
+
+    first = resolve_configured_run_name("experiment", old_config, tmp_path / "saves", tmp_path / "results")
+    updated = resolve_configured_run_name("experiment", updated_config, tmp_path / "saves", tmp_path / "results")
+
+    assert first == "experiment"
+    assert updated == "experiment"
+    assert '"game"' in (tmp_path / "saves" / "experiment" / RUN_CONFIG_FILENAME).read_text(encoding="utf-8")
