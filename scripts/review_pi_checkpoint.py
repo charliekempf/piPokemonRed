@@ -87,9 +87,9 @@ class ReviewSession:
         self.max_snapshots = max(2, rewind_history_digits // rewind_interval_digits)
         self.snapshots: deque[Snapshot] = deque(maxlen=self.max_snapshots)
         self.running = True
-        self.paused = False
+        self.paused = True
         self.speed = 1
-        self.status = "running"
+        self.status = "paused"
         self.inputs_sent = 0
         self.last_button = "-"
         self.latest_image: Image.Image | None = None
@@ -350,6 +350,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sound-sample-rate", type=int, default=48000)
     parser.add_argument("--rewind-history-digits", type=int, default=1_000_000)
     parser.add_argument("--rewind-interval-digits", type=int, default=100)
+    parser.add_argument("--start-running", action="store_true")
     return parser.parse_args()
 
 
@@ -403,6 +404,8 @@ def main() -> None:
         audio_sink=AudioSink(args.sound_sample_rate),
     )
     session.set_speed(args.speed)
+    if args.start_running:
+        session.set_paused(False)
 
     emulator_thread = threading.Thread(target=session.run, name="pyboy-review", daemon=True)
     emulator_thread.start()
