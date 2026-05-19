@@ -102,7 +102,7 @@ Review a checkpoint in the local web UI:
 The launcher closes older web or Tk reviewer instances before opening a new browser tab. By default, it opens the penultimate checkpoint so there is room to play forward into the newest available checkpoint.
 
 By default, the reviewer is limited only by the local pi digit file. Pass `-MaxDigits 1000000` to the PowerShell launcher, or `--max-digits 1000000` to `review_web.py`, when you want to cap playback for a shorter review.
-Audio is most reliable at `--speed 1`; higher speeds may outrun PyBoy's SDL audio queue.
+The reviewer opens at `10x` by default. Audio is most reliable at `--speed 1`; higher speeds may outrun PyBoy's SDL audio queue.
 The reviewer opens paused by default. Press `Pause/Resume` to start playback, or pass `--start-running` when launching directly. During playback, pausing is applied at the next input boundary: after the current held/released input cycle finishes and before the next pi-derived button is sent. It applies its own frame limiter, so `1x` targets normal Game Boy speed even though the emulator loop is driven manually.
 
 Open a specific checkpoint by digit count:

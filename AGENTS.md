@@ -82,6 +82,7 @@ Current reviewer UI behavior:
 - Do not update `docs/review-player.png` or other README screenshots unless Charlie explicitly asks for a screenshot update.
 - The launcher uses the full local pi digit file by default; pass `-MaxDigits <n>` only when a capped review is wanted.
 - The launcher and web reviewer default to `penultimate` checkpoint selection so review opens one checkpoint behind the newest available checkpoint while the digit limit follows the newest checkpoint.
+- The reviewer default speed is `10x`; pass `-Speed 1` or `--speed 1` when audio fidelity matters.
 - The launcher default run is `pi_10m_two_digit`; do not switch it back to removed old runs.
 - Before opening a reviewer, close any older running reviewer process.
 - Only target processes whose command line includes `review_web.py` or `review_pi_checkpoint.py`; do not stop unrelated Python processes.

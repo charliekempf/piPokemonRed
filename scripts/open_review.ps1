@@ -4,7 +4,7 @@ param(
     [string]$Config = "config\pi_input.json",
     [int]$MaxDigits = 0,
     [string]$Checkpoint = "penultimate",
-    [int]$Speed = 1,
+    [int]$Speed = 10,
     [int]$HoldFrames = -1,
     [int]$ReleaseFrames = -1,
     [int]$SoundVolume = 100,

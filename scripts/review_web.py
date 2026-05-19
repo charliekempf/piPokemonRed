@@ -202,7 +202,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", default="penultimate")
     parser.add_argument("--digits-consumed", type=int, default=None)
     parser.add_argument("--max-digits", type=int, default=None, help="Optional cap. Defaults to the highest available checkpoint.")
-    parser.add_argument("--speed", type=int, default=1)
+    parser.add_argument("--speed", type=int, default=10)
     parser.add_argument("--hold-frames", type=int, default=None)
     parser.add_argument("--release-frames", type=int, default=None)
     parser.add_argument("--scale", type=int, default=4)
