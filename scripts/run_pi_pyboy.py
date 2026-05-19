@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import re
@@ -17,6 +18,7 @@ RUN_NAME = "pi_10m_two_digit"
 GAMEBOY_FPS = 4194304 / 70224
 INPUT_CONFIG = Path("config/pi_input.json")
 VALID_BUTTONS = {"a", "b", "start", "select", "up", "down", "left", "right"}
+RUN_CONFIG_FILENAME = "input_config.json"
 
 
 @dataclass(frozen=True)
@@ -89,6 +91,42 @@ def load_input_config(config_path: Path = INPUT_CONFIG) -> PiInputConfig:
         digits_per_input=digits_per_input,
         mapping=tuple(ranges),
     )
+
+
+def canonical_config_text(config_path: Path) -> str:
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    return json.dumps(raw, indent=2, sort_keys=True) + "\n"
+
+
+def config_run_suffix(config_path: Path) -> str:
+    digest = hashlib.sha1(canonical_config_text(config_path).encode("utf-8")).hexdigest()[:10]
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", config_path.stem).strip("_") or "config"
+    return f"{stem}_{digest}"
+
+
+def resolve_configured_run_name(
+    run_name: str,
+    config_path: Path,
+    checkpoint_root: Path = Path("saves"),
+    results_root: Path = Path("results"),
+) -> str:
+    config_text = canonical_config_text(config_path)
+    configured_run_name = run_name
+    run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
+    if run_config_path.exists() and run_config_path.read_text(encoding="utf-8") != config_text:
+        configured_run_name = f"{run_name}_{config_run_suffix(config_path)}"
+        run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
+
+    run_config_path.parent.mkdir(parents=True, exist_ok=True)
+    if not run_config_path.exists():
+        run_config_path.write_text(config_text, encoding="utf-8")
+
+    results_config_path = results_root / configured_run_name / RUN_CONFIG_FILENAME
+    results_config_path.parent.mkdir(parents=True, exist_ok=True)
+    if not results_config_path.exists() or results_config_path.read_text(encoding="utf-8") != config_text:
+        results_config_path.write_text(config_text, encoding="utf-8")
+
+    return configured_run_name
 
 
 def button_for_value(value: int, input_config: PiInputConfig) -> str:
@@ -190,6 +228,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     input_config = load_input_config(args.config)
+    args.run_name = resolve_configured_run_name(args.run_name, args.config)
     hold_frames = input_config.on_frames if args.hold_frames is None else args.hold_frames
     release_frames = input_config.off_frames if args.release_frames is None else args.release_frames
     if hold_frames < 1:

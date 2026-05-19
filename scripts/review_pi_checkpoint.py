@@ -28,6 +28,7 @@ from run_pi_pyboy import (
     button_for_value,
     latest_checkpoint,
     load_input_config,
+    resolve_configured_run_name,
     save_checkpoint,
     write_progress,
 )
@@ -2611,6 +2612,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     input_config = load_input_config(args.config)
+    args.run_name = resolve_configured_run_name(args.run_name, args.config)
     hold_frames = input_config.on_frames if args.hold_frames is None else args.hold_frames
     release_frames = input_config.off_frames if args.release_frames is None else args.release_frames
     if hold_frames < 1:
