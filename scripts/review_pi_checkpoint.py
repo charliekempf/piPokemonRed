@@ -1220,6 +1220,19 @@ def play_time(pyboy: PyBoy) -> dict[str, int]:
     }
 
 
+def elapsed_play_time(frames_elapsed: int) -> dict[str, int]:
+    total_seconds = max(0, int(frames_elapsed / GAMEBOY_FPS))
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return {
+        "hours": hours,
+        "minutes": minutes,
+        "seconds": seconds,
+        "total_seconds": total_seconds,
+    }
+
+
 def status_label(value: int) -> str:
     if value == 0:
         return "OK"
@@ -1706,7 +1719,7 @@ class ReviewSession:
                 "pokedex_seen": count_pokedex_flags(self.pyboy, POKEDEX_SEEN_ADDR),
                 "pokedex_caught": count_pokedex_flags(self.pyboy, POKEDEX_OWNED_ADDR),
                 "pokedex_total": NUM_POKEMON,
-                "time": play_time(self.pyboy),
+                "time": elapsed_play_time(self.frames_elapsed),
             }
 
     def bag(self) -> list[dict[str, int | str]]:

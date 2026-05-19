@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from review_pi_checkpoint import (
+    GAMEBOY_FPS,
     PLAYER_MONEY_ADDR,
     PLAY_TIME_HOURS_ADDR,
     PLAY_TIME_MINUTES_ADDR,
@@ -11,6 +12,7 @@ from review_pi_checkpoint import (
     POKEDEX_OWNED_ADDR,
     POKEDEX_SEEN_ADDR,
     count_pokedex_flags,
+    elapsed_play_time,
     play_time,
     read_bcd_money,
 )
@@ -56,3 +58,14 @@ def test_play_time_uses_display_bytes() -> None:
     pyboy.memory.values[PLAY_TIME_SECONDS_ADDR] = 56
 
     assert play_time(pyboy) == {"hours": 12, "minutes": 34, "seconds": 56}
+
+
+def test_elapsed_play_time_uses_frames_not_capped_display_clock() -> None:
+    frames = int(((300 * 3600) + (12 * 60) + 34) * GAMEBOY_FPS)
+
+    assert elapsed_play_time(frames) == {
+        "hours": 300,
+        "minutes": 12,
+        "seconds": 34,
+        "total_seconds": 1_080_754,
+    }
