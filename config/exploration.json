@@ -1,0 +1,20 @@
+{
+  "name": "Exploration",
+  "game": {
+    "title": "Pokemon Red",
+    "version": "1.0",
+    "region": "USA/Europe"
+  },
+  "on_frames": 2,
+  "off_frames": 14,
+  "digits_per_input": 2,
+  "mapping": [
+    { "min": 0, "max": 13, "button": "a" },
+    { "min": 14, "max": 26, "button": "b" },
+    { "min": 27, "max": 44, "button": "up" },
+    { "min": 45, "max": 62, "button": "down" },
+    { "min": 63, "max": 80, "button": "left" },
+    { "min": 81, "max": 98, "button": "right" },
+    { "min": 99, "max": 99, "button": "start" }
+  ]
+}
