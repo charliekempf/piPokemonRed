@@ -173,6 +173,18 @@ function fmt(value) {
 }
 
 function renderUpcoming(items) {
+  if (!items.length) {
+    const row = document.createElement("li");
+    const title = document.createElement("span");
+    const detail = document.createElement("span");
+    row.className = "empty";
+    title.textContent = "Out of digits";
+    detail.textContent = "Download more";
+    row.append(title, detail);
+    upcomingEl.replaceChildren(row);
+    return;
+  }
+
   upcomingEl.replaceChildren(
     ...items.map((item) => {
       const row = document.createElement("li");

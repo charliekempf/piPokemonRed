@@ -154,6 +154,25 @@ select:hover {
   border-color: #6f89af;
 }
 
+.upcoming li.empty {
+  grid-template-columns: 1fr;
+  gap: 3px;
+  padding: 12px 10px;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: #46383b;
+  border-color: #7b5c63;
+}
+
+.upcoming li.empty span:first-child {
+  color: #fff4b8;
+  font-weight: 700;
+}
+
+.upcoming li.empty span:last-child {
+  color: #d8c8c0;
+  font-size: 12px;
+}
+
 .pair {
   color: #b8c0d0;
 }
