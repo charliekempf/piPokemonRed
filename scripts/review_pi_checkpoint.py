@@ -121,10 +121,9 @@ class ReviewSession:
                 pair = int(self.digits[self.digits_consumed : self.digits_consumed + 2])
                 button = button_for_pair(pair)
                 self.pyboy.button_press(button)
-                self.pyboy.tick(self.hold_frames, True)
+                self._tick_frames(self.hold_frames)
                 self.pyboy.button_release(button)
-                if self.release_frames:
-                    self.pyboy.tick(self.release_frames, True)
+                self._tick_frames(self.release_frames)
                 with self._lock:
                     self.digits_consumed += 2
                     self.frames_elapsed += self.frames_per_input
@@ -135,6 +134,10 @@ class ReviewSession:
                     self._take_snapshot()
         finally:
             self.pyboy.stop()
+
+    def _tick_frames(self, frames: int) -> None:
+        for _ in range(frames):
+            self.pyboy.tick(1, True, True)
 
     def _take_snapshot(self) -> None:
         buffer = io.BytesIO()
@@ -248,7 +251,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hold-frames", type=int, default=2)
     parser.add_argument("--release-frames", type=int, default=1)
     parser.add_argument("--scale", type=int, default=4)
-    parser.add_argument("--sound-volume", type=int, default=50)
+    parser.add_argument("--sound-volume", type=int, default=100)
+    parser.add_argument("--sound-sample-rate", type=int, default=48000)
     parser.add_argument("--rewind-history-seconds", type=int, default=300)
     parser.add_argument("--rewind-interval-frames", type=int, default=60)
     return parser.parse_args()
@@ -280,6 +284,7 @@ def main() -> None:
         scale=args.scale,
         sound_emulated=True,
         sound_volume=args.sound_volume,
+        sound_sample_rate=args.sound_sample_rate,
         no_input=False,
         ram_file=io.BytesIO(bytes(32768)),
         log_level="CRITICAL",
