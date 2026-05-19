@@ -61,6 +61,7 @@ py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digi
 ## Review Software
 
 - Prefer the web reviewer (`scripts/review_web.py`) for UI work.
+- Do not update `docs/review-player.png` or other README screenshots unless Charlie explicitly asks for a screenshot update.
 - The launcher uses the full local pi digit file by default; pass `-MaxDigits <n>` only when a capped review is wanted.
 - Before opening a reviewer, close any older running reviewer process.
 - Only target processes whose command line includes `review_web.py` or `review_pi_checkpoint.py`; do not stop unrelated Python processes.
