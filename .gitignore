@@ -1,0 +1,21 @@
+# Local game assets and generated emulator state
+roms/*
+saves/*
+results/*
+
+!.gitkeep
+!roms/.gitkeep
+!saves/.gitkeep
+!results/.gitkeep
+
+# Python/runtime noise
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor/OS noise
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
