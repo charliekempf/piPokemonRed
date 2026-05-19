@@ -966,6 +966,10 @@ class ReviewSession:
             self.speed_limiter_enabled = enabled
             self._next_frame_time = time.perf_counter()
 
+    def set_sound_volume(self, volume: int) -> None:
+        with self._lock:
+            self.sound_volume = max(0, min(100, int(volume)))
+
     def set_max_digits(self, max_digits: int) -> None:
         with self._lock:
             self.max_digits = max(self.digits_consumed, max_digits)
@@ -1088,6 +1092,7 @@ class ReviewSession:
                 "location": map_name(map_id),
                 "speed": self.speed,
                 "speed_limiter_enabled": "on" if self.speed_limiter_enabled else "off",
+                "sound_volume": self.sound_volume,
                 "status": self.status,
                 "snapshots": len(self.snapshots),
                 "inputs_sent": self.inputs_sent,

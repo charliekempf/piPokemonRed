@@ -5,8 +5,10 @@ const statProgressEl = document.querySelector("#stat-progress span");
 const statLocationEl = document.querySelector("#stat-location");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statLimiterEl = document.querySelector("#stat-limiter");
+const statVolumeEl = document.querySelector("#stat-volume");
 const screenShellEl = document.querySelector(".screen-shell");
 const speedEl = document.querySelector("#speed");
+const volumeEl = document.querySelector("#volume");
 const limiterEl = document.querySelector("#limiter");
 const pauseEl = document.querySelector("#pause");
 const rewindEl = document.querySelector("#rewind");
@@ -180,6 +182,12 @@ speedEl.addEventListener("input", () => {
 
 limiterEl.addEventListener("change", () => {
   post("/api/limiter", { enabled: limiterEl.checked });
+});
+
+volumeEl.addEventListener("input", () => {
+  const volume = Math.max(0, Math.min(100, Math.round(Number(volumeEl.value))));
+  statVolumeEl.textContent = `${volume}%`;
+  post("/api/volume", { volume });
 });
 
 pauseEl.addEventListener("click", () => {
@@ -477,6 +485,7 @@ function setInitialControls(state) {
     return;
   }
   speedEl.value = Math.log10(Math.max(1, Math.min(1000, Number(state.speed))));
+  volumeEl.value = String(Math.max(0, Math.min(100, Number(state.sound_volume ?? 100))));
   limiterEl.checked = state.speed_limiter_enabled === "on";
   controlsInitialized = true;
 }
@@ -512,6 +521,7 @@ function renderStats(state) {
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = `${state.speed}x`;
   statLimiterEl.textContent = state.speed_limiter_enabled;
+  statVolumeEl.textContent = `${Math.max(0, Math.min(100, Number(state.sound_volume ?? 100)))}%`;
 
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
@@ -545,6 +555,7 @@ async function refresh() {
     statProgressEl.style.width = "0";
     statSpeedEl.textContent = "-";
     statLimiterEl.textContent = "-";
+    statVolumeEl.textContent = "-";
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);

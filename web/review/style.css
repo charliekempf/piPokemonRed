@@ -316,7 +316,8 @@ body {
   gap: 8px;
 }
 
-.speed-card {
+.speed-card,
+.volume-card {
   min-height: 48px;
   padding: 8px 9px;
   display: grid;
@@ -326,14 +327,16 @@ body {
   border-radius: 6px;
 }
 
-.speed-row {
+.speed-row,
+.volume-row {
   display: grid;
   grid-template-columns: 64px 1fr 54px;
   gap: 10px;
   align-items: center;
 }
 
-.speed-row strong {
+.speed-row strong,
+.volume-row strong {
   color: #fff4b8;
   font-size: 13px;
   text-align: right;

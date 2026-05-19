@@ -152,6 +152,9 @@ def make_handler(app: ReviewWebApp):
             elif path == "/api/limiter":
                 app.session.set_speed_limiter_enabled(bool(body.get("enabled", True)))
                 self._send_json({"ok": True})
+            elif path == "/api/volume":
+                app.session.set_sound_volume(int(body.get("volume", 100)))
+                self._send_json({"ok": True})
             elif path == "/api/rewind":
                 app.session.request_rewind(int(body.get("digits", 1000)))
                 self._send_json({"ok": True})
