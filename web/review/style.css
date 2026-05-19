@@ -312,6 +312,16 @@ body {
   gap: 8px;
 }
 
+.speed-card {
+  min-height: 48px;
+  padding: 8px 9px;
+  display: grid;
+  gap: 4px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
 .speed-row {
   display: grid;
   grid-template-columns: 64px 1fr 54px;
@@ -333,6 +343,7 @@ input[type="range"] {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   margin-left: 74px;
+  margin-right: 64px;
   color: #aeb4c0;
   font-size: 12px;
 }
