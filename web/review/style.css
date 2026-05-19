@@ -33,6 +33,26 @@ body {
   line-height: 1.1;
 }
 
+.checkpoint-panel {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.screen-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.event-panel {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.side-stack {
+  grid-column: 3;
+  grid-row: 2 / span 2;
+}
+
 .screen-panel,
 .checkpoint-panel,
 .event-panel,
@@ -425,7 +445,7 @@ button:disabled {
 
 .warp-actions {
   display: grid;
-  grid-template-columns: 1fr 84px;
+  grid-template-columns: minmax(132px, 180px) 118px;
   gap: 8px;
   align-items: center;
 }
