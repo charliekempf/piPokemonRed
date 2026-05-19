@@ -358,13 +358,15 @@ body {
 
 .play-speed-row {
   display: grid;
-  grid-template-columns: 38px 1fr;
+  grid-template-columns: 66px 1fr;
   gap: 8px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .play-speed-row .play-pause-control {
-  height: 38px;
+  width: 66px;
+  height: 100%;
+  min-height: 66px;
   aspect-ratio: 1;
 }
 
