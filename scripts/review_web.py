@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import mimetypes
+import re
 import subprocess
 import sys
 import threading
@@ -27,6 +28,9 @@ from run_pi_pyboy import INPUT_CONFIG, PI_DIGITS, ROM, RUN_NAME, latest_checkpoi
 
 
 WEB_ROOT = Path("web/review")
+RUN_PI_RE = re.compile(r"run_pi_pyboy\.py")
+MAX_DIGITS_RE = re.compile(r"--max-digits\s+(\d+)")
+RUN_NAME_RE = re.compile(r"--run-name\s+([^\s]+)")
 
 
 class RomMissingError(RuntimeError):
@@ -74,6 +78,50 @@ def image_to_rgba(image: Image.Image | None) -> bytes:
     elif image.mode != "RGBA":
         image = image.convert("RGBA")
     return image.tobytes()
+
+
+def read_progress(run_name: str) -> dict[str, object]:
+    progress_path = Path("results") / run_name / "progress.json"
+    if not progress_path.exists():
+        return {}
+    try:
+        return json.loads(progress_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def running_chart_target(run_name: str) -> int:
+    if sys.platform != "win32":
+        return 0
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_Process | "
+                "Where-Object { ($_.Name -in @('py.exe','python.exe','pythonw.exe')) -and "
+                "($_.CommandLine -match 'run_pi_pyboy\\.py') } | "
+                "Select-Object -ExpandProperty CommandLine",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    targets = []
+    for command_line in result.stdout.splitlines():
+        if not RUN_PI_RE.search(command_line):
+            continue
+        run_match = RUN_NAME_RE.search(command_line)
+        if run_match and run_match.group(1) != run_name:
+            continue
+        max_match = MAX_DIGITS_RE.search(command_line)
+        if max_match:
+            targets.append(int(max_match.group(1)))
+    return max(targets, default=0)
 
 
 class ReviewWebApp:
@@ -167,22 +215,22 @@ class ReviewWebApp:
 
     def chart_simulation_info(self) -> dict[str, object]:
         process = self.chart_simulation
-        if process is None:
+        progress = read_progress(self.run_name)
+        remembered_target = int(progress.get("digits_consumed", 0) or 0)
+        running_target = running_chart_target(self.run_name)
+        if running_target:
+            self.chart_target_digits = max(self.chart_target_digits, running_target)
+        running = (process.poll() is None if process is not None else False) or running_target > 0
+        target_digits = self.chart_target_digits or running_target or remembered_target
+        if not running and target_digits <= 0:
             return {"running": False, "target_digits": 0}
-        progress: dict[str, object] = {}
-        progress_path = Path("results") / self.run_name / "progress.json"
-        if progress_path.exists():
-            try:
-                progress = json.loads(progress_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                progress = {}
         digits_consumed = int(progress.get("digits_consumed", 0) or 0)
         digits_per_second = float(progress.get("effective_fps", 0) or 0)
-        remaining_digits = max(0, self.chart_target_digits - digits_consumed)
+        remaining_digits = max(0, target_digits - digits_consumed)
         eta_seconds = remaining_digits / digits_per_second if digits_per_second > 0 else None
         return {
-            "running": process.poll() is None,
-            "target_digits": self.chart_target_digits,
+            "running": running,
+            "target_digits": target_digits,
             "digits_consumed": digits_consumed,
             "digits_per_second": digits_per_second,
             "eta_seconds": eta_seconds,
