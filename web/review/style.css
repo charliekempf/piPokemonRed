@@ -301,6 +301,12 @@ body {
   filter: brightness(1.12);
 }
 
+.play-pause-control {
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 .controls {
   display: grid;
   gap: 8px;
@@ -359,7 +365,7 @@ input[type="range"] {
 
 .transport {
   display: grid;
-  grid-template-columns: minmax(118px, auto) 38px minmax(132px, 150px) 38px;
+  grid-template-columns: 38px 38px minmax(132px, 150px) 38px;
   gap: 8px;
   align-items: center;
 }

@@ -467,26 +467,15 @@ function setStateClass(status) {
   const normalized = String(status).toLowerCase().replace(/[^a-z]+/g, "-");
   statusEl.dataset.state = normalized || "unknown";
   pauseEl.dataset.state = normalized || "unknown";
-}
-
-function displayState(status) {
-  const value = String(status);
-  if (value.startsWith("fast forwarding")) {
-    return "Fast-forward";
-  }
-  if (value.startsWith("simulating")) {
-    return "Simulating";
-  }
-  if (value.startsWith("jumping")) {
-    return "Jumping";
-  }
-  if (value.startsWith("finding next")) {
-    return value.replace("finding next ", "Finding ");
-  }
-  if (value.startsWith("rewound")) {
-    return "Rewound";
-  }
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  const isPlaying = normalized === "running"
+    || normalized === "pause-pending"
+    || normalized.startsWith("fast-forwarding")
+    || normalized.startsWith("simulating")
+    || normalized.startsWith("jumping")
+    || normalized.startsWith("finding-next");
+  pauseEl.textContent = isPlaying ? "||" : ">";
+  pauseEl.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
+  pauseEl.title = isPlaying ? "Pause" : "Play";
 }
 
 function renderStats(state) {
