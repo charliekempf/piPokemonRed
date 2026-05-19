@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import math
 import re
 import threading
 import time
@@ -60,9 +61,9 @@ class ReviewSession:
         self._last_snapshot_frame = -rewind_interval_frames
         self._take_snapshot()
 
-    def set_speed(self, speed: int) -> None:
+    def set_speed(self, speed: float) -> None:
         with self._lock:
-            self.speed = max(0, speed)
+            self.speed = max(1, min(100, int(round(speed))))
             self.pyboy.set_emulation_speed(self.speed)
 
     def set_paused(self, paused: bool) -> None:
@@ -205,15 +206,15 @@ def build_control_panel(session: ReviewSession) -> tk.Tk:
     root.resizable(False, False)
 
     status_var = tk.StringVar()
-    speed_var = tk.IntVar(value=session.speed)
+    speed_var = tk.DoubleVar(value=math.log10(max(1, session.speed)))
 
     ttk.Label(root, textvariable=status_var, width=52).grid(row=0, column=0, columnspan=4, padx=10, pady=(10, 4))
 
     def speed_changed(value: str) -> None:
-        session.set_speed(int(float(value)))
+        session.set_speed(10 ** float(value))
 
     ttk.Label(root, text="Speed").grid(row=1, column=0, padx=(10, 4), sticky="w")
-    speed_slider = ttk.Scale(root, from_=0, to=600, variable=speed_var, command=speed_changed, length=320)
+    speed_slider = ttk.Scale(root, from_=0, to=2, variable=speed_var, command=speed_changed, length=320)
     speed_slider.grid(row=1, column=1, columnspan=3, padx=(0, 10), pady=4, sticky="ew")
 
     def toggle_pause() -> None:

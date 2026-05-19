@@ -62,4 +62,4 @@ Open a specific checkpoint by digit count:
 py scripts\review_pi_checkpoint.py --checkpoint 5000000 --speed 1
 ```
 
-The review window continues the same pi input stream from the checkpoint. The control panel has a speed slider from paused real-time review through high-speed playback, an `inputs sent` counter, the last pi-derived button sent, and rewind buttons backed by in-memory savestate snapshots.
+The review window continues the same pi input stream from the checkpoint. The control panel has a logarithmic speed slider from `1x` to `100x`, an `inputs sent` counter, the last pi-derived button sent, and rewind buttons backed by in-memory savestate snapshots.
