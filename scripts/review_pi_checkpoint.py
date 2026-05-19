@@ -352,6 +352,15 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
     return root
 
 
+def render_loaded_state(pyboy: PyBoy) -> None:
+    restore_buffer = io.BytesIO()
+    pyboy.save_state(restore_buffer)
+    restore_buffer.seek(0)
+    pyboy.tick(1, True, True)
+    restore_buffer.seek(0)
+    pyboy.load_state(restore_buffer)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Review a piPokemon PyBoy checkpoint with graphics, sound, speed, and rewind.")
     parser.add_argument("--rom", type=Path, default=ROM)
@@ -408,6 +417,7 @@ def main() -> None:
     )
     with checkpoint.open("rb") as state_file:
         pyboy.load_state(state_file)
+    render_loaded_state(pyboy)
 
     session = ReviewSession(
         pyboy=pyboy,
