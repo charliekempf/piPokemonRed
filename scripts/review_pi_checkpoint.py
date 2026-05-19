@@ -469,6 +469,17 @@ class ReviewSession:
                 self._capture_frame()
             self._limit_frame_rate()
 
+    def _checkpoint_at_or_before(self, target_digits: int, minimum_digits: int = 0) -> tuple[int, Path] | None:
+        checkpoint_dir = Path("saves") / self.run_name
+        candidates: list[tuple[int, Path]] = []
+        for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
+            match = CHECKPOINT_RE.match(candidate.name)
+            if match:
+                digits_consumed = int(match.group(1))
+                if minimum_digits <= digits_consumed <= target_digits:
+                    candidates.append((digits_consumed, candidate))
+        return max(candidates) if candidates else None
+
     def _fast_forward_with_backend(self, target_digits: int) -> None:
         with self._lock:
             start_digits = self.digits_consumed
@@ -478,7 +489,7 @@ class ReviewSession:
             self.pyboy.save_state(state_buffer)
 
         target_digits = min(target_digits, self.max_digits)
-        state_buffer.seek(0)
+        checkpoint = self._checkpoint_at_or_before(target_digits, minimum_digits=start_digits + self.input_config.digits_per_input)
         simulator = PyBoy(
             str(self.rom_path or ROM),
             window="null",
@@ -489,7 +500,13 @@ class ReviewSession:
         )
         simulator.set_emulation_speed(0)
         try:
-            simulator.load_state(state_buffer)
+            if checkpoint is not None:
+                start_digits, checkpoint_path = checkpoint
+                with checkpoint_path.open("rb") as state_file:
+                    simulator.load_state(state_file)
+            else:
+                state_buffer.seek(0)
+                simulator.load_state(state_buffer)
             digits_consumed, inputs_sent, last_button = advance_pi_inputs(
                 simulator,
                 self.digits,
@@ -672,15 +689,8 @@ class ReviewSession:
         if target % self.input_config.digits_per_input:
             target -= target % self.input_config.digits_per_input
 
-        checkpoint_dir = Path("saves") / self.run_name
-        candidates: list[tuple[int, Path]] = []
-        for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
-            match = CHECKPOINT_RE.match(candidate.name)
-            if match:
-                digits_consumed = int(match.group(1))
-                if digits_consumed <= target:
-                    candidates.append((digits_consumed, candidate))
-        if not candidates:
+        checkpoint = self._checkpoint_at_or_before(target)
+        if checkpoint is None:
             with self._lock:
                 self.paused = True
                 self._jump_target_digits = None
@@ -688,7 +698,7 @@ class ReviewSession:
                 self.status = "no checkpoint before target"
             return
 
-        checkpoint_digits_consumed, checkpoint_path = max(candidates)
+        checkpoint_digits_consumed, checkpoint_path = checkpoint
         with checkpoint_path.open("rb") as state_file:
             self.pyboy.load_state(state_file)
 
