@@ -42,6 +42,7 @@ PARTY_NICKS_ADDR = 0xD2B5
 PARTY_NAME_LENGTH = 11
 PARTY_SIZE = 6
 BATTLE_FLAG_ADDR = 0xD057
+BATTLE_TRAINER_VALUE = 2
 OBTAINED_BADGES_ADDR = 0xD356
 CURRENT_MAP_ADDR = 0xD35E
 BADGE_NAMES = [
@@ -60,6 +61,7 @@ WARP_STATE_LABELS = {
     "evolution": "evolution",
     "level_up": "level up",
     "scene_change": "scene change",
+    "trainer_battle": "trainer battle",
 }
 MAP_NAMES = {
     0x00: "Pallet Town",
@@ -869,6 +871,10 @@ def is_in_battle(pyboy: PyBoy) -> bool:
     return int(pyboy.memory[BATTLE_FLAG_ADDR]) != 0
 
 
+def is_in_trainer_battle(pyboy: PyBoy) -> bool:
+    return int(pyboy.memory[BATTLE_FLAG_ADDR]) == BATTLE_TRAINER_VALUE
+
+
 def current_map_id(pyboy: PyBoy) -> int:
     return int(pyboy.memory[CURRENT_MAP_ADDR])
 
@@ -1575,6 +1581,7 @@ class ReviewSession:
         try:
             simulator.load_state(state_buffer)
             battle_seen = is_in_battle(simulator)
+            trainer_battle_seen = is_in_trainer_battle(simulator)
             blackout_seen = is_party_blackout(simulator)
             starting_map = current_map_id(simulator)
             starting_levels = party_levels(simulator)
@@ -1592,12 +1599,20 @@ class ReviewSession:
                 last_button = button
 
                 in_battle = is_in_battle(simulator)
+                in_trainer_battle = is_in_trainer_battle(simulator)
                 blackout = is_party_blackout(simulator)
                 if target_state == "battle":
                     if battle_seen:
                         if not in_battle:
                             battle_seen = False
                     elif in_battle:
+                        found = True
+                        break
+                elif target_state == "trainer_battle":
+                    if trainer_battle_seen:
+                        if not in_trainer_battle:
+                            trainer_battle_seen = False
+                    elif in_trainer_battle:
                         found = True
                         break
                 elif target_state == "blackout":
