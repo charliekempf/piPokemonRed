@@ -34,6 +34,13 @@ from run_pi_pyboy import (
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d{8})_digits\.state$")
+PARTY_COUNT_ADDR = 0xD163
+PARTY_SPECIES_ADDR = 0xD164
+PARTY_MONS_ADDR = 0xD16B
+PARTY_MON_SIZE = 44
+PARTY_NICKS_ADDR = 0xD2B5
+PARTY_NAME_LENGTH = 11
+PARTY_SIZE = 6
 
 
 @dataclass
@@ -73,6 +80,50 @@ class AudioSink:
         if self.device:
             sdl2.SDL_CloseAudioDevice(self.device)
             self.device = 0
+
+
+def decode_pokemon_text(values: list[int]) -> str:
+    chars: list[str] = []
+    for value in values:
+        if value == 0x50:
+            break
+        if value == 0x7F:
+            chars.append(" ")
+        elif 0x80 <= value <= 0x99:
+            chars.append(chr(ord("A") + value - 0x80))
+        elif 0xA0 <= value <= 0xB9:
+            chars.append(chr(ord("a") + value - 0xA0))
+        elif 0xF6 <= value <= 0xFF:
+            chars.append(chr(ord("0") + value - 0xF6))
+        elif value == 0xE0:
+            chars.append("'")
+        elif value == 0xE3:
+            chars.append("-")
+        elif value == 0xE6:
+            chars.append("?")
+        elif value == 0xE7:
+            chars.append("!")
+    return "".join(chars).strip()
+
+
+def read_u16_be(pyboy: PyBoy, address: int) -> int:
+    return (int(pyboy.memory[address]) << 8) | int(pyboy.memory[address + 1])
+
+
+def status_label(value: int) -> str:
+    if value == 0:
+        return "OK"
+    if value & 0x08:
+        return "PSN"
+    if value & 0x10:
+        return "BRN"
+    if value & 0x20:
+        return "FRZ"
+    if value & 0x40:
+        return "PAR"
+    if value & 0x07:
+        return "SLP"
+    return "OK"
 
 
 class ReviewSession:
@@ -224,6 +275,36 @@ class ReviewSession:
                 "last_button": self.last_button,
                 "last_simulation": self._last_simulation or {},
             }
+
+    def party(self) -> list[dict[str, int | str]]:
+        with self._lock:
+            count = int(self.pyboy.memory[PARTY_COUNT_ADDR])
+            if count < 0 or count > PARTY_SIZE:
+                return []
+
+            members: list[dict[str, int | str]] = []
+            for index in range(count):
+                species = int(self.pyboy.memory[PARTY_SPECIES_ADDR + index])
+                mon_addr = PARTY_MONS_ADDR + (index * PARTY_MON_SIZE)
+                nick_addr = PARTY_NICKS_ADDR + (index * PARTY_NAME_LENGTH)
+                name_bytes = [int(self.pyboy.memory[nick_addr + offset]) for offset in range(PARTY_NAME_LENGTH)]
+                name = decode_pokemon_text(name_bytes) or f"MON {species:03d}"
+                level = int(self.pyboy.memory[mon_addr + 33])
+                current_hp = read_u16_be(self.pyboy, mon_addr + 1)
+                max_hp = read_u16_be(self.pyboy, mon_addr + 34)
+                status = int(self.pyboy.memory[mon_addr + 4])
+                members.append(
+                    {
+                        "slot": index + 1,
+                        "species": species,
+                        "name": name,
+                        "level": level,
+                        "hp": current_hp,
+                        "max_hp": max_hp,
+                        "status": status_label(status),
+                    }
+                )
+            return members
 
     def run(self) -> None:
         self.pyboy.set_emulation_speed(self.speed)

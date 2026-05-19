@@ -17,6 +17,7 @@ const fastForwardButton = document.querySelector("#fast-forward-button");
 const simulateEl = document.querySelector("#simulate-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
+const partyEl = document.querySelector("#party");
 const upcomingEl = document.querySelector("#upcoming");
 
 const FRAME_WIDTH = 160;
@@ -229,6 +230,60 @@ function renderUpcoming(items) {
   );
 }
 
+function renderParty(members) {
+  if (!members.length) {
+    const row = document.createElement("li");
+    row.className = "party-empty";
+    row.textContent = "No party data";
+    partyEl.replaceChildren(row);
+    return;
+  }
+
+  partyEl.replaceChildren(
+    ...members.map((member) => {
+      const row = document.createElement("li");
+      const badge = document.createElement("span");
+      const body = document.createElement("div");
+      const top = document.createElement("div");
+      const name = document.createElement("strong");
+      const level = document.createElement("span");
+      const lower = document.createElement("div");
+      const hpWrap = document.createElement("span");
+      const hpBar = document.createElement("span");
+      const hpText = document.createElement("span");
+      const status = document.createElement("span");
+      const hp = Math.max(0, Number(member.hp));
+      const maxHp = Math.max(0, Number(member.max_hp));
+      const hpPercent = maxHp > 0 ? Math.min(100, (hp / maxHp) * 100) : 0;
+
+      row.className = "party-member";
+      badge.className = "party-badge";
+      body.className = "party-body";
+      top.className = "party-top";
+      lower.className = "party-lower";
+      hpWrap.className = "hp-wrap";
+      hpBar.className = "hp-bar";
+      hpText.className = "hp-text";
+      status.className = "party-status";
+
+      badge.textContent = String(member.slot);
+      name.textContent = member.name || `MON ${member.species}`;
+      level.textContent = `Lv ${member.level || "-"}`;
+      hpBar.style.width = `${hpPercent}%`;
+      hpText.textContent = maxHp > 0 ? `${fmt(hp)} / ${fmt(maxHp)}` : "- / -";
+      status.textContent = member.status || "OK";
+      status.dataset.status = String(member.status || "OK").toLowerCase();
+
+      hpWrap.append(hpBar);
+      top.append(name, level);
+      lower.append(hpWrap, hpText, status);
+      body.append(top, lower);
+      row.append(badge, body);
+      return row;
+    }),
+  );
+}
+
 function setInitialControls(state) {
   if (controlsInitialized) {
     return;
@@ -293,6 +348,7 @@ async function refresh() {
     const state = await response.json();
     setInitialControls(state);
     renderStats(state);
+    renderParty(state.party || []);
     renderUpcoming(state.upcoming);
   } catch (error) {
     setStateClass("disconnected");
@@ -303,6 +359,7 @@ async function refresh() {
     statLimiterEl.textContent = "-";
     statRendererEl.textContent = renderer.mode;
     statLastEl.textContent = "-";
+    renderParty([]);
   } finally {
     setTimeout(refresh, 150);
   }

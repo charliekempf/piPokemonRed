@@ -81,6 +81,7 @@ class ReviewWebApp:
                 {"digit_index": digit_index, "pair": pair, "button": button}
                 for digit_index, pair, button in self.session.upcoming_buttons(12)
             ],
+            "party": self.session.party(),
         }
 
     def frame_png(self) -> bytes:

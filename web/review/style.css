@@ -15,7 +15,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: auto 220px;
+  grid-template-columns: auto 280px;
   gap: 18px;
   align-items: start;
   padding: 18px;
@@ -312,12 +312,126 @@ button:disabled {
 
 .next-panel {
   padding: 12px;
+  display: grid;
+  gap: 14px;
 }
 
 .next-panel h1 {
   margin: 0 0 10px;
   font-size: 16px;
   font-weight: 650;
+}
+
+.party-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.party-member {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  min-height: 48px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.party-badge {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #1c1f26;
+  border: 1px solid #596274;
+  color: #fff4b8;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.party-body {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.party-top,
+.party-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.party-top strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.party-top span {
+  color: #d8dce6;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.party-lower {
+  grid-template-columns: 1fr auto auto;
+}
+
+.hp-wrap {
+  height: 7px;
+  overflow: hidden;
+  background: #171a20;
+  border: 1px solid #4a4f5d;
+  border-radius: 999px;
+}
+
+.hp-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #6e9b7b;
+  border-radius: inherit;
+}
+
+.hp-text {
+  color: #b8c0d0;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+}
+
+.party-status {
+  min-width: 32px;
+  padding: 1px 5px;
+  border: 1px solid #596274;
+  border-radius: 999px;
+  color: #d8dce6;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.party-status:not([data-status="ok"]) {
+  border-color: #8d7352;
+  color: #fff4b8;
+}
+
+.party-empty {
+  padding: 12px 10px;
+  color: #aeb4c0;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+  font-size: 13px;
 }
 
 .upcoming {
