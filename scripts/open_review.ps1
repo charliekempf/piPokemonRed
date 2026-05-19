@@ -1,7 +1,7 @@
 param(
     [string]$RunName = "pi_1m_hold2_release1",
     [string]$Digits = "data\pi_10m_digits.txt",
-    [int]$MaxDigits = 1000000,
+    [int]$MaxDigits = 0,
     [string]$Checkpoint = "latest",
     [int]$Speed = 1,
     [int]$HoldFrames = 2,
@@ -27,7 +27,6 @@ $arguments = @(
     "scripts\review_web.py",
     "--run-name", $RunName,
     "--digits", $Digits,
-    "--max-digits", "$MaxDigits",
     "--checkpoint", $Checkpoint,
     "--speed", "$Speed",
     "--hold-frames", "$HoldFrames",
@@ -37,6 +36,10 @@ $arguments = @(
     "--scale", "$Scale",
     "--open-browser"
 )
+
+if ($MaxDigits -gt 0) {
+    $arguments += @("--max-digits", "$MaxDigits")
+}
 
 $process = Start-Process -FilePath "py" -ArgumentList $arguments -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru
 Write-Host "Started review process PID=$($process.Id)"

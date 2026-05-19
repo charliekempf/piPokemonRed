@@ -61,5 +61,6 @@ py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_
 ## Review Software
 
 - Prefer the web reviewer (`scripts/review_web.py`) for UI work.
+- The launcher uses the full local pi digit file by default; pass `-MaxDigits <n>` only when a capped review is wanted.
 - Before opening a reviewer, close any older running reviewer process.
 - Only target processes whose command line includes `review_web.py` or `review_pi_checkpoint.py`; do not stop unrelated Python processes.
