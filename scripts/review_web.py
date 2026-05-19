@@ -353,6 +353,7 @@ class ReviewWebApp:
                 "checkpoints": checkpoints,
                 "runs": list_runs(self.run_name),
                 "active_run": self.run_name,
+                "digits_per_input": self.digits_per_input,
                 "chart_simulation": self.chart_simulation_info(),
             }
         self.refresh_available_digits()
@@ -383,6 +384,7 @@ class ReviewWebApp:
             "checkpoints": list_checkpoints(self.run_name),
             "runs": list_runs(self.run_name),
             "active_run": self.run_name,
+            "digits_per_input": self.digits_per_input,
             "chart_simulation": self.chart_simulation_info(),
         }
 

@@ -5,6 +5,7 @@ const statProgressEl = document.querySelector("#stat-progress span");
 const statLocationEl = document.querySelector("#stat-location");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statActualSpeedEl = document.querySelector("#stat-actual-speed");
+const statDigitRateEl = document.querySelector("#stat-digit-rate");
 const statVolumeEl = document.querySelector("#stat-volume");
 const screenShellEl = document.querySelector(".screen-shell");
 const seekLabelEl = document.querySelector("#seek-label");
@@ -48,6 +49,7 @@ const inputsEl = document.querySelector("#inputs");
 const FRAME_WIDTH = 160;
 const FRAME_HEIGHT = 144;
 const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
+const GAMEBOY_FPS = 4194304 / 70224;
 const INPUT_ROW_HEIGHT = 38;
 const INPUT_ROW_GAP = 6;
 const INPUT_CANVAS_PADDING = 0;
@@ -101,6 +103,14 @@ function actualSpeedLabel(value) {
   const speed = Math.max(0, Number(value) || 0);
   const precision = speed > 0 && speed < 10 ? 1 : 0;
   return `Actual ${speed.toFixed(precision)}x`;
+}
+
+function digitRateLabel(actualSpeed, digitsPerInput, framesPerInput = 3) {
+  const rate = Math.max(0, Number(actualSpeed) || 0) * GAMEBOY_FPS * Math.max(1, Number(digitsPerInput) || 1) / framesPerInput;
+  if (rate >= 1000) {
+    return `${fmt(Math.round(rate))} digits/s`;
+  }
+  return `${rate.toFixed(rate > 0 && rate < 10 ? 1 : 0)} digits/s`;
 }
 
 function renderSeekOverlay(state) {
@@ -873,6 +883,7 @@ function renderStats(state) {
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Set Unlimited" : `Set ${speedLabel(state.speed)}`;
   statActualSpeedEl.textContent = actualSpeedLabel(state.actual_speed_x);
+  statDigitRateEl.textContent = digitRateLabel(state.actual_speed_x, state.digits_per_input);
   statVolumeEl.textContent = `${Math.max(0, Math.min(100, Number(state.sound_volume ?? 100)))}%`;
 
   jumpButton.disabled = backendBusy;
@@ -942,6 +953,7 @@ async function refresh() {
     seekProgressBarEl.style.width = "0%";
     statSpeedEl.textContent = "-";
     statActualSpeedEl.textContent = "-";
+    statDigitRateEl.textContent = "-";
     statVolumeEl.textContent = "-";
     renderRuns([], "");
     renderCheckpoints([], 0);
