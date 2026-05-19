@@ -56,6 +56,7 @@ class ReviewSession:
         self.status = "running"
         self.inputs_sent = 0
         self.last_button = "-"
+        self._next_frame_time = time.perf_counter()
         self._lock = threading.Lock()
         self._rewind_digits_requested = 0
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
@@ -139,6 +140,21 @@ class ReviewSession:
     def _tick_frames(self, frames: int) -> None:
         for _ in range(frames):
             self.pyboy.tick(1, True, True)
+            self._limit_frame_rate()
+
+    def _limit_frame_rate(self) -> None:
+        with self._lock:
+            speed = self.speed
+        if speed <= 0:
+            return
+
+        now = time.perf_counter()
+        if self._next_frame_time < now - 0.25:
+            self._next_frame_time = now
+        self._next_frame_time += 1 / (60 * speed)
+        delay = self._next_frame_time - time.perf_counter()
+        if delay > 0:
+            time.sleep(delay)
 
     def _take_snapshot(self) -> None:
         buffer = io.BytesIO()
