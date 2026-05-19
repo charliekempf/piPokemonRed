@@ -547,7 +547,9 @@ button:disabled {
   border-radius: 6px;
 }
 
-.party-member.is-expanded {
+.party-member.is-expanded,
+.party-member:hover,
+.party-member:focus-within {
   border-color: #6f89af;
 }
 
@@ -672,7 +674,9 @@ button:disabled {
   gap: 5px;
 }
 
-.party-member.is-expanded .party-moves {
+.party-member.is-expanded .party-moves,
+.party-member:hover .party-moves,
+.party-member:focus-within .party-moves {
   display: grid;
 }
 
