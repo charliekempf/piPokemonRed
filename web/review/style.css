@@ -360,12 +360,12 @@ body {
   display: grid;
   grid-template-columns: 38px 1fr;
   gap: 8px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .play-speed-row .play-pause-control {
-  align-self: stretch;
-  height: auto;
+  height: 38px;
+  aspect-ratio: 1;
 }
 
 .speed-row,
