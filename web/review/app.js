@@ -50,7 +50,6 @@ const INPUT_ROW_HEIGHT = 38;
 const INPUT_ROW_GAP = 6;
 const INPUT_CANVAS_PADDING = 0;
 const STATE_REFRESH_MS = 150;
-const INPUT_REFRESH_MS = 33;
 
 let frameFetchInFlight = false;
 let inputFetchInFlight = false;
@@ -882,7 +881,7 @@ async function refreshInputs() {
       inputFetchInFlight = false;
     }
   }
-  setTimeout(refreshInputs, INPUT_REFRESH_MS);
+  requestAnimationFrame(refreshInputs);
 }
 
 async function drawFrameLoop() {
