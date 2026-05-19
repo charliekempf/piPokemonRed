@@ -329,7 +329,7 @@ function renderParty(members) {
           const moveName = document.createElement("span");
           const pp = document.createElement("span");
           moveName.textContent = move.name || `Move ${move.id}`;
-          pp.textContent = `PP ${fmt(move.pp)}`;
+          pp.textContent = `PP ${fmt(move.pp)} / ${fmt(move.max_pp)}`;
           moveRow.append(moveName, pp);
           return moveRow;
         }),
