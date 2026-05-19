@@ -4,6 +4,7 @@ const statDigitsEl = document.querySelector("#stat-digits");
 const statProgressEl = document.querySelector("#stat-progress span");
 const statLocationEl = document.querySelector("#stat-location");
 const statSpeedEl = document.querySelector("#stat-speed");
+const statActualSpeedEl = document.querySelector("#stat-actual-speed");
 const statVolumeEl = document.querySelector("#stat-volume");
 const screenShellEl = document.querySelector(".screen-shell");
 const romMissingPanelEl = document.querySelector("#rom-missing-panel");
@@ -55,6 +56,12 @@ function speedFromSlider() {
 
 function speedLabelFromSlider() {
   return speedSliderIsUnlimited() ? "Unlimited" : `${speedFromSlider()}x`;
+}
+
+function actualSpeedLabel(value) {
+  const speed = Math.max(0, Number(value) || 0);
+  const precision = speed > 0 && speed < 10 ? 1 : 0;
+  return `Actual ${speed.toFixed(precision)}x`;
 }
 
 function create2dRenderer(canvas) {
@@ -223,7 +230,7 @@ romUploadEl.addEventListener("change", async () => {
 });
 
 speedEl.addEventListener("input", () => {
-  statSpeedEl.textContent = speedLabelFromSlider();
+  statSpeedEl.textContent = `Set ${speedLabelFromSlider()}`;
   post("/api/speed", { speed: speedFromSlider() });
   post("/api/limiter", { enabled: !speedSliderIsUnlimited() });
 });
@@ -604,7 +611,8 @@ function renderStats(state) {
   statLocationEl.textContent = state.location || "-";
   statLocationEl.title = state.map_id == null ? "" : `Map $${Number(state.map_id).toString(16).toUpperCase().padStart(2, "0")}`;
   statProgressEl.style.width = `${progress}%`;
-  statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Unlimited" : `${state.speed}x`;
+  statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Set Unlimited" : `Set ${state.speed}x`;
+  statActualSpeedEl.textContent = actualSpeedLabel(state.actual_speed_x);
   statVolumeEl.textContent = `${Math.max(0, Math.min(100, Number(state.sound_volume ?? 100)))}%`;
 
   jumpButton.disabled = backendBusy;
@@ -658,6 +666,7 @@ async function refresh() {
     statLocationEl.title = "";
     statProgressEl.style.width = "0";
     statSpeedEl.textContent = "-";
+    statActualSpeedEl.textContent = "-";
     statVolumeEl.textContent = "-";
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);

@@ -1158,6 +1158,9 @@ class ReviewSession:
         self._last_simulation: dict[str, int | float | str] | None = None
         self._auto_snapshots_enabled = True
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
+        self._actual_speed_x = 0.0
+        self._speed_sample_started_at = time.perf_counter()
+        self._speed_sample_frames = 0
         self._take_snapshot()
         if self.latest_image is None:
             self._capture_frame()
@@ -1300,7 +1303,7 @@ class ReviewSession:
         with self._lock:
             self.running = False
 
-    def info(self) -> dict[str, int | str]:
+    def info(self) -> dict[str, int | float | str]:
         with self._lock:
             map_id = current_map_id(self.pyboy)
             return {
@@ -1310,6 +1313,7 @@ class ReviewSession:
                 "map_id": map_id,
                 "location": map_name(map_id),
                 "speed": self.speed,
+                "actual_speed_x": round(self._actual_speed_x, 1),
                 "speed_limiter_enabled": "on" if self.speed_limiter_enabled else "off",
                 "sound_volume": self.sound_volume,
                 "status": self.status,
@@ -1415,12 +1419,18 @@ class ReviewSession:
                             self.paused = True
                             self.pause_requested = False
                             self.status = "paused"
+                        self._actual_speed_x = 0.0
+                        self._speed_sample_started_at = time.perf_counter()
+                        self._speed_sample_frames = 0
                     time.sleep(1 / 30)
                     continue
 
                 if self.digits_consumed >= self.max_digits:
                     with self._lock:
                         self.status = "complete"
+                        self._actual_speed_x = 0.0
+                        self._speed_sample_started_at = time.perf_counter()
+                        self._speed_sample_frames = 0
                     self.pyboy.tick(1, True)
                     time.sleep(1 / 30)
                     continue
@@ -1475,7 +1485,19 @@ class ReviewSession:
                 self.audio_sink.queue(self.pyboy, self.sound_volume)
             if render_frame:
                 self._capture_frame()
+            self._record_playback_frame()
             self._limit_frame_rate()
+
+    def _record_playback_frame(self) -> None:
+        now = time.perf_counter()
+        with self._lock:
+            self._speed_sample_frames += 1
+            elapsed = now - self._speed_sample_started_at
+            if elapsed < 0.5:
+                return
+            self._actual_speed_x = (self._speed_sample_frames / elapsed) / GAMEBOY_FPS
+            self._speed_sample_started_at = now
+            self._speed_sample_frames = 0
 
     def _checkpoint_at_or_before(self, target_digits: int, minimum_digits: int = 0) -> tuple[int, Path] | None:
         checkpoint_dir = Path("saves") / self.run_name

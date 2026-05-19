@@ -377,7 +377,7 @@ body {
 }
 
 .speed-row {
-  grid-template-columns: 64px 1fr 78px;
+  grid-template-columns: 64px 1fr 142px;
 }
 
 .speed-row strong,
@@ -385,6 +385,22 @@ body {
   color: #fff4b8;
   font-size: 13px;
   text-align: right;
+}
+
+.speed-readout {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.speed-readout strong {
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.speed-readout strong:last-child {
+  color: #aeb4c0;
+  font-weight: 600;
 }
 
 input[type="range"] {
@@ -395,7 +411,7 @@ input[type="range"] {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   margin-left: 74px;
-  margin-right: 88px;
+  margin-right: 152px;
   color: #aeb4c0;
   font-size: 12px;
 }
