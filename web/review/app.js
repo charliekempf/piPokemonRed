@@ -32,6 +32,7 @@ const simulateStateEl = document.querySelector("#simulate-state");
 const simulateProgressEl = document.querySelector("#simulate-progress");
 const simulateRateEl = document.querySelector("#simulate-rate");
 const simulateEtaEl = document.querySelector("#simulate-eta");
+const runSelectEl = document.querySelector("#run-select");
 const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
@@ -59,6 +60,7 @@ let backendBusy = false;
 let romMissing = false;
 let romUploadInFlight = false;
 let selectedCheckpointDigits = null;
+let runListSignature = "";
 let checkpointListSignature = "";
 let partyRenderSignature = "";
 let bagRenderSignature = "";
@@ -237,11 +239,12 @@ function createRenderer(canvas) {
 const renderer = createRenderer(screen);
 
 async function post(path, body = {}) {
-  await fetch(path, {
+  const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  return response.json().catch(() => ({}));
 }
 
 romUploadButtonEl.addEventListener("click", () => {
@@ -287,6 +290,23 @@ volumeEl.addEventListener("input", () => {
   const volume = Math.max(0, Math.min(100, Math.round(Number(volumeEl.value))));
   statVolumeEl.textContent = `${volume}%`;
   post("/api/volume", { volume });
+});
+
+runSelectEl.addEventListener("change", async () => {
+  const runName = runSelectEl.value;
+  runSelectEl.disabled = true;
+  const result = await post("/api/select-run", { run_name: runName });
+  if (!result.ok) {
+    runSelectEl.title = result.error || "Could not load run config";
+  }
+  controlsInitialized = false;
+  selectedCheckpointDigits = null;
+  checkpointListSignature = "";
+  partyRenderSignature = "";
+  bagRenderSignature = "";
+  inputRenderSignature = "";
+  runSelectEl.disabled = false;
+  refresh();
 });
 
 pauseEl.addEventListener("click", () => {
@@ -655,6 +675,37 @@ function setSimulatorStats({ state = "Ready", progress = "-", rate = "-", eta = 
   simulateStatusEl.title = title;
 }
 
+function renderRuns(runs = [], activeRun = "") {
+  const signature = JSON.stringify({ runs, activeRun });
+  if (signature === runListSignature) {
+    return;
+  }
+  runListSignature = signature;
+
+  if (!runs.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No checkpoint runs";
+    runSelectEl.replaceChildren(option);
+    runSelectEl.disabled = true;
+    return;
+  }
+
+  runSelectEl.replaceChildren(
+    ...runs.map((run) => {
+      const option = document.createElement("option");
+      option.value = run.name;
+      option.textContent = `${run.label} - ${fmt(run.highest_digits)} digits`;
+      option.title = `${run.checkpoint_count} checkpoints`;
+      option.selected = run.name === activeRun;
+      option.disabled = run.config_available === false;
+      return option;
+    }),
+  );
+  runSelectEl.disabled = backendBusy;
+  runSelectEl.title = "Choose a checkpoint folder and its stored input_config.json";
+}
+
 function renderCheckpoints(checkpoints, currentDigits) {
   if (!checkpoints.length) {
     const row = document.createElement("li");
@@ -827,6 +878,7 @@ function renderStats(state) {
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
+  runSelectEl.disabled = backendBusy || !(state.runs || []).length;
   if (romMissing) {
     jumpButton.disabled = true;
     warpStateButton.disabled = true;
@@ -871,6 +923,7 @@ async function refresh() {
     const state = await response.json();
     setInitialControls(state);
     renderStats(state);
+    renderRuns(state.runs || [], state.active_run || "");
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
     renderParty(state.party || []);
@@ -890,6 +943,7 @@ async function refresh() {
     statSpeedEl.textContent = "-";
     statActualSpeedEl.textContent = "-";
     statVolumeEl.textContent = "-";
+    renderRuns([], "");
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);

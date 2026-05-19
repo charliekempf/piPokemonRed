@@ -29,6 +29,7 @@ from run_pi_pyboy import (
     PI_DIGITS,
     ROM,
     RUN_NAME,
+    RUN_CONFIG_FILENAME,
     latest_checkpoint,
     load_input_config,
     resolve_configured_run_name,
@@ -55,6 +56,40 @@ def list_checkpoints(run_name: str) -> list[dict[str, int | str]]:
             continue
         checkpoints.append({"digits": digits, "filename": checkpoint_path.name})
     return sorted(checkpoints, key=lambda checkpoint: int(checkpoint["digits"]))
+
+
+def list_runs(active_run_name: str) -> list[dict[str, object]]:
+    runs: list[dict[str, object]] = []
+    saves_root = Path("saves")
+    if not saves_root.exists():
+        return runs
+    for run_dir in saves_root.iterdir():
+        if not run_dir.is_dir():
+            continue
+        checkpoints = list_checkpoints(run_dir.name)
+        if not checkpoints:
+            continue
+        config_path = run_dir / RUN_CONFIG_FILENAME
+        label = run_dir.name
+        config_available = config_path.exists()
+        if config_available:
+            try:
+                config = load_input_config(config_path)
+                label = f"{run_dir.name} ({config.digits_per_input}d, {config.on_frames}/{config.off_frames})"
+            except Exception:
+                config_available = False
+        highest_digits = max((int(checkpoint["digits"]) for checkpoint in checkpoints), default=0)
+        runs.append(
+            {
+                "name": run_dir.name,
+                "label": label,
+                "checkpoint_count": len(checkpoints),
+                "highest_digits": highest_digits,
+                "config_available": config_available,
+                "active": run_dir.name == active_run_name,
+            }
+        )
+    return sorted(runs, key=lambda run: (-int(run["highest_digits"]), str(run["name"])))
 
 
 def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Image | None:
@@ -185,6 +220,40 @@ class ReviewWebApp:
                     raise
                 self.start_emulator_thread()
 
+    def select_run(self, run_name: str) -> None:
+        run_name = str(run_name)
+        config_path = Path("saves") / run_name / RUN_CONFIG_FILENAME
+        if not config_path.exists():
+            raise ValueError(f"Run {run_name} does not have {RUN_CONFIG_FILENAME}.")
+
+        old_session: ReviewSession | None = None
+        old_thread: threading.Thread | None = None
+        with self._lock:
+            if run_name == self.run_name:
+                return
+            old_session = self.session
+            old_thread = self.emulator_thread
+            self.session = None
+            self.emulator_thread = None
+
+        if old_session is not None:
+            old_session.stop()
+        if old_thread is not None and old_thread.is_alive():
+            old_thread.join(timeout=2)
+
+        input_config = load_input_config(config_path)
+        session = self.session_factory(run_name, config_path, input_config, "penultimate", None)
+        with self._lock:
+            self.run_name = run_name
+            self.config_path = config_path
+            self.digits_per_input = input_config.digits_per_input
+            self.session = session
+            self.chart_simulation = None
+            self.chart_target_digits = 0
+            self.frame_version = 0
+            self._last_frame_digest = ""
+        self.start_emulator_thread()
+
     def start_chart_simulation(self, target_digits: int, checkpoint_interval_digits: int) -> int:
         target_digits = max(0, int(target_digits))
         checkpoint_interval_digits = max(self.digits_per_input, int(checkpoint_interval_digits))
@@ -282,6 +351,8 @@ class ReviewWebApp:
                 "player_info": {},
                 "badges": [],
                 "checkpoints": checkpoints,
+                "runs": list_runs(self.run_name),
+                "active_run": self.run_name,
                 "chart_simulation": self.chart_simulation_info(),
             }
         self.refresh_available_digits()
@@ -310,6 +381,8 @@ class ReviewWebApp:
             "player_info": self.session.player_info(),
             "badges": self.session.badges(),
             "checkpoints": list_checkpoints(self.run_name),
+            "runs": list_runs(self.run_name),
+            "active_run": self.run_name,
             "chart_simulation": self.chart_simulation_info(),
         }
 
@@ -373,6 +446,14 @@ def make_handler(app: ReviewWebApp):
                 return
 
             body = self._read_json()
+            if path == "/api/select-run":
+                try:
+                    app.select_run(str(body.get("run_name", "")))
+                    self._send_json({"ok": True, "run_name": app.run_name})
+                except Exception as error:
+                    self._send_json({"ok": False, "error": str(error)})
+                return
+
             if app.session is None:
                 self._send_json({"ok": False, "error": "ROM required"})
             elif path == "/api/pause":
@@ -503,17 +584,26 @@ def main() -> None:
 
     digits = args.digits.read_text(encoding="ascii").strip()
 
-    def create_session() -> ReviewSession:
+    def create_session(
+        run_name: str = args.run_name,
+        config_path: Path = args.config,
+        session_input_config=None,
+        checkpoint_name: str = args.checkpoint,
+        explicit_digits_consumed: int | None = args.digits_consumed,
+    ) -> ReviewSession:
         if not args.rom.exists():
             raise RomMissingError(f"ROM not found: {args.rom}")
-        newest_checkpoint = latest_checkpoint(Path("saves") / args.run_name)
+        active_config = session_input_config or load_input_config(config_path)
+        active_hold_frames = active_config.on_frames if args.hold_frames is None else args.hold_frames
+        active_release_frames = active_config.off_frames if args.release_frames is None else args.release_frames
+        newest_checkpoint = latest_checkpoint(Path("saves") / run_name)
         newest_checkpoint_digits = newest_checkpoint[0] if newest_checkpoint is not None else 0
         max_digits = min(args.max_digits or len(digits), len(digits))
-        if max_digits % input_config.digits_per_input:
-            max_digits -= max_digits % input_config.digits_per_input
+        if max_digits % active_config.digits_per_input:
+            max_digits -= max_digits % active_config.digits_per_input
 
-        checkpoint = resolve_checkpoint(args.run_name, args.checkpoint, max_digits=max_digits + input_config.digits_per_input)
-        start_digits = checkpoint_digits(checkpoint, args.digits_consumed)
+        checkpoint = resolve_checkpoint(run_name, checkpoint_name, max_digits=max_digits + active_config.digits_per_input)
+        start_digits = checkpoint_digits(checkpoint, explicit_digits_consumed)
         if start_digits > max_digits:
             raise ValueError(f"Checkpoint is at {start_digits:,} digits, but max is {max_digits:,}.")
 
@@ -529,24 +619,24 @@ def main() -> None:
         )
         with checkpoint.open("rb") as state_file:
             pyboy.load_state(state_file)
-        initial_image = load_checkpoint_screenshot(args.run_name, start_digits) or render_loaded_state(pyboy)
+        initial_image = load_checkpoint_screenshot(run_name, start_digits) or render_loaded_state(pyboy)
 
         session = ReviewSession(
             pyboy=pyboy,
             digits=digits,
             digits_consumed=start_digits,
             max_digits=max_digits,
-            hold_frames=hold_frames,
-            release_frames=release_frames,
+            hold_frames=active_hold_frames,
+            release_frames=active_release_frames,
             rewind_interval_digits=args.rewind_interval_digits,
             rewind_history_digits=args.rewind_history_digits,
             sound_volume=args.sound_volume,
             audio_sink=AudioSink(args.sound_sample_rate),
             initial_image=initial_image,
             rom_path=args.rom,
-            run_name=args.run_name,
+            run_name=run_name,
             digits_path=args.digits,
-            input_config=input_config,
+            input_config=active_config,
         )
         session.set_speed(args.speed)
         if args.start_running:
