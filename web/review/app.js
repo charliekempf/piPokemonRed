@@ -25,6 +25,7 @@ const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
 const partyEl = document.querySelector("#party");
+const badgesEl = document.querySelector("#badges");
 const inputsEl = document.querySelector("#inputs");
 
 const FRAME_WIDTH = 160;
@@ -355,6 +356,35 @@ function renderParty(members) {
   );
 }
 
+function renderBadges(badges) {
+  if (!badges.length) {
+    const row = document.createElement("li");
+    row.className = "badge-empty";
+    row.textContent = "No badge data";
+    badgesEl.replaceChildren(row);
+    return;
+  }
+
+  badgesEl.replaceChildren(
+    ...badges.map((badge) => {
+      const row = document.createElement("li");
+      const mark = document.createElement("span");
+      const name = document.createElement("span");
+      const state = document.createElement("span");
+      row.className = "badge-item";
+      row.classList.toggle("is-earned", Boolean(badge.earned));
+      mark.className = "badge-mark";
+      name.className = "badge-name";
+      state.className = "badge-state";
+      mark.textContent = String(badge.name || "?").slice(0, 1).toUpperCase();
+      name.textContent = badge.name || `Badge ${badge.slot}`;
+      state.textContent = badge.earned ? "Earned" : "Locked";
+      row.append(mark, name, state);
+      return row;
+    }),
+  );
+}
+
 function renderCheckpoints(checkpoints, currentDigits) {
   if (!checkpoints.length) {
     const row = document.createElement("li");
@@ -546,6 +576,7 @@ async function refresh() {
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
     renderParty(state.party || []);
+    renderBadges(state.badges || []);
     renderInputs(state.inputs || []);
   } catch (error) {
     setStateClass("disconnected");
@@ -559,6 +590,7 @@ async function refresh() {
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);
+    renderBadges([]);
     renderInputs([]);
   } finally {
     setTimeout(refresh, 150);

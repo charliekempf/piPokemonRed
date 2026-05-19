@@ -42,7 +42,18 @@ PARTY_NICKS_ADDR = 0xD2B5
 PARTY_NAME_LENGTH = 11
 PARTY_SIZE = 6
 BATTLE_FLAG_ADDR = 0xD057
+OBTAINED_BADGES_ADDR = 0xD356
 CURRENT_MAP_ADDR = 0xD35E
+BADGE_NAMES = [
+    "Boulder",
+    "Cascade",
+    "Thunder",
+    "Rainbow",
+    "Soul",
+    "Marsh",
+    "Volcano",
+    "Earth",
+]
 WARP_STATE_LABELS = {
     "battle": "battle",
     "blackout": "blackout",
@@ -1147,6 +1158,18 @@ class ReviewSession:
                     }
                 )
             return members
+
+    def badges(self) -> list[dict[str, object]]:
+        with self._lock:
+            mask = int(self.pyboy.memory[OBTAINED_BADGES_ADDR])
+        return [
+            {
+                "slot": index + 1,
+                "name": name,
+                "earned": bool(mask & (1 << index)),
+            }
+            for index, name in enumerate(BADGE_NAMES)
+        ]
 
     def run(self) -> None:
         self.pyboy.set_emulation_speed(self.speed)

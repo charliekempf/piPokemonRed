@@ -111,6 +111,7 @@ class ReviewWebApp:
             "frame_version": self.frame_version,
             "inputs": self.session.input_window(previous_count=3, next_count=11),
             "party": self.session.party(),
+            "badges": self.session.badges(),
             "checkpoints": list_checkpoints(self.run_name),
         }
 
