@@ -1067,115 +1067,47 @@ button:disabled {
 }
 
 .timeline {
-  min-height: 112px;
+  min-height: 96px;
 }
 
 .timeline-track {
   position: relative;
-  height: 96px;
+  height: 80px;
   margin: 0 4px;
 }
 
 .timeline-track::before {
   content: "";
   position: absolute;
-  top: 52px;
+  top: 18px;
   left: 0;
   right: 0;
-  height: 18px;
+  height: 54px;
   background: #1c1f26;
   border: 1px solid #454b58;
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .timeline-fill {
   position: absolute;
-  top: 53px;
+  top: 19px;
   left: 1px;
-  height: 18px;
+  height: 54px;
   max-width: calc(100% - 2px);
   background: linear-gradient(90deg, #4f6f98, #6f89af);
-  border-radius: 5px;
+  border-radius: 7px;
 }
 
 .timeline-cursor {
   position: absolute;
-  top: 42px;
-  width: 2px;
-  height: 40px;
+  top: 10px;
+  width: 3px;
+  height: 70px;
   background: #fff4b8;
   box-shadow: 0 0 0 2px rgba(255, 244, 184, 0.2);
   transform: translateX(-50%);
   z-index: 4;
-}
-
-.timeline-markers {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.timeline-markers li {
-  position: absolute;
-  top: 28px;
-  transform: translateX(-50%);
-}
-
-.timeline-markers button {
-  position: relative;
-  width: 18px;
-  height: 24px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.timeline-markers button::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 2px;
-  width: 14px;
-  height: 13px;
-  background: #d0aa45;
-  border: 1px solid #f1d37b;
-  border-radius: 3px 3px 2px 2px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
-}
-
-.timeline-markers button::after {
-  content: "";
-  position: absolute;
-  top: 13px;
-  left: 6px;
-  width: 6px;
-  height: 11px;
-  background: #d0aa45;
-  border-left: 1px solid #f1d37b;
-  border-right: 1px solid #8f6d24;
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
-}
-
-.timeline-markers button:hover:not(:disabled)::before,
-.timeline-markers button:hover:not(:disabled)::after {
-  filter: brightness(1.18);
-}
-
-.timeline-markers button:hover:not(:disabled)::before {
-  box-shadow: 0 0 0 3px rgba(208, 170, 69, 0.22), 0 2px 5px rgba(0, 0, 0, 0.35);
-}
-
-.timeline-markers button.is-current::before {
-  background: #fff4b8;
-  border-color: #fff8d2;
-}
-
-.timeline-markers button.is-current::after {
-  background: #fff4b8;
-  border-left-color: #fff8d2;
 }
 
 .timeline-empty {

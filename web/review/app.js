@@ -645,39 +645,15 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
   const track = document.createElement("div");
   const fill = document.createElement("span");
   const cursor = document.createElement("span");
-  const markers = document.createElement("ol");
 
   track.className = "timeline-track";
   fill.className = "timeline-fill";
   cursor.className = "timeline-cursor";
-  markers.className = "timeline-markers";
 
   fill.style.width = `${Math.min(100, (Number(currentDigits) / timelineMax) * 100)}%`;
   cursor.style.left = `${Math.min(100, (Number(currentDigits) / timelineMax) * 100)}%`;
 
-  markers.replaceChildren(
-    ...checkpointItems.map((checkpoint) => {
-      const item = document.createElement("li");
-      const marker = document.createElement("button");
-      const position = timelineMax > 0 ? Math.min(100, (checkpoint.digits / timelineMax) * 100) : 0;
-      const isCurrent = Number(checkpoint.digits) === Number(currentDigits);
-
-      item.style.left = `${position}%`;
-      marker.type = "button";
-      marker.className = isCurrent ? "is-current" : "";
-      marker.dataset.digits = String(checkpoint.digits);
-      marker.title = `${checkpoint.filename} (${fmt(checkpoint.digits)} digits)`;
-      marker.setAttribute("aria-label", `Jump to ${checkpoint.filename}`);
-      marker.disabled = backendBusy;
-      marker.addEventListener("click", () => {
-        post("/api/jump", { digits: checkpoint.digits });
-      });
-      item.append(marker);
-      return item;
-    }),
-  );
-
-  track.append(fill, cursor, markers);
+  track.append(fill, cursor);
   timelineEl.replaceChildren(track);
 }
 
