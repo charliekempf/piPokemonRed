@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from review_pi_checkpoint import BAG_COUNT_ADDR, BAG_ITEMS_ADDR, ReviewSession, item_name
+from review_pi_checkpoint import BAG_COUNT_ADDR, BAG_ITEMS_ADDR, ReviewSession, has_bag_item_gain, item_name
 
 
 class NoopLock:
@@ -46,3 +46,14 @@ def test_bag_reads_item_quantity_pairs() -> None:
 def test_item_name_formats_unknown_ids() -> None:
     assert item_name(0xFA) == "TM50 Substitute"
     assert item_name(0xFE) == "Item $FE"
+
+
+def test_has_bag_item_gain_detects_quantity_increase() -> None:
+    pyboy = FakePyBoy()
+    pyboy.memory.values[BAG_COUNT_ADDR] = 1
+    pyboy.memory.values[BAG_ITEMS_ADDR] = 0x14
+    pyboy.memory.values[BAG_ITEMS_ADDR + 1] = 3
+
+    assert not has_bag_item_gain(pyboy, {0x14: 3})
+    assert has_bag_item_gain(pyboy, {0x14: 2})
+    assert has_bag_item_gain(pyboy, {})

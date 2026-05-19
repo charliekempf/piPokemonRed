@@ -209,6 +209,7 @@ WARP_STATE_LABELS = {
     "battle": "battle",
     "blackout": "blackout",
     "evolution": "evolution",
+    "item_pickup": "item pickup",
     "level_up": "level up",
     "scene_change": "scene change",
     "trainer_battle": "trainer battle",
@@ -1336,6 +1337,23 @@ def has_evolution_started(pyboy: PyBoy, starting_marker: tuple[int, int, int], s
     )
 
 
+def bag_quantities(pyboy: PyBoy) -> dict[int, int]:
+    count = max(0, min(BAG_CAPACITY, int(pyboy.memory[BAG_COUNT_ADDR])))
+    items: dict[int, int] = {}
+    for index in range(count):
+        item_id = int(pyboy.memory[BAG_ITEMS_ADDR + (index * 2)])
+        quantity = int(pyboy.memory[BAG_ITEMS_ADDR + (index * 2) + 1])
+        if item_id in {0x00, 0xFF}:
+            break
+        items[item_id] = items.get(item_id, 0) + quantity
+    return items
+
+
+def has_bag_item_gain(pyboy: PyBoy, starting_items: dict[int, int]) -> bool:
+    current_items = bag_quantities(pyboy)
+    return any(quantity > starting_items.get(item_id, 0) for item_id, quantity in current_items.items())
+
+
 class ReviewSession:
     def __init__(
         self,
@@ -2246,6 +2264,7 @@ class ReviewSession:
             starting_levels = party_levels(simulator)
             starting_species = party_species(simulator)
             starting_evolution_marker = evolution_marker(simulator)
+            starting_bag_items = bag_quantities(simulator)
             evolution_seen = is_evolution_active(simulator)
             while digits_consumed < end_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
@@ -2306,7 +2325,10 @@ class ReviewSession:
                     elif has_evolution_started(simulator, starting_evolution_marker, starting_species):
                         found = True
                         break
-                elif current_map_id(simulator) != starting_map:
+                elif target_state == "item_pickup" and has_bag_item_gain(simulator, starting_bag_items):
+                    found = True
+                    break
+                elif target_state == "scene_change" and current_map_id(simulator) != starting_map:
                     found = True
                     break
 
