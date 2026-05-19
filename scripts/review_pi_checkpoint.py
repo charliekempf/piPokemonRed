@@ -33,7 +33,7 @@ from run_pi_pyboy import (
 )
 
 
-CHECKPOINT_RE = re.compile(r"checkpoint_(\d{8})_digits\.state$")
+CHECKPOINT_RE = re.compile(r"checkpoint_(\d+)_digits\.state$")
 PARTY_COUNT_ADDR = 0xD163
 PARTY_SPECIES_ADDR = 0xD164
 PARTY_MONS_ADDR = 0xD16B
@@ -2254,7 +2254,7 @@ def resolve_checkpoint(run_name: str, checkpoint: str, max_digits: int | None = 
         return candidate
 
     if checkpoint.isdigit():
-        candidate = checkpoint_dir / f"checkpoint_{int(checkpoint):08d}_digits.state"
+        candidate = checkpoint_dir / f"checkpoint_{int(checkpoint)}_digits.state"
         if candidate.exists():
             return candidate
 

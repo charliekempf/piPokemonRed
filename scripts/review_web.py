@@ -54,7 +54,7 @@ def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Ima
         Path("results")
         / run_name
         / "screenshots"
-        / f"checkpoint_{digits_consumed:08d}_digits.png"
+        / f"checkpoint_{digits_consumed}_digits.png"
     )
     if not screenshot_path.exists():
         return None

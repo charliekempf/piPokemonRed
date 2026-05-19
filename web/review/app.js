@@ -624,7 +624,7 @@ function checkpointInfo(checkpoint) {
   const digits = typeof checkpoint === "object" ? Number(checkpoint.digits) : Number(checkpoint);
   const filename = typeof checkpoint === "object"
     ? checkpoint.filename
-    : `checkpoint_${String(digits).padStart(8, "0")}_digits.state`;
+    : `checkpoint_${digits}_digits.state`;
   return { digits, filename };
 }
 

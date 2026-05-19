@@ -133,7 +133,7 @@ def advance_pi_inputs(
 
 
 def latest_checkpoint(checkpoint_dir: Path) -> tuple[int, Path] | None:
-    pattern = re.compile(r"checkpoint_(\d{8})_digits\.state$")
+    pattern = re.compile(r"checkpoint_(\d+)_digits\.state$")
     candidates: list[tuple[int, Path]] = []
     for path in checkpoint_dir.glob("checkpoint_*_digits.state"):
         match = pattern.match(path.name)
@@ -150,7 +150,7 @@ def save_checkpoint(
     save_screenshot: bool,
 ) -> Path:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    state_path = checkpoint_dir / f"checkpoint_{digits_consumed:08d}_digits.state"
+    state_path = checkpoint_dir / f"checkpoint_{digits_consumed}_digits.state"
     with state_path.open("wb") as state_file:
         pyboy.save_state(state_file)
 
@@ -160,7 +160,7 @@ def save_checkpoint(
         pyboy.save_state(restore_buffer)
         restore_buffer.seek(0)
         pyboy.tick(1, True)
-        pyboy.screen.image.save(screenshot_dir / f"checkpoint_{digits_consumed:08d}_digits.png")
+        pyboy.screen.image.save(screenshot_dir / f"checkpoint_{digits_consumed}_digits.png")
         restore_buffer.seek(0)
         pyboy.load_state(restore_buffer)
 
