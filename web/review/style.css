@@ -356,6 +356,18 @@ body {
   border-radius: 6px;
 }
 
+.play-speed-row {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.play-speed-row .play-pause-control {
+  align-self: stretch;
+  height: auto;
+}
+
 .speed-row,
 .volume-row {
   display: grid;
@@ -365,7 +377,7 @@ body {
 }
 
 .speed-row {
-  grid-template-columns: 64px 38px 1fr 78px;
+  grid-template-columns: 64px 1fr 78px;
 }
 
 .speed-row strong,
@@ -382,7 +394,7 @@ input[type="range"] {
 .scale {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  margin-left: 122px;
+  margin-left: 74px;
   margin-right: 88px;
   color: #aeb4c0;
   font-size: 12px;
