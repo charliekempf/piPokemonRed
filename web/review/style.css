@@ -38,7 +38,8 @@ body {
 }
 
 .checkpoint-panel {
-  max-height: calc(100vh - 36px);
+  height: calc(100vh - 36px);
+  box-sizing: border-box;
   overflow: hidden;
   padding: 12px;
   display: grid;
@@ -53,11 +54,14 @@ body {
 
 .checkpoint-list {
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
+  align-content: start;
   gap: 6px;
 }
 
