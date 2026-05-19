@@ -1179,7 +1179,8 @@ class ReviewSession:
 
     def set_speed(self, speed: float) -> None:
         with self._lock:
-            self.speed = max(0.1, min(1000, float(speed)))
+            requested_speed = max(0.1, min(1000, float(speed)))
+            self.speed = requested_speed if requested_speed < 1 else round(requested_speed)
             if (
                 self._fast_forward_target_digits is None
                 and self._simulate_target_digits is None

@@ -66,6 +66,13 @@ function speedFromSlider() {
   return speed < 1 ? Number(speed.toFixed(1)) : Math.round(speed);
 }
 
+function snapSpeedSliderToValue(speed) {
+  if (speedSliderIsUnlimited()) {
+    return;
+  }
+  speedEl.value = String(Math.log10(Math.max(0.1, Math.min(1000, Number(speed)))));
+}
+
 function speedLabelFromSlider() {
   return speedSliderIsUnlimited() ? "Unlimited" : speedLabel(speedFromSlider());
 }
@@ -256,8 +263,10 @@ romUploadEl.addEventListener("change", async () => {
 });
 
 speedEl.addEventListener("input", () => {
-  statSpeedEl.textContent = `Set ${speedLabelFromSlider()}`;
-  post("/api/speed", { speed: speedFromSlider() });
+  const speed = speedFromSlider();
+  snapSpeedSliderToValue(speed);
+  statSpeedEl.textContent = `Set ${speedLabel(speed)}`;
+  post("/api/speed", { speed });
   post("/api/limiter", { enabled: !speedSliderIsUnlimited() });
 });
 
