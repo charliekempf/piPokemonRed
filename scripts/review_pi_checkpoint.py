@@ -263,6 +263,19 @@ class ReviewSession:
         with self._lock:
             return self.latest_image.copy() if self.latest_image is not None else None
 
+    def upcoming_buttons(self, count: int = 12) -> list[tuple[int, str, str]]:
+        with self._lock:
+            start = self.digits_consumed
+
+        buttons = []
+        for offset in range(0, count * 2, 2):
+            digit_index = start + offset
+            if digit_index + 1 >= self.max_digits:
+                break
+            pair = self.digits[digit_index : digit_index + 2]
+            buttons.append((digit_index, pair, button_for_pair(int(pair))))
+        return buttons
+
 
 def checkpoint_digits(path: Path, explicit_digits: int | None) -> int:
     if explicit_digits is not None:
@@ -310,6 +323,14 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
 
     screen_label = ttk.Label(root)
     screen_label.grid(row=0, column=0, columnspan=4, padx=10, pady=(10, 6))
+
+    preview_frame = ttk.LabelFrame(root, text="Next")
+    preview_frame.grid(row=0, column=4, rowspan=6, padx=(0, 10), pady=10, sticky="ns")
+    preview_labels = []
+    for index in range(12):
+        label = ttk.Label(preview_frame, width=16, anchor="w")
+        label.grid(row=index, column=0, padx=8, pady=2, sticky="w")
+        preview_labels.append(label)
 
     ttk.Label(root, textvariable=status_var, width=62).grid(row=1, column=0, columnspan=4, padx=10, pady=(0, 4))
 
@@ -365,9 +386,21 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
         )
         root.after(250, refresh_status)
 
+    def refresh_preview() -> None:
+        upcoming = session.upcoming_buttons(len(preview_labels))
+        for index, label in enumerate(preview_labels):
+            if index < len(upcoming):
+                digit_index, pair, button = upcoming[index]
+                prefix = ">" if index == 0 else " "
+                label.configure(text=f"{prefix} {digit_index:07d}  {pair} -> {button.upper()}")
+            else:
+                label.configure(text="")
+        root.after(250, refresh_preview)
+
     root.protocol("WM_DELETE_WINDOW", lambda: (session.stop(), root.destroy()))
     refresh_status()
     refresh_screen()
+    refresh_preview()
     return root
 
 

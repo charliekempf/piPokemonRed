@@ -104,7 +104,7 @@ Open a specific checkpoint by digit count:
 py scripts\review_pi_checkpoint.py --checkpoint 5000000 --speed 1
 ```
 
-The review window continues the same pi input stream from the checkpoint. It embeds the Game Boy screen and controls in a single window, with a labeled logarithmic speed slider from `1x` to `1000x`, a checkbox to enable or bypass the speed limiter, an `inputs sent` counter, the last pi-derived button sent, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.
+The review window continues the same pi input stream from the checkpoint. It embeds the Game Boy screen and controls in a single window, with a labeled logarithmic speed slider from `1x` to `1000x`, a checkbox to enable or bypass the speed limiter, an `inputs sent` counter, the last pi-derived button sent, a Tetris-style preview of upcoming inputs, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.
 
 ## TAS Button Tally
 
