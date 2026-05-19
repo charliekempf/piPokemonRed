@@ -89,6 +89,7 @@ class ReviewSession:
         self.running = True
         self.paused = True
         self.speed = 1
+        self.speed_limiter_enabled = True
         self.status = "paused"
         self.inputs_sent = 0
         self.last_button = "-"
@@ -106,6 +107,11 @@ class ReviewSession:
         with self._lock:
             self.speed = max(1, min(1000, int(round(speed))))
             self.pyboy.set_emulation_speed(self.speed)
+
+    def set_speed_limiter_enabled(self, enabled: bool) -> None:
+        with self._lock:
+            self.speed_limiter_enabled = enabled
+            self._next_frame_time = time.perf_counter()
 
     def set_paused(self, paused: bool) -> None:
         with self._lock:
@@ -127,6 +133,7 @@ class ReviewSession:
                 "max_digits": self.max_digits,
                 "frames_elapsed": self.frames_elapsed,
                 "speed": self.speed,
+                "speed_limiter_enabled": "on" if self.speed_limiter_enabled else "off",
                 "status": self.status,
                 "snapshots": len(self.snapshots),
                 "inputs_sent": self.inputs_sent,
@@ -190,7 +197,8 @@ class ReviewSession:
     def _limit_frame_rate(self) -> None:
         with self._lock:
             speed = self.speed
-        if speed <= 0:
+            enabled = self.speed_limiter_enabled
+        if speed <= 0 or not enabled:
             return
 
         now = time.perf_counter()
@@ -278,6 +286,7 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
 
     status_var = tk.StringVar()
     speed_var = tk.DoubleVar(value=math.log10(max(1, session.speed)))
+    speed_limiter_var = tk.BooleanVar(value=True)
 
     screen_label = ttk.Label(root)
     screen_label.grid(row=0, column=0, columnspan=4, padx=10, pady=(10, 6))
@@ -286,6 +295,9 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
 
     def speed_changed(value: str) -> None:
         session.set_speed(10 ** float(value))
+
+    def speed_limiter_changed() -> None:
+        session.set_speed_limiter_enabled(speed_limiter_var.get())
 
     ttk.Label(root, text="Speed").grid(row=2, column=0, padx=(10, 4), sticky="w")
     speed_slider = ttk.Scale(root, from_=0, to=3, variable=speed_var, command=speed_changed, length=320)
@@ -298,7 +310,11 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
         info = session.info()
         session.set_paused(info["status"] != "paused")
 
-    ttk.Button(root, text="Pause/Resume", command=toggle_pause).grid(row=4, column=0, padx=10, pady=8)
+    ttk.Checkbutton(root, text="Use speed slider", variable=speed_limiter_var, command=speed_limiter_changed).grid(
+        row=4, column=0, columnspan=2, padx=10, pady=(2, 4), sticky="w"
+    )
+
+    ttk.Button(root, text="Pause/Resume", command=toggle_pause).grid(row=5, column=0, padx=10, pady=8)
     rewind_menu = ttk.Combobox(
         root,
         textvariable=rewind_digits_var,
@@ -306,11 +322,11 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
         width=10,
         state="readonly",
     )
-    rewind_menu.grid(row=4, column=1, padx=4, pady=8)
+    rewind_menu.grid(row=5, column=1, padx=4, pady=8)
     ttk.Button(root, text="Rewind Digits", command=lambda: session.request_rewind(int(rewind_digits_var.get()))).grid(
-        row=4, column=2, padx=4, pady=8
+        row=5, column=2, padx=4, pady=8
     )
-    ttk.Button(root, text="Quit", command=lambda: (session.stop(), root.destroy())).grid(row=4, column=3, padx=10, pady=8)
+    ttk.Button(root, text="Quit", command=lambda: (session.stop(), root.destroy())).grid(row=5, column=3, padx=10, pady=8)
 
     def refresh_screen() -> None:
         image = session.frame_image()
@@ -325,7 +341,7 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
         info = session.info()
         status_var.set(
             f"{info['status']} | {info['digits_consumed']:,}/{info['max_digits']:,} digits | "
-            f"{info['speed']}x | inputs sent: {info['inputs_sent']:,} | "
+            f"{info['speed']}x ({info['speed_limiter_enabled']}) | inputs sent: {info['inputs_sent']:,} | "
             f"last: {info['last_button']} | rewind snapshots: {info['snapshots']}"
         )
         root.after(250, refresh_status)
