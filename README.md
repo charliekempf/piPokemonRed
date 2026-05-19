@@ -1,14 +1,14 @@
-# piPokemon
+# Pi Plays Pokemon
 
 Experiments for mapping digits of pi to Game Boy inputs and testing whether the resulting input stream can progress through Pokemon Red.
 
 ## What This Is
 
-`piPokemon` is a local research toy for deterministic Pokemon Red input experiments. It maps digits of pi into Game Boy button presses, runs the game through PyBoy, saves periodic checkpoints, and provides a review UI for replaying checkpoints with graphics, sound, speed control, and rewind.
+`Pi Plays Pokemon` is a local research toy for deterministic Pokemon Red input experiments. It maps digits of pi into Game Boy button presses, runs the game through PyBoy, saves periodic checkpoints, and provides a browser-based review UI for replaying, inspecting, and extending runs.
 
 The project is designed so the public repository contains only source code and documentation. You bring your own legally obtained ROM and local data files.
 
-**Highest digit reached:** 10,000,000 digits consumed in the `pi_10m_two_digit` run.
+**Highest digit reached:** 50,000,000 digits consumed in the `pi_50m_two_digit` run.
 
 ![piPokemon web review player with local ROM preview hidden](docs/review-player.png)
 
@@ -49,9 +49,9 @@ py -m pip install -r requirements.txt
 Expected local files:
 
 - `roms/Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb`
-- `data/pi_10m_digits.txt`
+- `data/pi_1b_digits.txt` for the current 50M run, or another plain-text pi digit file
 
-The scripts assume those default paths, but most commands accept `--rom` and `--digits` overrides.
+The scripts assume default paths, but most commands accept `--rom` and `--digits` overrides. If the web reviewer starts without a ROM at the configured path, the Game Boy screen area becomes a same-size `Load ROM` panel. Selecting a ROM copies it into the configured `roms/` path and initializes the emulator locally. ROM files remain ignored by git.
 
 ## Current Benchmark Baseline
 
@@ -81,22 +81,32 @@ The input timing and mapping live in `config/pi_input.json`:
 - `digits_per_input` controls how many pi digits are consumed for each input.
 - `mapping` assigns each decimal range to a Game Boy button.
 
-Run or resume the 10 million digit PyBoy test with:
+Run or resume a headless PyBoy test with:
 
 ```powershell
 py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000
 ```
 
+For the current 50M run:
+
+```powershell
+py scripts\run_pi_pyboy.py --run-name pi_50m_two_digit --digits data\pi_1b_digits.txt --checkpoint-digits 1000000 --max-digits 50000000
+```
+
 Add `--fresh` to ignore existing checkpoints and restart from reset. Pass `--hold-frames` or `--release-frames` only when intentionally overriding the config for an experiment.
 
-Checkpoints are saved in `saves/pi_10m_two_digit/`, screenshots in `results/pi_10m_two_digit/screenshots/`, and progress metadata in `results/pi_10m_two_digit/progress.json`. These generated files are intentionally ignored by git.
-
-Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`.
+Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`. These generated files are intentionally ignored by git.
 
 Review a checkpoint in the local web UI:
 
 ```powershell
 .\scripts\open_review.ps1
+```
+
+Open the current 50M run explicitly:
+
+```powershell
+.\scripts\open_review.ps1 -RunName pi_50m_two_digit -Digits data\pi_1b_digits.txt
 ```
 
 The launcher closes older web or Tk reviewer instances before opening a new browser tab. By default, it opens the penultimate checkpoint so there is room to play forward into the newest available checkpoint.
@@ -111,7 +121,19 @@ Open a specific checkpoint by digit count:
 py scripts\review_web.py --checkpoint 5000000 --speed 1 --open-browser
 ```
 
-The web reviewer continues the same pi input stream from the checkpoint. It serves the Game Boy screen and controls from a local web app, with a labeled logarithmic speed slider from `1x` to `1000x`, a checkbox to enable or bypass the speed limiter, an `inputs sent` counter, the last pi-derived button sent, a Tetris-style preview of upcoming inputs, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.
+The web reviewer continues the same pi input stream from the checkpoint. It serves the Game Boy screen and controls from a local web app with:
+
+- WebGL canvas rendering with Canvas 2D fallback.
+- A speed slider from `1x` through `1000x` to `Unlimited`.
+- Digit-based rewind and fast-forward controls.
+- A checkpoint list, clickable timeline, and jump-to-digit control.
+- An input preview showing the last three inputs, current input, and upcoming inputs.
+- Live location display, including building context such as `Pallet Town | Oak's Lab`.
+- Live party panel with expandable moves and PP.
+- Gym badge panel.
+- Event Finder for warping to the next battle, trainer battle, location change, level up, evolution, or blackout, with a digit-limit dropdown to prevent long searches.
+
+The Headless simulator panel can extend a run from the browser. Enter an absolute `Simulate up to` digit target and choose `Checkpoint every` to control how frequently savestates/screenshots are written. The simulator resumes from the highest usable checkpoint at or before the target, so extending a run does not replay already-saved work. The resume path has been checked by comparing a full 49M -> 50M advance against loading the 50M checkpoint; the final PyBoy savestates matched byte-for-byte.
 
 ## TAS Button Tally
 
