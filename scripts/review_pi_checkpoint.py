@@ -41,6 +41,9 @@ PARTY_MON_SIZE = 44
 PARTY_NICKS_ADDR = 0xD2B5
 PARTY_NAME_LENGTH = 11
 PARTY_SIZE = 6
+BAG_COUNT_ADDR = 0xD31D
+BAG_ITEMS_ADDR = 0xD31E
+BAG_CAPACITY = 20
 BATTLE_FLAG_ADDR = 0xD057
 BATTLE_TRAINER_VALUE = 2
 OBTAINED_BADGES_ADDR = 0xD356
@@ -65,6 +68,142 @@ BADGE_NAMES = [
     "Marsh",
     "Volcano",
     "Earth",
+]
+ITEM_NAMES = {
+    0x01: "Master Ball",
+    0x02: "Ultra Ball",
+    0x03: "Great Ball",
+    0x04: "Poke Ball",
+    0x05: "Town Map",
+    0x06: "Bicycle",
+    0x07: "Surfboard",
+    0x08: "Safari Ball",
+    0x09: "Pokedex",
+    0x0A: "Moon Stone",
+    0x0B: "Antidote",
+    0x0C: "Burn Heal",
+    0x0D: "Ice Heal",
+    0x0E: "Awakening",
+    0x0F: "Parlyz Heal",
+    0x10: "Full Restore",
+    0x11: "Max Potion",
+    0x12: "Hyper Potion",
+    0x13: "Super Potion",
+    0x14: "Potion",
+    0x15: "Boulderbadge",
+    0x16: "Cascadebadge",
+    0x17: "Thunderbadge",
+    0x18: "Rainbowbadge",
+    0x19: "Soulbadge",
+    0x1A: "Marshbadge",
+    0x1B: "Volcanobadge",
+    0x1C: "Earthbadge",
+    0x1D: "Escape Rope",
+    0x1E: "Repel",
+    0x1F: "Old Amber",
+    0x20: "Fire Stone",
+    0x21: "Thunder Stone",
+    0x22: "Water Stone",
+    0x23: "HP Up",
+    0x24: "Protein",
+    0x25: "Iron",
+    0x26: "Carbos",
+    0x27: "Calcium",
+    0x28: "Rare Candy",
+    0x29: "Dome Fossil",
+    0x2A: "Helix Fossil",
+    0x2B: "Secret Key",
+    0x2D: "Bike Voucher",
+    0x2E: "X Accuracy",
+    0x2F: "Leaf Stone",
+    0x30: "Card Key",
+    0x31: "Nugget",
+    0x33: "Poke Doll",
+    0x34: "Full Heal",
+    0x35: "Revive",
+    0x36: "Max Revive",
+    0x37: "Guard Spec.",
+    0x38: "Super Repel",
+    0x39: "Max Repel",
+    0x3A: "Dire Hit",
+    0x3B: "Coin",
+    0x3C: "Fresh Water",
+    0x3D: "Soda Pop",
+    0x3E: "Lemonade",
+    0x3F: "S.S. Ticket",
+    0x40: "Gold Teeth",
+    0x41: "X Attack",
+    0x42: "X Defend",
+    0x43: "X Speed",
+    0x44: "X Special",
+    0x45: "Coin Case",
+    0x46: "Oak's Parcel",
+    0x47: "Itemfinder",
+    0x48: "Silph Scope",
+    0x49: "Poke Flute",
+    0x4A: "Lift Key",
+    0x4B: "Exp. All",
+    0x4C: "Old Rod",
+    0x4D: "Good Rod",
+    0x4E: "Super Rod",
+    0x4F: "PP Up",
+    0x50: "Ether",
+    0x51: "Max Ether",
+    0x52: "Elixer",
+    0x53: "Max Elixer",
+}
+HM_ITEM_NAMES = ["Cut", "Fly", "Surf", "Strength", "Flash"]
+TM_ITEM_NAMES = [
+    "Mega Punch",
+    "Razor Wind",
+    "Swords Dance",
+    "Whirlwind",
+    "Mega Kick",
+    "Toxic",
+    "Horn Drill",
+    "Body Slam",
+    "Take Down",
+    "Double-Edge",
+    "Bubblebeam",
+    "Water Gun",
+    "Ice Beam",
+    "Blizzard",
+    "Hyper Beam",
+    "Pay Day",
+    "Submission",
+    "Counter",
+    "Seismic Toss",
+    "Rage",
+    "Mega Drain",
+    "Solarbeam",
+    "Dragon Rage",
+    "Thunderbolt",
+    "Thunder",
+    "Earthquake",
+    "Fissure",
+    "Dig",
+    "Psychic",
+    "Teleport",
+    "Mimic",
+    "Double Team",
+    "Reflect",
+    "Bide",
+    "Metronome",
+    "Selfdestruct",
+    "Egg Bomb",
+    "Fire Blast",
+    "Swift",
+    "Skull Bash",
+    "Softboiled",
+    "Dream Eater",
+    "Sky Attack",
+    "Rest",
+    "Thunder Wave",
+    "Psywave",
+    "Explosion",
+    "Rock Slide",
+    "Tri Attack",
+    "Substitute",
 ]
 WARP_STATE_LABELS = {
     "battle": "battle",
@@ -1123,6 +1262,16 @@ def move_name(move_id: int) -> str:
     return f"Move {move_id:03d}"
 
 
+def item_name(item_id: int) -> str:
+    if item_id in ITEM_NAMES:
+        return ITEM_NAMES[item_id]
+    if 0xC4 <= item_id < 0xC4 + len(HM_ITEM_NAMES):
+        return f"HM{item_id - 0xC3:02d} {HM_ITEM_NAMES[item_id - 0xC4]}"
+    if 0xC9 <= item_id < 0xC9 + len(TM_ITEM_NAMES):
+        return f"TM{item_id - 0xC8:02d} {TM_ITEM_NAMES[item_id - 0xC9]}"
+    return f"Item ${item_id:02X}"
+
+
 def move_max_pp(move_id: int, pp_byte: int) -> int:
     if 0 <= move_id < len(MOVE_BASE_PP):
         base_pp = MOVE_BASE_PP[move_id]
@@ -1529,6 +1678,25 @@ class ReviewSession:
                 "pokedex_total": NUM_POKEMON,
                 "time": play_time(self.pyboy),
             }
+
+    def bag(self) -> list[dict[str, int | str]]:
+        with self._lock:
+            count = max(0, min(BAG_CAPACITY, int(self.pyboy.memory[BAG_COUNT_ADDR])))
+            items: list[dict[str, int | str]] = []
+            for index in range(count):
+                item_id = int(self.pyboy.memory[BAG_ITEMS_ADDR + (index * 2)])
+                quantity = int(self.pyboy.memory[BAG_ITEMS_ADDR + (index * 2) + 1])
+                if item_id in {0x00, 0xFF}:
+                    break
+                items.append(
+                    {
+                        "slot": index + 1,
+                        "id": item_id,
+                        "name": item_name(item_id),
+                        "quantity": quantity,
+                    }
+                )
+        return items
 
     def run(self) -> None:
         self.pyboy.set_emulation_speed(self.speed)

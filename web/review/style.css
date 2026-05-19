@@ -627,6 +627,7 @@ button:disabled {
 
 .event-panel,
 .party-panel,
+.bag-panel,
 .player-panel,
 .next-panel,
 .timeline-panel {
@@ -635,6 +636,7 @@ button:disabled {
 
 .event-panel h1,
 .party-panel h1,
+.bag-panel h1,
 .next-panel h1,
 .timeline-panel h1 {
   margin: 0 0 10px;
@@ -666,6 +668,51 @@ button:disabled {
   padding: 0;
   display: grid;
   gap: 7px;
+}
+
+.bag-list {
+  max-height: 238px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.bag-item,
+.bag-empty {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.bag-item span {
+  min-width: 0;
+  overflow: hidden;
+  color: #f3f1e8;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bag-item strong {
+  color: #fff4b8;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 12px;
+}
+
+.bag-empty {
+  grid-template-columns: 1fr;
+  color: #aeb4c0;
+  font-size: 13px;
 }
 
 .party-member {

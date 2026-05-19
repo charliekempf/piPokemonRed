@@ -36,6 +36,7 @@ const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
 const partyEl = document.querySelector("#party");
+const bagEl = document.querySelector("#bag");
 const playerPanelEl = document.querySelector("#player-panel");
 const badgesToggleEl = document.querySelector("#badges-toggle");
 const badgesCountEl = document.querySelector("#badges-count");
@@ -60,6 +61,7 @@ let romUploadInFlight = false;
 let selectedCheckpointDigits = null;
 let checkpointListSignature = "";
 let partyRenderSignature = "";
+let bagRenderSignature = "";
 let inputRenderSignature = "";
 let lastPartyMembers = [];
 let badgesExpanded = false;
@@ -560,6 +562,36 @@ function renderParty(members) {
   );
 }
 
+function renderBag(items) {
+  const signature = JSON.stringify(items);
+  if (signature === bagRenderSignature) {
+    return;
+  }
+  bagRenderSignature = signature;
+
+  if (!items.length) {
+    const row = document.createElement("li");
+    row.className = "bag-empty";
+    row.textContent = "No items";
+    bagEl.replaceChildren(row);
+    return;
+  }
+
+  bagEl.replaceChildren(
+    ...items.map((item) => {
+      const row = document.createElement("li");
+      const name = document.createElement("span");
+      const quantity = document.createElement("strong");
+      row.className = "bag-item";
+      row.title = `Item $${Number(item.id).toString(16).toUpperCase().padStart(2, "0")}`;
+      name.textContent = item.name || `Item $${Number(item.id).toString(16).toUpperCase().padStart(2, "0")}`;
+      quantity.textContent = `x${fmt(item.quantity || 0)}`;
+      row.append(name, quantity);
+      return row;
+    }),
+  );
+}
+
 function renderBadges(badges) {
   const earnedCount = badges.filter((badge) => Boolean(badge.earned)).length;
   const totalCount = badges.length || 8;
@@ -842,6 +874,7 @@ async function refresh() {
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
     renderParty(state.party || []);
+    renderBag(state.bag || []);
     renderPlayerInfo(state.player_info || {});
     renderBadges(state.badges || []);
     renderInputs(state.inputs || []);
@@ -860,6 +893,7 @@ async function refresh() {
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);
+    renderBag([]);
     renderPlayerInfo({});
     renderBadges([]);
     renderInputs([]);
