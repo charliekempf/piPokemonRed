@@ -23,7 +23,6 @@ body {
 
 .screen-panel,
 .checkpoint-panel,
-.jump-panel,
 .event-panel,
 .party-panel,
 .next-panel {
@@ -292,6 +291,34 @@ input[type="range"] {
   align-items: center;
 }
 
+.jump-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 118px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.jump-control label {
+  color: #aeb4c0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.jump-control input {
+  height: 34px;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #555c6c;
+  border-radius: 6px;
+  background: #1c1f26;
+  color: #f3f1e8;
+  padding: 0 10px;
+}
+
 .simulator-panel {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -363,14 +390,12 @@ button:disabled {
   gap: 14px;
 }
 
-.jump-panel,
 .event-panel,
 .party-panel,
 .next-panel {
   padding: 12px;
 }
 
-.jump-panel h1,
 .event-panel h1,
 .party-panel h1,
 .next-panel h1 {
@@ -379,7 +404,6 @@ button:disabled {
   font-weight: 650;
 }
 
-.jump-panel label,
 .event-panel label {
   display: block;
   margin-bottom: 6px;
@@ -387,29 +411,11 @@ button:disabled {
   font-size: 12px;
 }
 
-.jump-actions {
-  display: grid;
-  grid-template-columns: 1fr 84px;
-  gap: 8px;
-  align-items: center;
-}
-
 .warp-actions {
   display: grid;
   grid-template-columns: 1fr 84px;
   gap: 8px;
   align-items: center;
-}
-
-.jump-panel input {
-  height: 34px;
-  min-width: 0;
-  box-sizing: border-box;
-  border: 1px solid #555c6c;
-  border-radius: 6px;
-  background: #1c1f26;
-  color: #f3f1e8;
-  padding: 0 10px;
 }
 
 .party-list {

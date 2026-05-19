@@ -63,6 +63,11 @@
             </select>
             <button id="fast-forward-button" class="icon-control" title="Fast-forward selected digits" aria-label="Fast-forward selected digits">&gt;&gt;</button>
           </div>
+          <div class="jump-control">
+            <label for="jump-digits">Jump to digit</label>
+            <input id="jump-digits" type="number" min="0" step="1" inputmode="numeric" placeholder="12,000,000" />
+            <button id="jump-button" class="primary-control">Jump</button>
+          </div>
           <div class="simulator-panel">
             <div>
               <span class="simulator-label">Headless simulator</span>
@@ -81,14 +86,6 @@
         </div>
       </section>
       <aside class="side-stack">
-        <section class="jump-panel">
-          <h1>Jump</h1>
-          <label for="jump-digits">Digit</label>
-          <div class="jump-actions">
-            <input id="jump-digits" type="number" min="0" step="1" inputmode="numeric" placeholder="12,000,000" />
-            <button id="jump-button" class="primary-control">Jump</button>
-          </div>
-        </section>
         <section class="event-panel">
           <h1>Event Finder</h1>
           <label for="warp-state">Warp to</label>
