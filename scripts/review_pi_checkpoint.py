@@ -965,6 +965,7 @@ class Snapshot:
 class AudioSink:
     def __init__(self, sample_rate: int) -> None:
         self.device = 0
+        self.max_queued_bytes = max(4096, int(sample_rate * 2 * 0.18))
         if sdl2.SDL_InitSubSystem(sdl2.SDL_INIT_AUDIO) != 0:
             return
 
@@ -986,6 +987,8 @@ class AudioSink:
         if volume < 100:
             scale = max(0, min(100, volume)) / 100
             data = bytes(max(-128, min(127, int(int.from_bytes(bytes([sample]), "little", signed=True) * scale))) & 0xFF for sample in data)
+        if sdl2.SDL_GetQueuedAudioSize(self.device) > self.max_queued_bytes:
+            sdl2.SDL_ClearQueuedAudio(self.device)
         sdl2.SDL_QueueAudio(self.device, data, len(data))
 
     def close(self) -> None:
@@ -1608,13 +1611,13 @@ class ReviewSession:
             with self._lock:
                 fast_forwarding = self._fast_forward_target_digits is not None
             render_frame = not fast_forwarding or (force_final_render and frame_index == frames - 1)
+            self._limit_frame_rate()
             self.pyboy.tick(1, render_frame, not fast_forwarding)
             if self.audio_sink and not fast_forwarding:
                 self.audio_sink.queue(self.pyboy, self.sound_volume)
             if render_frame:
                 self._capture_frame()
             self._record_playback_frame()
-            self._limit_frame_rate()
 
     def _record_playback_frame(self) -> None:
         now = time.perf_counter()
