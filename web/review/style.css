@@ -218,6 +218,12 @@ body {
   background: #4a3438;
 }
 
+#pause:hover:not(:disabled) {
+  border-color: #d8e3f8;
+  box-shadow: 0 0 0 2px rgba(111, 137, 175, 0.34);
+  filter: brightness(1.12);
+}
+
 .controls {
   display: grid;
   gap: 8px;
