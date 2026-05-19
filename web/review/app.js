@@ -49,7 +49,7 @@ function renderUpcoming(items) {
       const button = document.createElement("span");
       pair.className = "pair";
       button.className = "button";
-      pair.textContent = `${item.digit_index.toString().padStart(7, "0")}  ${item.pair}`;
+      pair.textContent = `${fmt(item.digit_index)}  ${item.pair}`;
       button.textContent = item.button.toUpperCase();
       row.append(pair, button);
       return row;
