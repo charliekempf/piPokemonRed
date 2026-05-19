@@ -510,11 +510,11 @@ input[type="range"] {
 
 .jump-control {
   display: grid;
-  grid-template-columns: auto 38px minmax(108px, 128px) minmax(0, 1fr) 88px 38px;
+  grid-template-columns: 58px 38px minmax(116px, 142px) 38px minmax(0, 1fr) 108px;
   gap: 8px;
   align-items: center;
-  padding: 8px 9px;
-  min-height: 48px;
+  padding: 9px;
+  min-height: 54px;
   background: #30333c;
   border: 1px solid #454b58;
   border-radius: 6px;
@@ -523,10 +523,13 @@ input[type="range"] {
 .jump-control label {
   color: #aeb4c0;
   font-size: 12px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.jump-control input {
+.jump-control input,
+.warp-actions select,
+.jump-control select {
   height: 34px;
   min-width: 0;
   box-sizing: border-box;
@@ -537,8 +540,10 @@ input[type="range"] {
   padding: 0 10px;
 }
 
-.jump-control select {
+.jump-control .primary-control,
+.warp-actions .primary-control {
   min-width: 0;
+  width: 100%;
 }
 
 .simulator-panel {
@@ -689,8 +694,8 @@ button:disabled {
 }
 
 .screen-panel .event-panel {
-  margin-top: 2px;
-  padding: 12px 0 0;
+  margin-top: 0;
+  padding: 10px 0 0;
   border: 0;
   border-top: 1px solid #3c404a;
   border-radius: 0;
@@ -792,14 +797,20 @@ button:disabled {
 
 .warp-actions {
   display: grid;
-  grid-template-columns: auto minmax(132px, 180px) 118px auto minmax(150px, 180px);
+  grid-template-columns: 96px minmax(0, 1fr) 108px 58px minmax(136px, 170px);
   gap: 8px;
   align-items: center;
+  padding: 9px;
+  min-height: 54px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
 }
 
 .warp-actions label {
-  color: #f3f1e8;
-  font: inherit;
+  color: #aeb4c0;
+  font-size: 12px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
