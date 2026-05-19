@@ -395,14 +395,14 @@ input[type="range"] {
 
 .transport {
   display: grid;
-  grid-template-columns: 38px 38px minmax(132px, 150px) 38px;
+  grid-template-columns: 38px;
   gap: 8px;
   align-items: center;
 }
 
 .jump-control {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 118px;
+  grid-template-columns: auto 38px minmax(118px, 150px) minmax(0, 1fr) 118px 38px;
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -426,6 +426,10 @@ input[type="range"] {
   background: #1c1f26;
   color: #f3f1e8;
   padding: 0 10px;
+}
+
+.jump-control select {
+  min-width: 0;
 }
 
 .simulator-panel {
