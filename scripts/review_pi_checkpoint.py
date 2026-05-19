@@ -63,6 +63,7 @@ WARP_STATE_LABELS = {
     "scene_change": "scene change",
     "trainer_battle": "trainer battle",
 }
+MAX_INTERACTIVE_REWIND_REPLAY_DIGITS = 100_000
 MAP_NAMES = {
     0x00: "Pallet Town",
     0x01: "Viridian City",
@@ -1214,13 +1215,16 @@ class ReviewSession:
                 self.status = "pause pending"
 
     def request_rewind(self, digits: int) -> None:
+        digits = self._normalize_digit_distance(digits)
         with self._lock:
             self._rewind_digits_requested = max(self._rewind_digits_requested, digits)
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
             self._jump_target_digits = None
             self._warp_target_state = None
+            self.pause_requested = False
             self.pyboy.set_emulation_speed(self.speed)
+            self.status = f"rewinding {digits:,} digits"
 
     def request_fast_forward(self, digits: int) -> None:
         digits = self._normalize_digit_distance(digits)
@@ -1718,30 +1722,95 @@ class ReviewSession:
             if target % self.input_config.digits_per_input:
                 target -= target % self.input_config.digits_per_input
             candidates = [snapshot for snapshot in self.snapshots if snapshot.digits_consumed <= target]
-            snapshot = candidates[-1] if candidates else self.snapshots[0]
-            self.pyboy.load_state(io.BytesIO(snapshot.state))
-            snapshot_digits = snapshot.digits_consumed
-            snapshot_frames = snapshot.frames_elapsed
-            self._last_snapshot_digits = snapshot.digits_consumed
+            snapshot = candidates[-1] if candidates else None
             self._fast_forward_target_digits = None
             self.pyboy.set_emulation_speed(self.speed)
-        digits_consumed, inputs_sent, last_button = advance_pi_inputs(
-            self.pyboy,
-            self.digits,
-            snapshot_digits,
-            target,
-            self.hold_frames,
-            self.release_frames,
-            input_config=self.input_config,
-        )
-        image = render_loaded_state(self.pyboy)
+
+        checkpoint: tuple[int, Path] | None = None
+        if snapshot is None:
+            checkpoint = self._checkpoint_at_or_before(target)
+            if checkpoint is None:
+                with self._lock:
+                    self.paused = True
+                    self.status = "no rewind source before target"
+                    self.pyboy.set_emulation_speed(self.speed)
+                    self._next_frame_time = time.perf_counter()
+                return
+            checkpoint_digits, _ = checkpoint
+            if target - checkpoint_digits > MAX_INTERACTIVE_REWIND_REPLAY_DIGITS:
+                with self._lock:
+                    self.paused = True
+                    self.status = "rewind history unavailable before checkpoint"
+                    self.pyboy.set_emulation_speed(self.speed)
+                    self._next_frame_time = time.perf_counter()
+                return
+
+        if snapshot is not None:
+            self.pyboy.load_state(io.BytesIO(snapshot.state))
+            source_digits = snapshot.digits_consumed
+            source_frames = snapshot.frames_elapsed
+            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+                self.pyboy,
+                self.digits,
+                source_digits,
+                target,
+                self.hold_frames,
+                self.release_frames,
+                input_config=self.input_config,
+            )
+            image = render_loaded_state(self.pyboy)
+            state_buffer = io.BytesIO()
+            self.pyboy.save_state(state_buffer)
+        else:
+            source_digits, checkpoint_path = checkpoint
+            source_frames = (source_digits // self.input_config.digits_per_input) * self.frames_per_input
+            simulator = PyBoy(
+                str(self.rom_path or ROM),
+                window="null",
+                sound_emulated=False,
+                no_input=False,
+                ram_file=io.BytesIO(bytes(32768)),
+                log_level="CRITICAL",
+            )
+            simulator.set_emulation_speed(0)
+            try:
+                with checkpoint_path.open("rb") as state_file:
+                    simulator.load_state(state_file)
+                digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+                    simulator,
+                    self.digits,
+                    source_digits,
+                    target,
+                    self.hold_frames,
+                    self.release_frames,
+                    input_config=self.input_config,
+                )
+                state_buffer = io.BytesIO()
+                simulator.save_state(state_buffer)
+            finally:
+                simulator.stop()
+            state_buffer.seek(0)
+            self.pyboy.load_state(state_buffer)
+            image = render_loaded_state(self.pyboy)
+            state_buffer.seek(0)
         with self._lock:
             self.digits_consumed = digits_consumed
-            self.frames_elapsed = snapshot_frames + inputs_sent * self.frames_per_input
+            self.frames_elapsed = source_frames + inputs_sent * self.frames_per_input
             if inputs_sent:
                 self.last_button = last_button
+            self.paused = True
+            self.pause_requested = False
             self.status = f"rewound to {digits_consumed:,} digits"
             self.latest_image = image
+            self.snapshots.append(
+                Snapshot(
+                    digits_consumed=self.digits_consumed,
+                    frames_elapsed=self.frames_elapsed,
+                    state=state_buffer.getvalue(),
+                )
+            )
+            self._last_snapshot_digits = self.digits_consumed
+            self._next_frame_time = time.perf_counter()
 
     def _jump_to(self, target: int) -> None:
         target = max(0, min(self.max_digits, target))

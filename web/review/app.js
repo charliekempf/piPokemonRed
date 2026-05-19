@@ -583,6 +583,7 @@ function setStateClass(status) {
   const isPlaying = normalized === "running"
     || normalized === "pause-pending"
     || normalized.startsWith("fast-forwarding")
+    || normalized.startsWith("rewinding")
     || normalized.startsWith("simulating")
     || normalized.startsWith("jumping")
     || normalized.startsWith("finding-next");
@@ -598,6 +599,7 @@ function renderStats(state) {
     : 0;
   setStateClass(state.status);
   backendBusy = String(state.status).startsWith("fast forwarding")
+    || String(state.status).startsWith("rewinding")
     || String(state.status).startsWith("simulating")
     || String(state.status).startsWith("jumping")
     || String(state.status).startsWith("finding next");

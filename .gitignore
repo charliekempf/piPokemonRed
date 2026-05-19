@@ -5,6 +5,7 @@ results/*
 tas/*
 data/*
 tools/*
+logs/*
 
 # Defensive ignores for copyrighted/local/generated artifacts anywhere
 *.gb
@@ -35,6 +36,7 @@ tools/*
 !tas/.gitkeep
 !data/.gitkeep
 !tools/.gitkeep
+!logs/.gitkeep
 
 # Python/runtime noise
 __pycache__/
