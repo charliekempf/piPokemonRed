@@ -437,7 +437,7 @@ input[type="range"] {
 
 .scale {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   margin-left: 74px;
   margin-right: 152px;
   color: #aeb4c0;
@@ -446,7 +446,8 @@ input[type="range"] {
 
 .scale span:nth-child(2),
 .scale span:nth-child(3),
-.scale span:nth-child(4) {
+.scale span:nth-child(4),
+.scale span:nth-child(5) {
   text-align: center;
 }
 

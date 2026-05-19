@@ -59,11 +59,20 @@ function speedSliderIsUnlimited() {
 }
 
 function speedFromSlider() {
-  return speedSliderIsUnlimited() ? 1000 : Math.max(1, Math.min(1000, Math.round(10 ** Number(speedEl.value))));
+  if (speedSliderIsUnlimited()) {
+    return 1000;
+  }
+  const speed = Math.max(0.1, Math.min(1000, 10 ** Number(speedEl.value)));
+  return speed < 1 ? Number(speed.toFixed(1)) : Math.round(speed);
 }
 
 function speedLabelFromSlider() {
-  return speedSliderIsUnlimited() ? "Unlimited" : `${speedFromSlider()}x`;
+  return speedSliderIsUnlimited() ? "Unlimited" : speedLabel(speedFromSlider());
+}
+
+function speedLabel(value) {
+  const speed = Math.max(0.1, Number(value) || 1);
+  return `${speed < 1 ? speed.toFixed(1) : Math.round(speed)}x`;
 }
 
 function actualSpeedLabel(value) {
@@ -620,7 +629,7 @@ function setInitialControls(state) {
   }
   speedEl.value = state.speed_limiter_enabled === "off"
     ? speedEl.max
-    : Math.log10(Math.max(1, Math.min(1000, Number(state.speed))));
+    : Math.log10(Math.max(0.1, Math.min(1000, Number(state.speed))));
   volumeEl.value = String(Math.max(0, Math.min(100, Number(state.sound_volume ?? 100))));
   simulateTargetDigitsEl.value = String(Math.max(0, Number(state.max_digits) || 0));
   controlsInitialized = true;
@@ -663,7 +672,7 @@ function renderStats(state) {
   statLocationEl.textContent = state.location || "-";
   statLocationEl.title = state.map_id == null ? "" : `Map $${Number(state.map_id).toString(16).toUpperCase().padStart(2, "0")}`;
   statProgressEl.style.width = `${progress}%`;
-  statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Set Unlimited" : `Set ${state.speed}x`;
+  statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Set Unlimited" : `Set ${speedLabel(state.speed)}`;
   statActualSpeedEl.textContent = actualSpeedLabel(state.actual_speed_x);
   statVolumeEl.textContent = `${Math.max(0, Math.min(100, Number(state.sound_volume ?? 100)))}%`;
 
