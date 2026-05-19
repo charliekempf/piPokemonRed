@@ -33,6 +33,8 @@ class ReviewSession:
         digits: str,
         digits_consumed: int,
         max_digits: int,
+        hold_frames: int,
+        release_frames: int,
         rewind_interval_frames: int,
         rewind_history_frames: int,
     ) -> None:
@@ -40,7 +42,10 @@ class ReviewSession:
         self.digits = digits
         self.digits_consumed = digits_consumed
         self.max_digits = max_digits
-        self.frames_elapsed = digits_consumed
+        self.hold_frames = hold_frames
+        self.release_frames = release_frames
+        self.frames_per_input = hold_frames + release_frames
+        self.frames_elapsed = (digits_consumed // 2) * self.frames_per_input
         self.rewind_interval_frames = rewind_interval_frames
         self.max_snapshots = max(2, rewind_history_frames // rewind_interval_frames)
         self.snapshots: deque[Snapshot] = deque(maxlen=self.max_snapshots)
@@ -115,12 +120,14 @@ class ReviewSession:
 
                 pair = int(self.digits[self.digits_consumed : self.digits_consumed + 2])
                 button = button_for_pair(pair)
-                self.pyboy.button(button)
-                self.pyboy.tick(1, True)
-                self.pyboy.tick(1, True)
+                self.pyboy.button_press(button)
+                self.pyboy.tick(self.hold_frames, True)
+                self.pyboy.button_release(button)
+                if self.release_frames:
+                    self.pyboy.tick(self.release_frames, True)
                 with self._lock:
                     self.digits_consumed += 2
-                    self.frames_elapsed += 2
+                    self.frames_elapsed += self.frames_per_input
                     self.inputs_sent += 1
                     self.last_button = button
 
@@ -238,6 +245,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--digits-consumed", type=int, default=None)
     parser.add_argument("--max-digits", type=int, default=None)
     parser.add_argument("--speed", type=int, default=1)
+    parser.add_argument("--hold-frames", type=int, default=2)
+    parser.add_argument("--release-frames", type=int, default=1)
     parser.add_argument("--scale", type=int, default=4)
     parser.add_argument("--sound-volume", type=int, default=50)
     parser.add_argument("--rewind-history-seconds", type=int, default=300)
@@ -247,6 +256,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.hold_frames < 1:
+        raise ValueError("--hold-frames must be at least 1")
+    if args.release_frames < 0:
+        raise ValueError("--release-frames must be at least 0")
+
     digits = args.digits.read_text(encoding="ascii").strip()
     max_digits = min(args.max_digits or len(digits), len(digits))
     if max_digits % 2:
@@ -278,6 +292,8 @@ def main() -> None:
         digits=digits,
         digits_consumed=start_digits,
         max_digits=max_digits,
+        hold_frames=args.hold_frames,
+        release_frames=args.release_frames,
         rewind_interval_frames=args.rewind_interval_frames,
         rewind_history_frames=int(args.rewind_history_seconds * GAMEBOY_FPS),
     )

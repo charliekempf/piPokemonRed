@@ -21,7 +21,7 @@ Native emulator cores such as Gambatte should be benchmarked next for a higher c
 
 ## Pi Input Run
 
-The active input scheme consumes two decimal digits at a time and presses the mapped button for one frame, followed by one blank frame:
+The active input scheme consumes two decimal digits at a time and presses the mapped button for two frames, followed by one blank frame:
 
 - `00-53` -> A
 - `54-63` -> Up
@@ -34,12 +34,18 @@ The active input scheme consumes two decimal digits at a time and presses the ma
 Run or resume the 10 million digit PyBoy test with:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000
+py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000 --hold-frames 2 --release-frames 1
 ```
 
 Add `--fresh` to ignore existing checkpoints and restart from reset.
 
 Checkpoints are saved in `saves/pi_10m_two_digit/`, screenshots in `results/pi_10m_two_digit/screenshots/`, and progress metadata in `results/pi_10m_two_digit/progress.json`. These generated files are intentionally ignored by git.
+
+The current verified run uses the first million digits with checkpoints every 100k:
+
+```powershell
+py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_digits.txt --max-digits 1000000 --checkpoint-digits 100000 --hold-frames 2 --release-frames 1
+```
 
 Review a checkpoint with full PyBoy graphics and sound:
 

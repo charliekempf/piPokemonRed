@@ -94,6 +94,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--digits", type=Path, default=PI_DIGITS)
     parser.add_argument("--run-name", default=RUN_NAME)
     parser.add_argument("--checkpoint-digits", type=int, default=1_000_000)
+    parser.add_argument("--hold-frames", type=int, default=2)
+    parser.add_argument("--release-frames", type=int, default=1)
     parser.add_argument("--max-digits", type=int, default=None)
     parser.add_argument("--fresh", action="store_true", help="Ignore existing checkpoints and start from reset.")
     parser.add_argument("--no-screenshots", action="store_true")
@@ -102,6 +104,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.hold_frames < 1:
+        raise ValueError("--hold-frames must be at least 1")
+    if args.release_frames < 0:
+        raise ValueError("--release-frames must be at least 0")
+
     digits = args.digits.read_text(encoding="ascii").strip()
     max_digits = min(args.max_digits or len(digits), len(digits))
     if max_digits % 2:
@@ -143,18 +150,22 @@ def main() -> None:
     next_checkpoint = ((start_digits // args.checkpoint_digits) + 1) * args.checkpoint_digits
     next_checkpoint = min(next_checkpoint, max_digits)
     digits_consumed = start_digits
-    frames_elapsed = digits_consumed
+    frames_per_input = args.hold_frames + args.release_frames
+    frames_elapsed = (digits_consumed // 2) * frames_per_input
     started_at = time.perf_counter()
     last_state: Path | None = state_to_load
 
     try:
         while digits_consumed < max_digits:
             pair = int(digits[digits_consumed : digits_consumed + 2])
-            pyboy.button(button_for_pair(pair))
-            pyboy.tick(1, False)
-            pyboy.tick(1, False)
+            button = button_for_pair(pair)
+            pyboy.button_press(button)
+            pyboy.tick(args.hold_frames, False)
+            pyboy.button_release(button)
+            if args.release_frames:
+                pyboy.tick(args.release_frames, False)
             digits_consumed += 2
-            frames_elapsed += 2
+            frames_elapsed += frames_per_input
 
             if digits_consumed >= next_checkpoint:
                 last_state = save_checkpoint(
