@@ -439,6 +439,11 @@ body {
   background: #403b2d;
 }
 
+.mute-control[data-audio-unavailable="true"] {
+  border-color: #7a6ca7;
+  background: #3e3755;
+}
+
 .mute-control:hover:not(:disabled) {
   border-color: #d8e3f8;
   box-shadow: 0 0 0 2px rgba(111, 137, 175, 0.28);

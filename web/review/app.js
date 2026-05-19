@@ -319,6 +319,14 @@ speedEl.addEventListener("input", () => {
 });
 
 muteEl.addEventListener("click", () => {
+  if (muteEl.dataset.audioUnavailable === "true") {
+    speedEl.value = "0";
+    statSpeedEl.textContent = "Set 1x";
+    post("/api/speed", { speed: 1 });
+    post("/api/limiter", { enabled: true });
+    post("/api/volume", { volume: 100 });
+    return;
+  }
   const muted = muteEl.dataset.muted === "true";
   post("/api/volume", { volume: muted ? 100 : 0 });
 });
@@ -988,11 +996,13 @@ function renderStats(state) {
   statDigitRateEl.textContent = Number.isFinite(Number(state.actual_digits_per_second))
     ? digitRateValueLabel(state.actual_digits_per_second)
     : digitRateLabel(state.actual_speed_x, state.digits_per_input, state.frames_per_input);
-  const muted = Number(state.sound_volume ?? 100) <= 0;
+  const audioUnavailable = state.speed_limiter_enabled === "off";
+  const muted = audioUnavailable || Number(state.sound_volume ?? 100) <= 0;
+  muteEl.dataset.audioUnavailable = audioUnavailable ? "true" : "false";
   muteEl.dataset.muted = muted ? "true" : "false";
   muteEl.textContent = muted ? "🔇" : "🔊";
-  muteEl.setAttribute("aria-label", muted ? "Unmute audio" : "Mute audio");
-  muteEl.title = muted ? "Unmute" : "Mute";
+  muteEl.setAttribute("aria-label", audioUnavailable ? "Enable limited speed for audio" : muted ? "Unmute audio" : "Mute audio");
+  muteEl.title = audioUnavailable ? "Audio off at Unlimited speed. Click for 1x audio." : muted ? "Unmute" : "Mute";
 
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
@@ -1064,6 +1074,7 @@ async function refresh() {
     statActualSpeedEl.textContent = "-";
     statDigitRateEl.textContent = "-";
     muteEl.dataset.muted = "false";
+    muteEl.dataset.audioUnavailable = "false";
     muteEl.textContent = "🔊";
     muteEl.setAttribute("aria-label", "Mute audio");
     muteEl.title = "Mute";
