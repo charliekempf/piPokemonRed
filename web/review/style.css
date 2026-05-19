@@ -422,6 +422,13 @@ body {
   aspect-ratio: 1;
 }
 
+.volume-jump-row {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.38fr) minmax(0, 0.62fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
 .speed-row,
 .volume-row {
   display: grid;
@@ -483,10 +490,11 @@ input[type="range"] {
 
 .jump-control {
   display: grid;
-  grid-template-columns: auto 38px minmax(118px, 150px) minmax(0, 1fr) 118px 38px;
+  grid-template-columns: auto 38px minmax(108px, 128px) minmax(0, 1fr) 88px 38px;
   gap: 8px;
   align-items: center;
-  padding: 10px;
+  padding: 8px 9px;
+  min-height: 48px;
   background: #30333c;
   border: 1px solid #454b58;
   border-radius: 6px;

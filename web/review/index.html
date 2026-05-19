@@ -108,27 +108,29 @@
               </div>
             </div>
           </div>
-          <div class="volume-card">
-            <label class="volume-row">
-              <span>Volume</span>
-              <input id="volume" type="range" min="0" max="100" step="1" value="100" />
-              <strong id="stat-volume">100%</strong>
-            </label>
-          </div>
-          <div class="jump-control">
-            <label for="jump-digits">Jump</label>
-            <button id="rewind-button" class="icon-control" title="Rewind selected digits" aria-label="Rewind selected digits">&lt;&lt;</button>
-            <select id="rewind" aria-label="Rewind or fast-forward digit amount">
-              <option value="10">10 digits</option>
-              <option value="100">100 digits</option>
-              <option value="1000" selected>1,000 digits</option>
-              <option value="10000">10,000 digits</option>
-              <option value="100000">100,000 digits</option>
-              <option value="1000000">1,000,000 digits</option>
-            </select>
-            <input id="jump-digits" type="number" min="0" step="1" inputmode="numeric" placeholder="12,000,000" />
-            <button id="jump-button" class="primary-control">Jump</button>
-            <button id="fast-forward-button" class="icon-control" title="Fast-forward selected digits" aria-label="Fast-forward selected digits">&gt;&gt;</button>
+          <div class="volume-jump-row">
+            <div class="volume-card">
+              <label class="volume-row">
+                <span>Volume</span>
+                <input id="volume" type="range" min="0" max="100" step="1" value="100" />
+                <strong id="stat-volume">100%</strong>
+              </label>
+            </div>
+            <div class="jump-control">
+              <label for="jump-digits">Jump</label>
+              <button id="rewind-button" class="icon-control" title="Rewind selected digits" aria-label="Rewind selected digits">&lt;&lt;</button>
+              <select id="rewind" aria-label="Rewind or fast-forward digit amount">
+                <option value="10">10 digits</option>
+                <option value="100">100 digits</option>
+                <option value="1000" selected>1,000 digits</option>
+                <option value="10000">10,000 digits</option>
+                <option value="100000">100,000 digits</option>
+                <option value="1000000">1,000,000 digits</option>
+              </select>
+              <input id="jump-digits" type="number" min="0" step="1" inputmode="numeric" placeholder="12,000,000" />
+              <button id="jump-button" class="primary-control">Jump</button>
+              <button id="fast-forward-button" class="icon-control" title="Fast-forward selected digits" aria-label="Fast-forward selected digits">&gt;&gt;</button>
+            </div>
           </div>
         </div>
       </section>
