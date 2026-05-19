@@ -178,6 +178,32 @@ body {
   image-rendering: pixelated;
 }
 
+.rom-missing-panel {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  background: #0b0c0f;
+  color: #f3f1e8;
+  text-align: center;
+  z-index: 2;
+}
+
+.screen-shell.is-rom-missing .rom-missing-panel {
+  display: grid;
+}
+
+.rom-missing-panel .primary-control {
+  min-width: 150px;
+}
+
+.rom-missing-panel span {
+  color: #aeb4c0;
+  font-size: 13px;
+}
+
 .fast-forward-overlay {
   position: absolute;
   inset: 0;
@@ -186,6 +212,7 @@ body {
   background: rgba(5, 6, 9, 0.68);
   opacity: 0;
   pointer-events: none;
+  z-index: 3;
   transition: opacity 120ms ease;
 }
 

@@ -6,6 +6,10 @@ const statLocationEl = document.querySelector("#stat-location");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statVolumeEl = document.querySelector("#stat-volume");
 const screenShellEl = document.querySelector(".screen-shell");
+const romMissingPanelEl = document.querySelector("#rom-missing-panel");
+const romUploadEl = document.querySelector("#rom-upload");
+const romUploadButtonEl = document.querySelector("#rom-upload-button");
+const romUploadStatusEl = document.querySelector("#rom-upload-status");
 const speedEl = document.querySelector("#speed");
 const volumeEl = document.querySelector("#volume");
 const pauseEl = document.querySelector("#pause");
@@ -35,6 +39,8 @@ const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
 let frameFetchInFlight = false;
 let controlsInitialized = false;
 let backendBusy = false;
+let romMissing = false;
+let romUploadInFlight = false;
 let selectedCheckpointDigits = null;
 let checkpointListSignature = "";
 const expandedPartySlots = new Set();
@@ -184,6 +190,37 @@ async function post(path, body = {}) {
     body: JSON.stringify(body),
   });
 }
+
+romUploadButtonEl.addEventListener("click", () => {
+  romUploadEl.click();
+});
+
+romUploadEl.addEventListener("change", async () => {
+  const file = romUploadEl.files && romUploadEl.files[0];
+  if (!file) {
+    return;
+  }
+  romUploadInFlight = true;
+  romUploadButtonEl.disabled = true;
+  romUploadStatusEl.textContent = `Loading ${file.name}`;
+  try {
+    const formData = new FormData();
+    formData.append("rom", file, file.name);
+    const response = await fetch("/api/upload-rom", { method: "POST", body: formData });
+    const result = await response.json();
+    if (!result.ok) {
+      throw new Error(result.error || "Upload failed");
+    }
+    controlsInitialized = false;
+    romUploadStatusEl.textContent = "ROM loaded";
+  } catch (error) {
+    romUploadStatusEl.textContent = error.message || "ROM upload failed";
+    romUploadButtonEl.disabled = false;
+  } finally {
+    romUploadInFlight = false;
+    romUploadEl.value = "";
+  }
+});
 
 speedEl.addEventListener("input", () => {
   statSpeedEl.textContent = speedLabelFromSlider();
@@ -548,6 +585,7 @@ function setStateClass(status) {
 }
 
 function renderStats(state) {
+  romMissing = Boolean(state.rom_missing);
   const progress = state.max_digits > 0
     ? Math.min(100, (Number(state.digits_consumed) / Number(state.max_digits)) * 100)
     : 0;
@@ -557,9 +595,14 @@ function renderStats(state) {
     || String(state.status).startsWith("jumping")
     || String(state.status).startsWith("finding next");
   screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
+  screenShellEl.classList.toggle("is-rom-missing", romMissing);
+  romUploadButtonEl.disabled = !romMissing || romUploadInFlight;
+  if (romMissing && !romUploadInFlight) {
+    romUploadStatusEl.textContent = "Pokemon Red ROM required";
+  }
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
   statLocationEl.textContent = state.location || "-";
-  statLocationEl.title = state.map_id === undefined ? "" : `Map $${Number(state.map_id).toString(16).toUpperCase().padStart(2, "0")}`;
+  statLocationEl.title = state.map_id == null ? "" : `Map $${Number(state.map_id).toString(16).toUpperCase().padStart(2, "0")}`;
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Unlimited" : `${state.speed}x`;
   statVolumeEl.textContent = `${Math.max(0, Math.min(100, Number(state.sound_volume ?? 100)))}%`;
@@ -567,6 +610,11 @@ function renderStats(state) {
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
+  if (romMissing) {
+    jumpButton.disabled = true;
+    warpStateButton.disabled = true;
+    simulateButton.disabled = true;
+  }
   if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;
   } else if (state.last_simulation && Number(state.last_simulation.digits) > 0) {
@@ -608,7 +656,7 @@ async function refresh() {
 }
 
 async function drawFrameLoop() {
-  if (!backendBusy && !frameFetchInFlight) {
+  if (!romMissing && !backendBusy && !frameFetchInFlight) {
     frameFetchInFlight = true;
     try {
       const response = await fetch("/api/frame.rgba", { cache: "no-store" });

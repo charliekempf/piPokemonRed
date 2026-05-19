@@ -41,6 +41,11 @@
       <section class="screen-panel">
         <div class="screen-shell">
           <canvas id="screen" class="screen" width="160" height="144" aria-label="Game Boy screen"></canvas>
+          <div id="rom-missing-panel" class="rom-missing-panel" aria-live="polite">
+            <input id="rom-upload" type="file" accept=".gb,.gbc,.zip,application/octet-stream" hidden />
+            <button id="rom-upload-button" class="primary-control" type="button">Load ROM</button>
+            <span id="rom-upload-status">Pokemon Red ROM required</span>
+          </div>
           <div id="fast-forward-overlay" class="fast-forward-overlay" aria-hidden="true">
             <span class="buffer-spinner"></span>
           </div>
