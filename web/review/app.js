@@ -1,6 +1,5 @@
 const screen = document.querySelector("#screen");
 const statusEl = document.querySelector("#status");
-const statStateEl = document.querySelector("#stat-state");
 const statDigitsEl = document.querySelector("#stat-digits");
 const statProgressEl = document.querySelector("#stat-progress span");
 const statSpeedEl = document.querySelector("#stat-speed");
@@ -296,7 +295,6 @@ function setInitialControls(state) {
 function setStateClass(status) {
   const normalized = String(status).toLowerCase().replace(/[^a-z]+/g, "-");
   statusEl.dataset.state = normalized || "unknown";
-  pauseEl.dataset.state = normalized || "unknown";
 }
 
 function displayState(status) {
@@ -321,8 +319,6 @@ function renderStats(state) {
   backendBusy = String(state.status).startsWith("fast forwarding")
     || String(state.status).startsWith("simulating");
   screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
-  statStateEl.textContent = displayState(state.status);
-  statStateEl.title = state.status;
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = `${state.speed}x`;
@@ -352,7 +348,6 @@ async function refresh() {
     renderUpcoming(state.upcoming);
   } catch (error) {
     setStateClass("disconnected");
-    statStateEl.textContent = "Disconnected";
     statDigitsEl.textContent = "-";
     statProgressEl.style.width = "0";
     statSpeedEl.textContent = "-";

@@ -124,34 +124,6 @@ body {
   white-space: nowrap;
 }
 
-.state-control[data-state="running"] {
-  border-color: #6f89af;
-  background: #344257;
-}
-
-.state-control[data-state="paused"],
-.state-control[data-state="rewound-to-digits"] {
-  border-color: #7a6f49;
-  background: #403b2d;
-}
-
-.state-control[data-state^="fast-forwarding"],
-.state-control[data-state^="simulating"],
-.state-control[data-state="pause-pending"] {
-  border-color: #7a6ca7;
-  background: #3e3755;
-}
-
-.state-control[data-state="complete"] {
-  border-color: #6e9b7b;
-  background: #334b3a;
-}
-
-.state-control[data-state="disconnected"] {
-  border-color: #9d6670;
-  background: #4a3438;
-}
-
 .progress-bar {
   height: 4px;
   overflow: hidden;
@@ -276,29 +248,8 @@ select {
   font-family: Consolas, "Cascadia Mono", monospace;
 }
 
-.primary-control,
-.state-control {
+.primary-control {
   min-width: 118px;
-}
-
-.state-control {
-  height: 44px;
-  display: grid;
-  align-content: center;
-  gap: 2px;
-  text-align: left;
-}
-
-.state-control .control-label {
-  color: #aeb4c0;
-  font-size: 11px;
-  line-height: 1;
-}
-
-.state-control strong {
-  color: #f3f1e8;
-  font-size: 13px;
-  line-height: 1.15;
 }
 
 button:hover,
