@@ -295,6 +295,7 @@ function setInitialControls(state) {
 function setStateClass(status) {
   const normalized = String(status).toLowerCase().replace(/[^a-z]+/g, "-");
   statusEl.dataset.state = normalized || "unknown";
+  pauseEl.dataset.state = normalized || "unknown";
 }
 
 function displayState(status) {

@@ -139,6 +139,34 @@ body {
   border-radius: inherit;
 }
 
+#pause[data-state="running"] {
+  border-color: #6f89af;
+  background: #344257;
+}
+
+#pause[data-state="paused"],
+#pause[data-state="rewound-to-digits"] {
+  border-color: #7a6f49;
+  background: #403b2d;
+}
+
+#pause[data-state^="fast-forwarding"],
+#pause[data-state^="simulating"],
+#pause[data-state="pause-pending"] {
+  border-color: #7a6ca7;
+  background: #3e3755;
+}
+
+#pause[data-state="complete"] {
+  border-color: #6e9b7b;
+  background: #334b3a;
+}
+
+#pause[data-state="disconnected"] {
+  border-color: #9d6670;
+  background: #4a3438;
+}
+
 .controls {
   display: grid;
   gap: 8px;
