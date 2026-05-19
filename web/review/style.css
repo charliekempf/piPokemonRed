@@ -98,10 +98,13 @@ body {
   scrollbar-gutter: stable;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 6px;
   display: grid;
   align-content: start;
   gap: 1px;
+  background: #1c1f26;
+  border: 1px solid #555c6c;
+  border-radius: 6px;
 }
 
 .checkpoint-list li {
