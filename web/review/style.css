@@ -21,6 +21,18 @@ body {
   padding: 18px;
 }
 
+.app-title {
+  grid-column: 1 / -1;
+}
+
+.app-title h1 {
+  margin: 0;
+  color: #f3f1e8;
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.1;
+}
+
 .screen-panel,
 .checkpoint-panel,
 .event-panel,
