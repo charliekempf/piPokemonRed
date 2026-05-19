@@ -46,6 +46,8 @@ let romMissing = false;
 let romUploadInFlight = false;
 let selectedCheckpointDigits = null;
 let checkpointListSignature = "";
+let partyRenderSignature = "";
+let lastPartyMembers = [];
 const expandedPartySlots = new Set();
 
 function speedSliderIsUnlimited() {
@@ -334,6 +336,22 @@ function renderInputs(items) {
 }
 
 function renderParty(members) {
+  lastPartyMembers = members;
+  const validSlots = new Set(members.map((member) => Number(member.slot)));
+  for (const slot of expandedPartySlots) {
+    if (!validSlots.has(slot)) {
+      expandedPartySlots.delete(slot);
+    }
+  }
+  const signature = JSON.stringify({
+    members,
+    expanded: [...expandedPartySlots].sort((a, b) => a - b),
+  });
+  if (signature === partyRenderSignature) {
+    return;
+  }
+  partyRenderSignature = signature;
+
   if (!members.length) {
     const row = document.createElement("li");
     row.className = "party-empty";
@@ -386,7 +404,8 @@ function renderParty(members) {
         } else {
           expandedPartySlots.add(slot);
         }
-        renderParty(members);
+        partyRenderSignature = "";
+        renderParty(lastPartyMembers);
       });
       badge.textContent = String(member.slot);
       name.textContent = member.name || `MON ${member.species}`;
