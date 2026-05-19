@@ -47,10 +47,12 @@ Review a checkpoint with full PyBoy graphics and sound:
 py scripts\review_pi_checkpoint.py --checkpoint latest --speed 1
 ```
 
+`latest` selects the latest checkpoint that still has remaining pi digits to play. With the 10 million digit test data, that means the 9 million digit checkpoint rather than the completed 10 million digit checkpoint.
+
 Open a specific checkpoint by digit count:
 
 ```powershell
 py scripts\review_pi_checkpoint.py --checkpoint 5000000 --speed 1
 ```
 
-The review window continues the same pi input stream from the checkpoint. The control panel has a speed slider from paused real-time review through high-speed playback, plus rewind buttons backed by in-memory savestate snapshots.
+The review window continues the same pi input stream from the checkpoint. The control panel has a speed slider from paused real-time review through high-speed playback, an `inputs sent` counter, the last pi-derived button sent, and rewind buttons backed by in-memory savestate snapshots.

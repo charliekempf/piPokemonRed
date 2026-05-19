@@ -48,6 +48,8 @@ class ReviewSession:
         self.paused = False
         self.speed = 1
         self.status = "running"
+        self.inputs_sent = 0
+        self.last_button = "-"
         self._lock = threading.Lock()
         self._rewind_frames_requested = 0
         self._last_snapshot_frame = -rewind_interval_frames
@@ -80,6 +82,8 @@ class ReviewSession:
                 "speed": self.speed,
                 "status": self.status,
                 "snapshots": len(self.snapshots),
+                "inputs_sent": self.inputs_sent,
+                "last_button": self.last_button,
             }
 
     def run(self) -> None:
@@ -110,12 +114,15 @@ class ReviewSession:
                     continue
 
                 pair = int(self.digits[self.digits_consumed : self.digits_consumed + 2])
-                self.pyboy.button(button_for_pair(pair))
+                button = button_for_pair(pair)
+                self.pyboy.button(button)
                 self.pyboy.tick(1, True)
                 self.pyboy.tick(1, True)
                 with self._lock:
                     self.digits_consumed += 2
                     self.frames_elapsed += 2
+                    self.inputs_sent += 1
+                    self.last_button = button
 
                 if self.frames_elapsed - self._last_snapshot_frame >= self.rewind_interval_frames:
                     self._take_snapshot()
@@ -156,13 +163,19 @@ def checkpoint_digits(path: Path, explicit_digits: int | None) -> int:
     return int(match.group(1))
 
 
-def resolve_checkpoint(run_name: str, checkpoint: str) -> Path:
+def resolve_checkpoint(run_name: str, checkpoint: str, max_digits: int | None = None) -> Path:
     checkpoint_dir = Path("saves") / run_name
     if checkpoint == "latest":
-        latest = latest_checkpoint(checkpoint_dir)
-        if latest is None:
+        candidates = []
+        for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
+            match = CHECKPOINT_RE.match(candidate.name)
+            if match:
+                digits_consumed = int(match.group(1))
+                if max_digits is None or digits_consumed < max_digits:
+                    candidates.append((digits_consumed, candidate))
+        if not candidates:
             raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
-        return latest[1]
+        return max(candidates)[1]
 
     candidate = Path(checkpoint)
     if candidate.exists():
@@ -206,7 +219,8 @@ def build_control_panel(session: ReviewSession) -> tk.Tk:
         info = session.info()
         status_var.set(
             f"{info['status']} | {info['digits_consumed']:,}/{info['max_digits']:,} digits | "
-            f"{info['speed']}x | rewind snapshots: {info['snapshots']}"
+            f"{info['speed']}x | inputs sent: {info['inputs_sent']:,} | "
+            f"last: {info['last_button']} | rewind snapshots: {info['snapshots']}"
         )
         root.after(250, refresh_status)
 
@@ -233,12 +247,18 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    checkpoint = resolve_checkpoint(args.run_name, args.checkpoint)
-    start_digits = checkpoint_digits(checkpoint, args.digits_consumed)
     digits = args.digits.read_text(encoding="ascii").strip()
     max_digits = min(args.max_digits or len(digits), len(digits))
     if max_digits % 2:
         max_digits -= 1
+    checkpoint = resolve_checkpoint(args.run_name, args.checkpoint, max_digits=max_digits)
+    start_digits = checkpoint_digits(checkpoint, args.digits_consumed)
+    if start_digits >= max_digits:
+        raise ValueError(
+            f"Checkpoint is already at {start_digits:,} digits, but max is {max_digits:,}. "
+            "Choose an earlier checkpoint or provide a larger digit file."
+        )
+    print(f"Reviewing {checkpoint} from {start_digits:,} to {max_digits:,} digits.")
 
     pyboy = PyBoy(
         str(args.rom),
