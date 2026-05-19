@@ -62,6 +62,7 @@ WARP_STATE_LABELS = {
     "level_up": "level up",
     "scene_change": "scene change",
     "trainer_battle": "trainer battle",
+    "wild_battle": "wild Pokemon battle",
 }
 MAX_INTERACTIVE_REWIND_REPLAY_DIGITS = 100_000
 MAP_NAMES = {
@@ -1034,6 +1035,11 @@ def is_in_trainer_battle(pyboy: PyBoy) -> bool:
     return int(pyboy.memory[BATTLE_FLAG_ADDR]) == BATTLE_TRAINER_VALUE
 
 
+def is_in_wild_battle(pyboy: PyBoy) -> bool:
+    battle_flag = int(pyboy.memory[BATTLE_FLAG_ADDR])
+    return battle_flag != 0 and battle_flag != BATTLE_TRAINER_VALUE
+
+
 def current_map_id(pyboy: PyBoy) -> int:
     return int(pyboy.memory[CURRENT_MAP_ADDR])
 
@@ -1971,6 +1977,7 @@ class ReviewSession:
             simulator.load_state(state_buffer)
             battle_seen = is_in_battle(simulator)
             trainer_battle_seen = is_in_trainer_battle(simulator)
+            wild_battle_seen = is_in_wild_battle(simulator)
             blackout_seen = is_party_blackout(simulator)
             starting_map = current_map_id(simulator)
             starting_levels = party_levels(simulator)
@@ -1991,6 +1998,7 @@ class ReviewSession:
 
                 in_battle = is_in_battle(simulator)
                 in_trainer_battle = is_in_trainer_battle(simulator)
+                in_wild_battle = is_in_wild_battle(simulator)
                 blackout = is_party_blackout(simulator)
                 if target_state == "battle":
                     if battle_seen:
@@ -2004,6 +2012,13 @@ class ReviewSession:
                         if not in_trainer_battle:
                             trainer_battle_seen = False
                     elif in_trainer_battle:
+                        found = True
+                        break
+                elif target_state == "wild_battle":
+                    if wild_battle_seen:
+                        if not in_wild_battle:
+                            wild_battle_seen = False
+                    elif in_wild_battle:
                         found = True
                         break
                 elif target_state == "blackout":
