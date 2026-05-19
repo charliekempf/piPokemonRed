@@ -615,9 +615,9 @@ function renderStats(state) {
     warpStateButton.disabled = true;
     simulateButton.disabled = true;
   }
-  if (state.background_simulation && state.background_simulation.running) {
-    simulateStatusEl.textContent = `simulating to ${fmt(state.background_simulation.target_digits)} digits`;
-    simulateStatusEl.title = "Running in a separate headless process";
+  if (state.chart_simulation && state.chart_simulation.running) {
+    simulateStatusEl.textContent = `charting to ${fmt(state.chart_simulation.target_digits)} digits`;
+    simulateStatusEl.title = "Running in a separate headless process from review jumps";
   } else if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;
     simulateStatusEl.title = "";

@@ -99,8 +99,8 @@ class ReviewWebApp:
         self.config_path = config_path
         self.session_factory = session_factory
         self.emulator_thread: threading.Thread | None = None
-        self.background_simulation: subprocess.Popen[bytes] | None = None
-        self.background_target_digits = 0
+        self.chart_simulation: subprocess.Popen[bytes] | None = None
+        self.chart_target_digits = 0
         self.frame_version = 0
         self._last_frame_digest = ""
         self._lock = threading.Lock()
@@ -129,7 +129,7 @@ class ReviewWebApp:
                     raise
                 self.start_emulator_thread()
 
-    def start_background_simulation(self, target_digits: int, checkpoint_interval_digits: int) -> int:
+    def start_chart_simulation(self, target_digits: int, checkpoint_interval_digits: int) -> int:
         target_digits = max(0, int(target_digits))
         checkpoint_interval_digits = max(self.digits_per_input, int(checkpoint_interval_digits))
         if checkpoint_interval_digits % self.digits_per_input:
@@ -137,8 +137,8 @@ class ReviewWebApp:
         if target_digits % self.digits_per_input:
             target_digits -= target_digits % self.digits_per_input
         with self._lock:
-            if self.background_simulation is not None and self.background_simulation.poll() is None:
-                return self.background_target_digits
+            if self.chart_simulation is not None and self.chart_simulation.poll() is None:
+                return self.chart_target_digits
             command = [
                 sys.executable,
                 "scripts/run_pi_pyboy.py",
@@ -155,23 +155,23 @@ class ReviewWebApp:
                 "--max-digits",
                 str(target_digits),
             ]
-            self.background_simulation = subprocess.Popen(
+            self.chart_simulation = subprocess.Popen(
                 command,
                 cwd=Path.cwd(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
-            self.background_target_digits = target_digits
+            self.chart_target_digits = target_digits
             return target_digits
 
-    def background_simulation_info(self) -> dict[str, object]:
-        process = self.background_simulation
+    def chart_simulation_info(self) -> dict[str, object]:
+        process = self.chart_simulation
         if process is None:
             return {"running": False, "target_digits": 0}
         return {
             "running": process.poll() is None,
-            "target_digits": self.background_target_digits,
+            "target_digits": self.chart_target_digits,
         }
 
     def refresh_available_digits(self) -> None:
@@ -212,7 +212,7 @@ class ReviewWebApp:
                 "party": [],
                 "badges": [],
                 "checkpoints": checkpoints,
-                "background_simulation": self.background_simulation_info(),
+                "chart_simulation": self.chart_simulation_info(),
             }
         self.refresh_available_digits()
         info = self.session.info()
@@ -237,7 +237,7 @@ class ReviewWebApp:
             "party": self.session.party(),
             "badges": self.session.badges(),
             "checkpoints": list_checkpoints(self.run_name),
-            "background_simulation": self.background_simulation_info(),
+            "chart_simulation": self.chart_simulation_info(),
         }
 
     def frame_png(self) -> bytes:
@@ -303,7 +303,7 @@ def make_handler(app: ReviewWebApp):
                 app.session.request_fast_forward(int(body.get("digits", 1000)))
                 self._send_json({"ok": True})
             elif path == "/api/simulate":
-                target_digits = app.start_background_simulation(
+                target_digits = app.start_chart_simulation(
                     int(body.get("target_digits", body.get("digits", 1000))),
                     int(body.get("checkpoint_interval_digits", 1_000_000)),
                 )
