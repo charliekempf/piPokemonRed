@@ -21,7 +21,7 @@ from review_pi_checkpoint import (
     render_loaded_state,
     resolve_checkpoint,
 )
-from run_pi_pyboy import INPUT_CONFIG, PI_DIGITS, ROM, RUN_NAME, load_input_config
+from run_pi_pyboy import INPUT_CONFIG, PI_DIGITS, ROM, RUN_NAME, latest_checkpoint, load_input_config
 
 
 WEB_ROOT = Path("web/review")
@@ -59,13 +59,28 @@ def image_to_rgba(image: Image.Image | None) -> bytes:
 
 
 class ReviewWebApp:
-    def __init__(self, session: ReviewSession, scale: int) -> None:
+    def __init__(self, session: ReviewSession, scale: int, run_name: str, digits_per_input: int, hard_max_digits: int | None) -> None:
         self.session = session
         self.scale = scale
+        self.run_name = run_name
+        self.digits_per_input = digits_per_input
+        self.hard_max_digits = hard_max_digits
         self.frame_version = 0
         self._last_frame_digest = ""
 
+    def refresh_available_digits(self) -> None:
+        checkpoint = latest_checkpoint(Path("saves") / self.run_name)
+        if checkpoint is None:
+            return
+        available_digits = checkpoint[0]
+        if self.hard_max_digits is not None:
+            available_digits = min(available_digits, self.hard_max_digits)
+        if available_digits % self.digits_per_input:
+            available_digits -= available_digits % self.digits_per_input
+        self.session.set_max_digits(available_digits)
+
     def state(self) -> dict[str, object]:
+        self.refresh_available_digits()
         info = self.session.info()
         status = str(info["status"])
         if not (status.startswith("fast forwarding") or status.startswith("simulating")):
@@ -169,7 +184,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-name", default=RUN_NAME)
     parser.add_argument("--checkpoint", default="latest")
     parser.add_argument("--digits-consumed", type=int, default=None)
-    parser.add_argument("--max-digits", type=int, default=None)
+    parser.add_argument("--max-digits", type=int, default=None, help="Optional cap. Defaults to the highest available checkpoint.")
     parser.add_argument("--speed", type=int, default=1)
     parser.add_argument("--hold-frames", type=int, default=None)
     parser.add_argument("--release-frames", type=int, default=None)
@@ -196,14 +211,16 @@ def main() -> None:
         raise ValueError("--release-frames must be at least 0")
 
     digits = args.digits.read_text(encoding="ascii").strip()
-    max_digits = min(args.max_digits or len(digits), len(digits))
+    newest_checkpoint = latest_checkpoint(Path("saves") / args.run_name)
+    newest_checkpoint_digits = newest_checkpoint[0] if newest_checkpoint is not None else 0
+    max_digits = min(args.max_digits or newest_checkpoint_digits or len(digits), len(digits))
     if max_digits % input_config.digits_per_input:
         max_digits -= max_digits % input_config.digits_per_input
 
-    checkpoint = resolve_checkpoint(args.run_name, args.checkpoint, max_digits=max_digits)
+    checkpoint = resolve_checkpoint(args.run_name, args.checkpoint, max_digits=max_digits + input_config.digits_per_input)
     start_digits = checkpoint_digits(checkpoint, args.digits_consumed)
-    if start_digits >= max_digits:
-        raise ValueError(f"Checkpoint is already at {start_digits:,} digits, but max is {max_digits:,}.")
+    if start_digits > max_digits:
+        raise ValueError(f"Checkpoint is at {start_digits:,} digits, but max is {max_digits:,}.")
 
     pyboy = PyBoy(
         str(args.rom),
@@ -243,7 +260,18 @@ def main() -> None:
     emulator_thread = threading.Thread(target=session.run, name="pyboy-web-review", daemon=True)
     emulator_thread.start()
 
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(ReviewWebApp(session, args.scale)))
+    server = ThreadingHTTPServer(
+        (args.host, args.port),
+        make_handler(
+            ReviewWebApp(
+                session,
+                args.scale,
+                args.run_name,
+                input_config.digits_per_input,
+                args.max_digits,
+            )
+        ),
+    )
     url = f"http://{args.host}:{args.port}/"
     print(f"piPokemon reviewer running at {url}")
     if args.open_browser:

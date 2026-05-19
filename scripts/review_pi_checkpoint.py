@@ -195,6 +195,10 @@ class ReviewSession:
             self.speed_limiter_enabled = enabled
             self._next_frame_time = time.perf_counter()
 
+    def set_max_digits(self, max_digits: int) -> None:
+        with self._lock:
+            self.max_digits = max(self.digits_consumed, max_digits)
+
     def set_paused(self, paused: bool) -> None:
         with self._lock:
             self.paused = paused
