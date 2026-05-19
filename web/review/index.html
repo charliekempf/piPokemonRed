@@ -65,6 +65,7 @@
           <div class="speed-card">
             <label class="speed-row">
               <span>Speed</span>
+              <button id="pause" class="icon-control play-pause-control" title="Play/Pause" aria-label="Play or pause" type="button"></button>
               <input id="speed" type="range" min="0" max="4" step="0.001" value="0" />
               <strong id="stat-speed">-</strong>
             </label>
@@ -82,9 +83,6 @@
               <input id="volume" type="range" min="0" max="100" step="1" value="100" />
               <strong id="stat-volume">100%</strong>
             </label>
-          </div>
-          <div class="transport">
-            <button id="pause" class="icon-control play-pause-control" title="Play/Pause" aria-label="Play or pause"></button>
           </div>
           <div class="jump-control">
             <label for="jump-digits">Jump</label>

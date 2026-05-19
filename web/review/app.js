@@ -579,7 +579,7 @@ function setStateClass(status) {
     || normalized.startsWith("simulating")
     || normalized.startsWith("jumping")
     || normalized.startsWith("finding-next");
-  pauseEl.textContent = isPlaying ? "||" : ">";
+  pauseEl.textContent = isPlaying ? "⏸" : "▶";
   pauseEl.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
   pauseEl.title = isPlaying ? "Pause" : "Play";
 }
