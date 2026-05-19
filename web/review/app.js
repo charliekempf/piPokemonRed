@@ -20,6 +20,7 @@ const simulateEl = document.querySelector("#simulate-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
 const checkpointsEl = document.querySelector("#checkpoints");
+const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
 const partyEl = document.querySelector("#party");
 const inputsEl = document.querySelector("#inputs");
@@ -31,6 +32,7 @@ const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
 let frameFetchInFlight = false;
 let controlsInitialized = false;
 let backendBusy = false;
+let selectedCheckpointDigits = null;
 const expandedPartySlots = new Set();
 
 function speedFromSlider() {
@@ -204,6 +206,13 @@ simulateButton.addEventListener("click", () => {
   post("/api/simulate", { digits: Number(simulateEl.value) });
 });
 
+loadCheckpointButton.addEventListener("click", () => {
+  if (selectedCheckpointDigits === null) {
+    return;
+  }
+  post("/api/jump", { digits: selectedCheckpointDigits });
+});
+
 function fmt(value) {
   return Number(value).toLocaleString();
 }
@@ -343,27 +352,43 @@ function renderCheckpoints(checkpoints, currentDigits) {
     row.className = "checkpoint-empty";
     row.textContent = "No checkpoints";
     checkpointsEl.replaceChildren(row);
+    selectedCheckpointDigits = null;
+    loadCheckpointButton.disabled = true;
     return;
   }
 
+  const checkpointItems = checkpoints.map(checkpointInfo);
+  if (
+    selectedCheckpointDigits === null
+    || !checkpointItems.some((checkpoint) => checkpoint.digits === selectedCheckpointDigits)
+  ) {
+    selectedCheckpointDigits = checkpointItems.some((checkpoint) => checkpoint.digits === Number(currentDigits))
+      ? Number(currentDigits)
+      : checkpointItems[checkpointItems.length - 1].digits;
+  }
+  loadCheckpointButton.disabled = backendBusy || selectedCheckpointDigits === null;
+
   checkpointsEl.replaceChildren(
-    ...checkpoints.map((checkpoint) => {
-      const digits = typeof checkpoint === "object" ? checkpoint.digits : checkpoint;
-      const filename = typeof checkpoint === "object"
-        ? checkpoint.filename
-        : `checkpoint_${String(digits).padStart(8, "0")}_digits.state`;
+    ...checkpointItems.map((checkpoint) => {
       const row = document.createElement("li");
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = filename;
-      button.title = filename;
-      button.dataset.digits = String(digits);
-      button.className = Number(digits) === Number(currentDigits) ? "is-current" : "";
-      button.disabled = backendBusy;
-      button.addEventListener("click", () => {
-        post("/api/jump", { digits: Number(button.dataset.digits) });
+      row.textContent = checkpoint.filename;
+      row.title = checkpoint.filename;
+      row.tabIndex = 0;
+      row.dataset.digits = String(checkpoint.digits);
+      row.classList.toggle("is-current", checkpoint.digits === Number(currentDigits));
+      row.classList.toggle("is-selected", checkpoint.digits === selectedCheckpointDigits);
+      row.addEventListener("click", () => {
+        selectedCheckpointDigits = checkpoint.digits;
+        renderCheckpoints(checkpoints, currentDigits);
       });
-      row.append(button);
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        selectedCheckpointDigits = checkpoint.digits;
+        renderCheckpoints(checkpoints, currentDigits);
+      });
       return row;
     }),
   );
