@@ -617,8 +617,18 @@ function renderStats(state) {
   }
   if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;
-  } else if (state.last_simulation && Number(state.last_simulation.digits) > 0) {
-    simulateStatusEl.textContent = `${fmt(state.last_simulation.digits)} digits, ${fmtRate(state.last_simulation.digits_per_second)}`;
+  } else if (state.last_simulation && (Number(state.last_simulation.digits) > 0 || Number(state.last_simulation.skipped_digits) > 0)) {
+    const simulatedDigits = Number(state.last_simulation.digits) || 0;
+    const skippedDigits = Number(state.last_simulation.skipped_digits) || 0;
+    const parts = [];
+    if (simulatedDigits > 0) {
+      parts.push(`${fmt(simulatedDigits)} digits`);
+      parts.push(fmtRate(state.last_simulation.digits_per_second));
+    }
+    if (skippedDigits > 0) {
+      parts.push(`skipped ${fmt(skippedDigits)}`);
+    }
+    simulateStatusEl.textContent = parts.join(", ");
     simulateStatusEl.title = state.last_simulation.last_state || "";
   } else {
     simulateStatusEl.textContent = "Ready";

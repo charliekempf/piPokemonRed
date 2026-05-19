@@ -1548,6 +1548,7 @@ class ReviewSession:
     def _simulate_with_backend(self, target_digits: int, checkpoint_interval_digits: int) -> None:
         with self._lock:
             start_digits = self.digits_consumed
+            requested_start_digits = start_digits
             started_at = self._simulation_started_at or time.perf_counter()
             if self.paused or self.pause_requested or self._simulate_target_digits is None:
                 return
@@ -1572,10 +1573,20 @@ class ReviewSession:
         inputs_sent = 0
         last_button = self.last_button
         last_state: Path | None = None
-        next_checkpoint = ((start_digits // checkpoint_interval_digits) + 1) * checkpoint_interval_digits
-        next_checkpoint = min(next_checkpoint, target_digits)
+        resume_start_digits = start_digits
+        checkpoint = self._checkpoint_at_or_before(target_digits, minimum_digits=start_digits + self.input_config.digits_per_input)
         try:
-            simulator.load_state(state_buffer)
+            if checkpoint is not None:
+                digits_consumed, checkpoint_path = checkpoint
+                resume_start_digits = digits_consumed
+                with checkpoint_path.open("rb") as state_file:
+                    simulator.load_state(state_file)
+                last_state = checkpoint_path
+            else:
+                state_buffer.seek(0)
+                simulator.load_state(state_buffer)
+            next_checkpoint = ((digits_consumed // checkpoint_interval_digits) + 1) * checkpoint_interval_digits
+            next_checkpoint = min(next_checkpoint, target_digits)
             while digits_consumed < target_digits:
                 chunk_target = min(next_checkpoint, target_digits)
                 digits_consumed, chunk_inputs, last_button = advance_pi_inputs(
@@ -1620,16 +1631,18 @@ class ReviewSession:
             simulator.stop()
 
         elapsed = max(time.perf_counter() - started_at, 0.000001)
-        effective_digits_per_second = (digits_consumed - start_digits) / elapsed
+        effective_digits_per_second = (digits_consumed - resume_start_digits) / elapsed
         frames_advanced = inputs_sent * self.frames_per_input
         effective_fps = frames_advanced / elapsed
+        total_digits_advanced = digits_consumed - requested_start_digits
+        last_button = self._button_before_digits(digits_consumed, fallback=last_button)
         final_state.seek(0)
         self.pyboy.load_state(final_state)
         image = render_loaded_state(self.pyboy)
         with self._lock:
             self.digits_consumed = digits_consumed
-            self.frames_elapsed += inputs_sent * self.frames_per_input
-            self.inputs_sent += inputs_sent
+            self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
+            self.inputs_sent += max(0, total_digits_advanced // self.input_config.digits_per_input)
             self.last_button = last_button
             self.paused = True
             self._simulate_target_digits = None
@@ -1640,7 +1653,9 @@ class ReviewSession:
             self.latest_image = image
             self._auto_snapshots_enabled = False
             self._last_simulation = {
-                "digits": digits_consumed - start_digits,
+                "digits": digits_consumed - resume_start_digits,
+                "resumed_from_digits": resume_start_digits,
+                "skipped_digits": max(0, resume_start_digits - requested_start_digits),
                 "elapsed_seconds": elapsed,
                 "digits_per_second": effective_digits_per_second,
                 "last_state": str(last_state),
@@ -1863,6 +1878,17 @@ class ReviewSession:
         if digits % digits_per_input:
             digits -= digits % digits_per_input
         return digits
+
+    def _button_before_digits(self, digits_consumed: int, fallback: str = "-") -> str:
+        digits_per_input = self.input_config.digits_per_input
+        if digits_consumed < digits_per_input:
+            return fallback
+        start = digits_consumed - digits_per_input
+        try:
+            value = int(self.digits[start:digits_consumed])
+            return button_for_value(value, self.input_config)
+        except ValueError:
+            return fallback
 
     def _capture_frame(self) -> None:
         image = self.pyboy.screen.image.copy()
