@@ -5,6 +5,7 @@ const limiterEl = document.querySelector("#limiter");
 const pauseEl = document.querySelector("#pause");
 const rewindEl = document.querySelector("#rewind");
 const rewindButton = document.querySelector("#rewind-button");
+const fastForwardButton = document.querySelector("#fast-forward-button");
 const upcomingEl = document.querySelector("#upcoming");
 
 const FRAME_WIDTH = 160;
@@ -166,6 +167,10 @@ pauseEl.addEventListener("click", () => {
 
 rewindButton.addEventListener("click", () => {
   post("/api/rewind", { digits: Number(rewindEl.value) });
+});
+
+fastForwardButton.addEventListener("click", () => {
+  post("/api/fast-forward", { digits: Number(rewindEl.value) });
 });
 
 function fmt(value) {

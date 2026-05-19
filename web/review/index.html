@@ -28,8 +28,9 @@
             <input id="limiter" type="checkbox" checked />
             Use speed slider
           </label>
-          <div class="buttons">
-            <button id="pause">Pause/Resume</button>
+          <div class="transport">
+            <button id="pause" class="primary-control">Pause/Resume</button>
+            <button id="rewind-button" class="icon-control" title="Rewind selected digits" aria-label="Rewind selected digits">&lt;&lt;</button>
             <select id="rewind">
               <option value="10">10 digits</option>
               <option value="100">100 digits</option>
@@ -38,7 +39,7 @@
               <option value="100000">100,000 digits</option>
               <option value="1000000">1,000,000 digits</option>
             </select>
-            <button id="rewind-button">Rewind</button>
+            <button id="fast-forward-button" class="icon-control" title="Fast-forward selected digits" aria-label="Fast-forward selected digits">&gt;&gt;</button>
           </div>
         </div>
       </section>

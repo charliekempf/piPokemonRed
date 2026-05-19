@@ -122,6 +122,9 @@ def make_handler(app: ReviewWebApp):
             elif path == "/api/rewind":
                 app.session.request_rewind(int(body.get("digits", 1000)))
                 self._send_json({"ok": True})
+            elif path == "/api/fast-forward":
+                app.session.request_fast_forward(int(body.get("digits", 1000)))
+                self._send_json({"ok": True})
             else:
                 self.send_error(404)
 

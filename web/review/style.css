@@ -97,8 +97,9 @@ input[type="range"] {
   color: #e4e1d7;
 }
 
-.buttons {
-  display: flex;
+.transport {
+  display: grid;
+  grid-template-columns: minmax(118px, auto) 38px minmax(132px, 150px) 38px;
   gap: 8px;
   align-items: center;
 }
@@ -111,6 +112,17 @@ select {
   background: #303441;
   color: #f3f1e8;
   padding: 0 12px;
+}
+
+.icon-control {
+  width: 38px;
+  padding: 0;
+  font-weight: 800;
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+
+.primary-control {
+  min-width: 118px;
 }
 
 button:hover,

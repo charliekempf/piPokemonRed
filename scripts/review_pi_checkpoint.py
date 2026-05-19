@@ -101,6 +101,7 @@ class ReviewSession:
         self._next_frame_time = time.perf_counter()
         self._lock = threading.Lock()
         self._rewind_digits_requested = 0
+        self._fast_forward_target_digits: int | None = None
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._take_snapshot()
         if self.latest_image is None:
@@ -109,7 +110,8 @@ class ReviewSession:
     def set_speed(self, speed: float) -> None:
         with self._lock:
             self.speed = max(1, min(1000, int(round(speed))))
-            self.pyboy.set_emulation_speed(self.speed)
+            if self._fast_forward_target_digits is None:
+                self.pyboy.set_emulation_speed(self.speed)
 
     def set_speed_limiter_enabled(self, enabled: bool) -> None:
         with self._lock:
@@ -131,11 +133,32 @@ class ReviewSession:
                 self.status = "running"
             else:
                 self.pause_requested = True
+                self._fast_forward_target_digits = None
+                self.pyboy.set_emulation_speed(self.speed)
                 self.status = "pause pending"
 
     def request_rewind(self, digits: int) -> None:
         with self._lock:
             self._rewind_digits_requested = max(self._rewind_digits_requested, digits)
+            self._fast_forward_target_digits = None
+            self.pyboy.set_emulation_speed(self.speed)
+
+    def request_fast_forward(self, digits: int) -> None:
+        digits = max(2, digits)
+        if digits % 2:
+            digits -= 1
+        with self._lock:
+            target = min(self.max_digits, self.digits_consumed + digits)
+            if target % 2:
+                target -= 1
+            if target <= self.digits_consumed:
+                self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
+                return
+            self._fast_forward_target_digits = target
+            self.pyboy.set_emulation_speed(0)
+            self.paused = False
+            self.pause_requested = False
+            self.status = f"fast forwarding to {target:,} digits"
 
     def stop(self) -> None:
         with self._lock:
@@ -166,6 +189,7 @@ class ReviewSession:
                     pause_requested = self.pause_requested
                     rewind_digits = self._rewind_digits_requested
                     self._rewind_digits_requested = 0
+                    fast_forward_target = self._fast_forward_target_digits
 
                 if rewind_digits:
                     self._rewind(rewind_digits)
@@ -187,17 +211,27 @@ class ReviewSession:
                     time.sleep(1 / 30)
                     continue
 
+                will_finish_fast_forward = (
+                    fast_forward_target is not None
+                    and self.digits_consumed + 2 >= fast_forward_target
+                )
                 pair = int(self.digits[self.digits_consumed : self.digits_consumed + 2])
                 button = button_for_pair(pair)
                 self.pyboy.button_press(button)
                 self._tick_frames(self.hold_frames)
                 self.pyboy.button_release(button)
-                self._tick_frames(self.release_frames)
+                self._tick_frames(self.release_frames, force_final_render=will_finish_fast_forward)
                 with self._lock:
                     self.digits_consumed += 2
                     self.frames_elapsed += self.frames_per_input
                     self.inputs_sent += 1
                     self.last_button = button
+                    if fast_forward_target is not None and self.digits_consumed >= fast_forward_target:
+                        self.paused = True
+                        self._fast_forward_target_digits = None
+                        self.pyboy.set_emulation_speed(self.speed)
+                        self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
+                        self._next_frame_time = time.perf_counter()
 
                 if self.digits_consumed - self._last_snapshot_digits >= self.rewind_interval_digits:
                     self._take_snapshot()
@@ -206,19 +240,24 @@ class ReviewSession:
                 self.audio_sink.close()
             self.pyboy.stop()
 
-    def _tick_frames(self, frames: int) -> None:
-        for _ in range(frames):
-            self.pyboy.tick(1, True, True)
-            if self.audio_sink:
+    def _tick_frames(self, frames: int, force_final_render: bool = False) -> None:
+        for frame_index in range(frames):
+            with self._lock:
+                fast_forwarding = self._fast_forward_target_digits is not None
+            render_frame = not fast_forwarding or (force_final_render and frame_index == frames - 1)
+            self.pyboy.tick(1, render_frame, not fast_forwarding)
+            if self.audio_sink and not fast_forwarding:
                 self.audio_sink.queue(self.pyboy, self.sound_volume)
-            self._capture_frame()
+            if render_frame:
+                self._capture_frame()
             self._limit_frame_rate()
 
     def _limit_frame_rate(self) -> None:
         with self._lock:
             speed = self.speed
             enabled = self.speed_limiter_enabled
-        if speed <= 0 or not enabled:
+            fast_forwarding = self._fast_forward_target_digits is not None
+        if speed <= 0 or not enabled or fast_forwarding:
             return
 
         now = time.perf_counter()
@@ -252,7 +291,11 @@ class ReviewSession:
             self.frames_elapsed = snapshot.frames_elapsed
             self.status = f"rewound to {snapshot.digits_consumed:,} digits"
             self._last_snapshot_digits = snapshot.digits_consumed
-        self._capture_frame()
+            self._fast_forward_target_digits = None
+            self.pyboy.set_emulation_speed(self.speed)
+        image = render_loaded_state(self.pyboy)
+        with self._lock:
+            self.latest_image = image
 
     def _capture_frame(self) -> None:
         image = self.pyboy.screen.image.copy()
