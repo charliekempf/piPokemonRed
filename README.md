@@ -86,13 +86,13 @@ py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_
 
 Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`.
 
-Review a checkpoint with graphics, sound, and controls in one window:
+Review a checkpoint in the local web UI:
 
 ```powershell
 .\scripts\open_review.ps1
 ```
 
-The launcher closes older `review_pi_checkpoint.py` instances before opening a new reviewer window.
+The launcher closes older web or Tk reviewer instances before opening a new browser tab.
 
 `latest` selects the latest checkpoint that still has remaining pi digits to play. With the 10 million digit test data, that means the 9 million digit checkpoint rather than the completed 10 million digit checkpoint.
 Audio is most reliable at `--speed 1`; higher speeds may outrun PyBoy's SDL audio queue.
@@ -101,10 +101,10 @@ The reviewer opens paused by default. Press `Pause/Resume` to start playback, or
 Open a specific checkpoint by digit count:
 
 ```powershell
-py scripts\review_pi_checkpoint.py --checkpoint 5000000 --speed 1
+py scripts\review_web.py --checkpoint 5000000 --speed 1 --open-browser
 ```
 
-The review window continues the same pi input stream from the checkpoint. It embeds the Game Boy screen and controls in a single window, with a labeled logarithmic speed slider from `1x` to `1000x`, a checkbox to enable or bypass the speed limiter, an `inputs sent` counter, the last pi-derived button sent, a Tetris-style preview of upcoming inputs, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.
+The web reviewer continues the same pi input stream from the checkpoint. It serves the Game Boy screen and controls from a local web app, with a labeled logarithmic speed slider from `1x` to `1000x`, a checkbox to enable or bypass the speed limiter, an `inputs sent` counter, the last pi-derived button sent, a Tetris-style preview of upcoming inputs, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.
 
 ## TAS Button Tally
 

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>piPokemon Review</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="screen-panel">
+        <div class="screen-shell">
+          <img id="screen" class="screen" alt="Game Boy screen" src="/api/frame.png" />
+        </div>
+        <div id="status" class="status">Loading...</div>
+        <div class="controls">
+          <label class="speed-row">
+            <span>Speed</span>
+            <input id="speed" type="range" min="0" max="3" step="0.001" value="0" />
+          </label>
+          <div class="scale">
+            <span>1x</span>
+            <span>10x</span>
+            <span>100x</span>
+            <span>1000x</span>
+          </div>
+          <label class="check">
+            <input id="limiter" type="checkbox" checked />
+            Use speed slider
+          </label>
+          <div class="buttons">
+            <button id="pause">Pause/Resume</button>
+            <select id="rewind">
+              <option value="10">10 digits</option>
+              <option value="100">100 digits</option>
+              <option value="1000" selected>1,000 digits</option>
+              <option value="10000">10,000 digits</option>
+              <option value="100000">100,000 digits</option>
+              <option value="1000000">1,000,000 digits</option>
+            </select>
+            <button id="rewind-button">Rewind</button>
+          </div>
+        </div>
+      </section>
+      <aside class="next-panel">
+        <h1>Next</h1>
+        <ol id="upcoming" class="upcoming"></ol>
+      </aside>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

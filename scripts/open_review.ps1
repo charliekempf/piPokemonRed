@@ -17,14 +17,14 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Get-CimInstance Win32_Process |
     Where-Object {
         ($_.Name -in @("py.exe", "python.exe", "pythonw.exe")) -and
-        ($_.CommandLine -match "review_pi_checkpoint\.py")
+        (($_.CommandLine -match "review_pi_checkpoint\.py") -or ($_.CommandLine -match "review_web\.py"))
     } |
     ForEach-Object {
         Stop-Process -Id $_.ProcessId -Force
     }
 
 $arguments = @(
-    "scripts\review_pi_checkpoint.py",
+    "scripts\review_web.py",
     "--run-name", $RunName,
     "--digits", $Digits,
     "--max-digits", "$MaxDigits",
@@ -34,8 +34,9 @@ $arguments = @(
     "--release-frames", "$ReleaseFrames",
     "--sound-volume", "$SoundVolume",
     "--sound-sample-rate", "$SoundSampleRate",
-    "--scale", "$Scale"
+    "--scale", "$Scale",
+    "--open-browser"
 )
 
-$process = Start-Process -FilePath "py" -ArgumentList $arguments -WorkingDirectory $repoRoot -PassThru
+$process = Start-Process -FilePath "py" -ArgumentList $arguments -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru
 Write-Host "Started review process PID=$($process.Id)"

@@ -23,8 +23,9 @@ Current core approach:
 Important scripts:
 
 - `scripts/run_pi_pyboy.py` runs the headless deterministic simulation and writes savestates/screenshots/progress.
-- `scripts/review_pi_checkpoint.py` opens the single-window graphical reviewer with speed control and digit-based rewind.
-- `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh reviewer.
+- `scripts/review_web.py` runs the local web reviewer with speed control, digit-based rewind, and an upcoming-input preview.
+- `scripts/review_pi_checkpoint.py` is the older Tk-based reviewer kept for reference.
+- `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh web reviewer.
 - `scripts/tally_tas_buttons.py` parses BizHawk `.bk2` TAS files to tally button usage.
 - `src/LibretroBench/` is an optional native libretro benchmark harness kept for comparison; PyBoy is the practical path right now.
 
@@ -59,5 +60,6 @@ py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_
 
 ## Review Software
 
-- Before opening `scripts/review_pi_checkpoint.py`, close any older running instances of that same reviewer script.
-- Only target processes whose command line includes `review_pi_checkpoint.py`; do not stop unrelated Python processes.
+- Prefer the web reviewer (`scripts/review_web.py`) for UI work.
+- Before opening a reviewer, close any older running reviewer process.
+- Only target processes whose command line includes `review_web.py` or `review_pi_checkpoint.py`; do not stop unrelated Python processes.

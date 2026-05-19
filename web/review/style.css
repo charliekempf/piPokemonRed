@@ -1,0 +1,164 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: #15161a;
+  color: #f3f1e8;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #15161a;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: auto 220px;
+  gap: 18px;
+  align-items: start;
+  padding: 18px;
+}
+
+.screen-panel,
+.next-panel {
+  background: #24262d;
+  border: 1px solid #3c404a;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.screen-panel {
+  padding: 14px;
+}
+
+.screen-shell {
+  width: 640px;
+  height: 576px;
+  background: #0b0c0f;
+  display: grid;
+  place-items: center;
+  border: 1px solid #4a4f5d;
+}
+
+.screen {
+  width: 640px;
+  height: 576px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.status {
+  margin: 10px 0;
+  min-height: 22px;
+  font-size: 14px;
+  color: #d9d7ce;
+  white-space: nowrap;
+}
+
+.controls {
+  display: grid;
+  gap: 8px;
+}
+
+.speed-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
+.scale {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-left: 74px;
+  color: #aeb4c0;
+  font-size: 12px;
+}
+
+.scale span:nth-child(2),
+.scale span:nth-child(3) {
+  text-align: center;
+}
+
+.scale span:last-child {
+  text-align: right;
+}
+
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #e4e1d7;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+button,
+select {
+  height: 34px;
+  border: 1px solid #555c6c;
+  border-radius: 6px;
+  background: #303441;
+  color: #f3f1e8;
+  padding: 0 12px;
+}
+
+button:hover,
+select:hover {
+  border-color: #7f8aa0;
+}
+
+.next-panel {
+  padding: 12px;
+}
+
+.next-panel h1 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.upcoming {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.upcoming li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 7px 8px;
+  min-height: 22px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 13px;
+}
+
+.upcoming li:first-child {
+  background: #3b4a61;
+  border-color: #6f89af;
+}
+
+.pair {
+  color: #b8c0d0;
+}
+
+.button {
+  color: #fff4b8;
+  font-weight: 700;
+}
