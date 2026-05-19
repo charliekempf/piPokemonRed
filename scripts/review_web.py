@@ -93,6 +93,27 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
     return sorted(runs, key=lambda run: (-int(run["highest_digits"]), str(run["name"])))
 
 
+def config_info(config_path: Path) -> dict[str, object]:
+    config = load_input_config(config_path)
+    total_values = 10**config.digits_per_input
+    return {
+        "name": config_display_name(config_path),
+        "digits_per_input": config.digits_per_input,
+        "on_frames": config.on_frames,
+        "off_frames": config.off_frames,
+        "mapping": [
+            {
+                "min": button_range.minimum,
+                "max": button_range.maximum,
+                "button": button_range.button,
+                "count": button_range.maximum - button_range.minimum + 1,
+                "percent": ((button_range.maximum - button_range.minimum + 1) / total_values) * 100,
+            }
+            for button_range in config.mapping
+        ],
+    }
+
+
 def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Image | None:
     screenshot_path = (
         Path("results")
@@ -355,6 +376,7 @@ class ReviewWebApp:
                 "runs": list_runs(self.run_name),
                 "active_run": self.run_name,
                 "digits_per_input": self.digits_per_input,
+                "config": config_info(self.config_path) if self.config_path.exists() else {},
                 "chart_simulation": self.chart_simulation_info(),
             }
         self.refresh_available_digits()
@@ -386,6 +408,7 @@ class ReviewWebApp:
             "runs": list_runs(self.run_name),
             "active_run": self.run_name,
             "digits_per_input": self.digits_per_input,
+            "config": config_info(self.config_path) if self.config_path.exists() else {},
             "chart_simulation": self.chart_simulation_info(),
         }
 

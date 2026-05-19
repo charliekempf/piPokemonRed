@@ -45,6 +45,9 @@ const badgesCountEl = document.querySelector("#badges-count");
 const playerInfoEl = document.querySelector("#player-info");
 const badgesEl = document.querySelector("#badges");
 const inputsEl = document.querySelector("#inputs");
+const configDigitsPerInputEl = document.querySelector("#config-digits-per-input");
+const configSpreadChartEl = document.querySelector("#config-spread-chart");
+const configRangesEl = document.querySelector("#config-ranges");
 
 const FRAME_WIDTH = 160;
 const FRAME_HEIGHT = 144;
@@ -67,9 +70,20 @@ let checkpointListSignature = "";
 let partyRenderSignature = "";
 let bagRenderSignature = "";
 let inputRenderSignature = "";
+let configRenderSignature = "";
 let lastPartyMembers = [];
 let badgesExpanded = false;
 const expandedPartySlots = new Set();
+const BUTTON_COLORS = {
+  a: "#6f89af",
+  b: "#c97b68",
+  start: "#fff4b8",
+  select: "#aeb4c0",
+  up: "#7fb083",
+  down: "#587d6a",
+  left: "#b98fc9",
+  right: "#d9a85f",
+};
 
 function speedSliderIsUnlimited() {
   return Number(speedEl.value) >= Number(speedEl.max);
@@ -315,6 +329,7 @@ runSelectEl.addEventListener("change", async () => {
   partyRenderSignature = "";
   bagRenderSignature = "";
   inputRenderSignature = "";
+  configRenderSignature = "";
   runSelectEl.disabled = false;
   refresh();
 });
@@ -436,6 +451,78 @@ function renderInputs(items) {
     const y = INPUT_CANVAS_PADDING + (index * (INPUT_ROW_HEIGHT + INPUT_ROW_GAP));
     drawInputRow(context, item, role, 0.5, y + 0.5, width - 1, INPUT_ROW_HEIGHT);
   });
+}
+
+function renderConfigInfo(config = {}) {
+  const signature = JSON.stringify(config);
+  if (signature === configRenderSignature) {
+    return;
+  }
+  configRenderSignature = signature;
+
+  const mapping = Array.isArray(config.mapping) ? config.mapping : [];
+  const digitsPerInput = Number(config.digits_per_input) || 0;
+  configDigitsPerInputEl.textContent = digitsPerInput ? String(digitsPerInput) : "-";
+
+  if (!mapping.length) {
+    const empty = document.createElement("li");
+    empty.className = "config-empty";
+    empty.textContent = "No config data";
+    configRangesEl.replaceChildren(empty);
+    drawConfigPie([]);
+    return;
+  }
+
+  configRangesEl.replaceChildren(
+    ...mapping.map((entry) => {
+      const button = String(entry.button || "").toLowerCase();
+      const row = document.createElement("li");
+      const swatch = document.createElement("span");
+      const range = document.createElement("span");
+      const share = document.createElement("strong");
+      row.className = "config-range";
+      swatch.className = "config-swatch";
+      swatch.style.background = BUTTON_COLORS[button] || "#6f89af";
+      range.textContent = `${String(entry.min).padStart(digitsPerInput || 2, "0")}-${String(entry.max).padStart(digitsPerInput || 2, "0")} -> ${button.toUpperCase()}`;
+      share.textContent = `${Number(entry.percent || 0).toFixed(Number(entry.percent || 0) < 10 ? 1 : 0)}%`;
+      row.append(swatch, range, share);
+      return row;
+    }),
+  );
+  drawConfigPie(mapping);
+}
+
+function drawConfigPie(mapping) {
+  const canvas = configSpreadChartEl;
+  const context = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  context.clearRect(0, 0, width, height);
+  if (!mapping.length) {
+    return;
+  }
+
+  const total = mapping.reduce((sum, entry) => sum + Number(entry.count || 0), 0) || 1;
+  const centerX = 74;
+  const centerY = 75;
+  const radius = 54;
+  let start = -Math.PI / 2;
+  for (const entry of mapping) {
+    const end = start + ((Number(entry.count || 0) / total) * Math.PI * 2);
+    context.beginPath();
+    context.moveTo(centerX, centerY);
+    context.arc(centerX, centerY, radius, start, end);
+    context.closePath();
+    context.fillStyle = BUTTON_COLORS[String(entry.button || "").toLowerCase()] || "#6f89af";
+    context.fill();
+    start = end;
+  }
+
+  context.beginPath();
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  context.strokeStyle = "#454b58";
+  context.lineWidth = 2;
+  context.stroke();
 }
 
 function drawInputRow(context, item, role, x, y, width, height) {
@@ -935,6 +1022,7 @@ async function refresh() {
     setInitialControls(state);
     renderStats(state);
     renderRuns(state.runs || [], state.active_run || "");
+    renderConfigInfo(state.config || {});
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
     renderParty(state.party || []);
@@ -956,6 +1044,7 @@ async function refresh() {
     statDigitRateEl.textContent = "-";
     statVolumeEl.textContent = "-";
     renderRuns([], "");
+    renderConfigInfo({});
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);
