@@ -24,6 +24,7 @@ body {
 .screen-panel,
 .checkpoint-panel,
 .jump-panel,
+.event-panel,
 .party-panel,
 .next-panel {
   background: #24262d;
@@ -330,14 +331,6 @@ select {
   min-width: 118px;
 }
 
-.warp-actions {
-  display: grid;
-  grid-template-columns: 1fr 84px;
-  gap: 8px;
-  align-items: center;
-  margin-top: 8px;
-}
-
 button:hover,
 select:hover {
   border-color: #7f8aa0;
@@ -354,12 +347,14 @@ button:disabled {
 }
 
 .jump-panel,
+.event-panel,
 .party-panel,
 .next-panel {
   padding: 12px;
 }
 
 .jump-panel h1,
+.event-panel h1,
 .party-panel h1,
 .next-panel h1 {
   margin: 0 0 10px;
@@ -367,7 +362,8 @@ button:disabled {
   font-weight: 650;
 }
 
-.jump-panel label {
+.jump-panel label,
+.event-panel label {
   display: block;
   margin-bottom: 6px;
   color: #aeb4c0;
@@ -375,6 +371,13 @@ button:disabled {
 }
 
 .jump-actions {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  gap: 8px;
+  align-items: center;
+}
+
+.warp-actions {
   display: grid;
   grid-template-columns: 1fr 84px;
   gap: 8px;
