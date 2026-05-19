@@ -1162,6 +1162,11 @@ class ReviewSession:
         self._actual_speed_x = 0.0
         self._speed_sample_started_at = time.perf_counter()
         self._speed_sample_frames = 0
+        self._seek_active = False
+        self._seek_label = ""
+        self._seek_start_digits = digits_consumed
+        self._seek_current_digits = digits_consumed
+        self._seek_target_digits = digits_consumed
         self._take_snapshot()
         if self.latest_image is None:
             self._capture_frame()
@@ -1217,6 +1222,9 @@ class ReviewSession:
     def request_rewind(self, digits: int) -> None:
         digits = self._normalize_digit_distance(digits)
         with self._lock:
+            target = max(0, self.digits_consumed - digits)
+            if target % self.input_config.digits_per_input:
+                target -= target % self.input_config.digits_per_input
             self._rewind_digits_requested = max(self._rewind_digits_requested, digits)
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
@@ -1225,6 +1233,7 @@ class ReviewSession:
             self.pause_requested = False
             self.pyboy.set_emulation_speed(self.speed)
             self.status = f"rewinding {digits:,} digits"
+            self._begin_seek_unlocked("Rewinding", self.digits_consumed, target)
 
     def request_fast_forward(self, digits: int) -> None:
         digits = self._normalize_digit_distance(digits)
@@ -1243,6 +1252,7 @@ class ReviewSession:
             self.paused = False
             self.pause_requested = False
             self.status = f"fast forwarding to {target:,} digits"
+            self._begin_seek_unlocked("Fast-forwarding", self.digits_consumed, target)
 
     def request_simulate(self, target_digits: int, checkpoint_interval_digits: int = 1_000_000) -> int:
         target = max(0, min(len(self.digits), int(target_digits)))
@@ -1266,6 +1276,7 @@ class ReviewSession:
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
             self.status = f"simulating to {target:,} digits"
+            self._begin_seek_unlocked("Simulating", self.digits_consumed, target)
         return target
 
     def request_jump(self, digits: int) -> int:
@@ -1282,6 +1293,7 @@ class ReviewSession:
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
             self.status = f"jumping to {target:,} digits"
+            self._begin_seek_unlocked("Jumping", self.digits_consumed, target)
         return target
 
     def request_warp_state(self, target_state: str, limit_digits: int = 1_000_000) -> str:
@@ -1301,6 +1313,7 @@ class ReviewSession:
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
             self.status = f"finding next {label} within {limit_digits:,} digits"
+            self._begin_seek_unlocked(f"Finding next {label}", self.digits_consumed, self.digits_consumed + limit_digits)
         return target_state
 
     def stop(self) -> None:
@@ -1325,7 +1338,40 @@ class ReviewSession:
                 "inputs_sent": self.inputs_sent,
                 "last_button": self.last_button,
                 "last_simulation": self._last_simulation or {},
+                "seek": self._seek_info_unlocked(),
             }
+
+    def _begin_seek_unlocked(self, label: str, start_digits: int, target_digits: int) -> None:
+        self._seek_active = True
+        self._seek_label = label
+        self._seek_start_digits = int(start_digits)
+        self._seek_current_digits = int(start_digits)
+        self._seek_target_digits = int(target_digits)
+
+    def _update_seek(self, current_digits: int) -> None:
+        with self._lock:
+            if self._seek_active:
+                self._seek_current_digits = int(current_digits)
+
+    def _end_seek_unlocked(self) -> None:
+        self._seek_active = False
+        self._seek_current_digits = self.digits_consumed
+        self._seek_target_digits = self.digits_consumed
+
+    def _seek_info_unlocked(self) -> dict[str, bool | int | float | str]:
+        distance = self._seek_target_digits - self._seek_start_digits
+        if distance:
+            progress = ((self._seek_current_digits - self._seek_start_digits) / distance) * 100
+        else:
+            progress = 100 if self._seek_active else 0
+        return {
+            "active": self._seek_active,
+            "label": self._seek_label,
+            "start_digits": self._seek_start_digits,
+            "current_digits": self._seek_current_digits,
+            "target_digits": self._seek_target_digits,
+            "progress": max(0.0, min(100.0, progress)),
+        }
 
     def party(self) -> list[dict[str, object]]:
         with self._lock:
@@ -1514,6 +1560,33 @@ class ReviewSession:
                     candidates.append((digits_consumed, candidate))
         return max(candidates) if candidates else None
 
+    def _advance_with_seek_progress(
+        self,
+        pyboy: PyBoy,
+        start_digits: int,
+        target_digits: int,
+        chunk_digits: int = 10_000,
+    ) -> tuple[int, int, str]:
+        chunk_digits = self._normalize_digit_distance(chunk_digits)
+        digits_consumed = start_digits
+        total_inputs = 0
+        last_button = "-"
+        self._update_seek(digits_consumed)
+        while digits_consumed < target_digits:
+            chunk_target = min(target_digits, digits_consumed + chunk_digits)
+            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+                pyboy,
+                self.digits,
+                digits_consumed,
+                chunk_target,
+                self.hold_frames,
+                self.release_frames,
+                input_config=self.input_config,
+            )
+            total_inputs += inputs_sent
+            self._update_seek(digits_consumed)
+        return digits_consumed, total_inputs, last_button
+
     def _fast_forward_with_backend(self, target_digits: int) -> None:
         with self._lock:
             start_digits = self.digits_consumed
@@ -1541,14 +1614,10 @@ class ReviewSession:
             else:
                 state_buffer.seek(0)
                 simulator.load_state(state_buffer)
-            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+            digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
                 simulator,
-                self.digits,
                 start_digits,
                 target_digits,
-                self.hold_frames,
-                self.release_frames,
-                input_config=self.input_config,
             )
             final_state = io.BytesIO()
             simulator.save_state(final_state)
@@ -1570,6 +1639,7 @@ class ReviewSession:
             self._next_frame_time = time.perf_counter()
             self.latest_image = image
             self._auto_snapshots_enabled = False
+            self._end_seek_unlocked()
 
     def _simulate_with_backend(self, target_digits: int, checkpoint_interval_digits: int) -> None:
         with self._lock:
@@ -1625,6 +1695,7 @@ class ReviewSession:
                     input_config=self.input_config,
                 )
                 inputs_sent += chunk_inputs
+                self._update_seek(digits_consumed)
                 if digits_consumed >= next_checkpoint or digits_consumed >= target_digits:
                     last_state = save_checkpoint(
                         simulator,
@@ -1686,6 +1757,7 @@ class ReviewSession:
                 "digits_per_second": effective_digits_per_second,
                 "last_state": str(last_state),
             }
+            self._end_seek_unlocked()
 
     def _limit_frame_rate(self) -> None:
         with self._lock:
@@ -1735,6 +1807,7 @@ class ReviewSession:
                     self.status = "no rewind source before target"
                     self.pyboy.set_emulation_speed(self.speed)
                     self._next_frame_time = time.perf_counter()
+                    self._end_seek_unlocked()
                 return
             checkpoint_digits, _ = checkpoint
             if target - checkpoint_digits > MAX_INTERACTIVE_REWIND_REPLAY_DIGITS:
@@ -1743,20 +1816,19 @@ class ReviewSession:
                     self.status = "rewind history unavailable before checkpoint"
                     self.pyboy.set_emulation_speed(self.speed)
                     self._next_frame_time = time.perf_counter()
+                    self._end_seek_unlocked()
                 return
 
         if snapshot is not None:
             self.pyboy.load_state(io.BytesIO(snapshot.state))
             source_digits = snapshot.digits_consumed
             source_frames = snapshot.frames_elapsed
-            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+            with self._lock:
+                self._begin_seek_unlocked("Rewinding", source_digits, target)
+            digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
                 self.pyboy,
-                self.digits,
                 source_digits,
                 target,
-                self.hold_frames,
-                self.release_frames,
-                input_config=self.input_config,
             )
             image = render_loaded_state(self.pyboy)
             state_buffer = io.BytesIO()
@@ -1764,6 +1836,8 @@ class ReviewSession:
         else:
             source_digits, checkpoint_path = checkpoint
             source_frames = (source_digits // self.input_config.digits_per_input) * self.frames_per_input
+            with self._lock:
+                self._begin_seek_unlocked("Rewinding", source_digits, target)
             simulator = PyBoy(
                 str(self.rom_path or ROM),
                 window="null",
@@ -1776,14 +1850,10 @@ class ReviewSession:
             try:
                 with checkpoint_path.open("rb") as state_file:
                     simulator.load_state(state_file)
-                digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+                digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
                     simulator,
-                    self.digits,
                     source_digits,
                     target,
-                    self.hold_frames,
-                    self.release_frames,
-                    input_config=self.input_config,
                 )
                 state_buffer = io.BytesIO()
                 simulator.save_state(state_buffer)
@@ -1811,6 +1881,7 @@ class ReviewSession:
             )
             self._last_snapshot_digits = self.digits_consumed
             self._next_frame_time = time.perf_counter()
+            self._end_seek_unlocked()
 
     def _jump_to(self, target: int) -> None:
         target = max(0, min(self.max_digits, target))
@@ -1824,21 +1895,37 @@ class ReviewSession:
                 self._jump_target_digits = None
                 self.pyboy.set_emulation_speed(self.speed)
                 self.status = "no checkpoint before target"
+                self._end_seek_unlocked()
             return
 
         checkpoint_digits_consumed, checkpoint_path = checkpoint
-        with checkpoint_path.open("rb") as state_file:
-            self.pyboy.load_state(state_file)
+        with self._lock:
+            self._begin_seek_unlocked("Jumping", checkpoint_digits_consumed, target)
 
-        digits_consumed, inputs_sent, last_button = advance_pi_inputs(
-            self.pyboy,
-            self.digits,
-            checkpoint_digits_consumed,
-            target,
-            self.hold_frames,
-            self.release_frames,
-            input_config=self.input_config,
+        simulator = PyBoy(
+            str(self.rom_path or ROM),
+            window="null",
+            sound_emulated=False,
+            no_input=False,
+            ram_file=io.BytesIO(bytes(32768)),
+            log_level="CRITICAL",
         )
+        simulator.set_emulation_speed(0)
+        try:
+            with checkpoint_path.open("rb") as state_file:
+                simulator.load_state(state_file)
+            digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
+                simulator,
+                checkpoint_digits_consumed,
+                target,
+            )
+            final_state = io.BytesIO()
+            simulator.save_state(final_state)
+        finally:
+            simulator.stop()
+
+        final_state.seek(0)
+        self.pyboy.load_state(final_state)
         image = render_loaded_state(self.pyboy)
         with self._lock:
             self.digits_consumed = digits_consumed
@@ -1853,6 +1940,7 @@ class ReviewSession:
             self._next_frame_time = time.perf_counter()
             self.latest_image = image
             self._auto_snapshots_enabled = False
+            self._end_seek_unlocked()
 
     def _find_next_warp_state_with_backend(self, target_state: str, limit_digits: int) -> None:
         with self._lock:
@@ -1898,6 +1986,8 @@ class ReviewSession:
                 digits_consumed += self.input_config.digits_per_input
                 inputs_sent += 1
                 last_button = button
+                if inputs_sent % 5000 == 0:
+                    self._update_seek(digits_consumed)
 
                 in_battle = is_in_battle(simulator)
                 in_trainer_battle = is_in_trainer_battle(simulator)
@@ -1945,6 +2035,7 @@ class ReviewSession:
                 self._warp_target_state = None
                 self.pyboy.set_emulation_speed(self.speed)
                 self.status = f"no {WARP_STATE_LABELS[target_state]} within {limit_digits:,} digits"
+                self._end_seek_unlocked()
             return
 
         final_state.seek(0)
@@ -1962,6 +2053,7 @@ class ReviewSession:
             self._next_frame_time = time.perf_counter()
             self.latest_image = image
             self._auto_snapshots_enabled = False
+            self._end_seek_unlocked()
 
     def _normalize_digit_distance(self, digits: int) -> int:
         digits_per_input = self.input_config.digits_per_input

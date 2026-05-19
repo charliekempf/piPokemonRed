@@ -219,6 +219,7 @@ class ReviewWebApp:
         status = str(info["status"])
         if not (
             status.startswith("fast forwarding")
+            or status.startswith("rewinding")
             or status.startswith("simulating")
             or status.startswith("jumping")
             or status.startswith("finding next")

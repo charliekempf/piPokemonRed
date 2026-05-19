@@ -7,6 +7,8 @@ const statSpeedEl = document.querySelector("#stat-speed");
 const statActualSpeedEl = document.querySelector("#stat-actual-speed");
 const statVolumeEl = document.querySelector("#stat-volume");
 const screenShellEl = document.querySelector(".screen-shell");
+const seekLabelEl = document.querySelector("#seek-label");
+const seekProgressBarEl = document.querySelector("#seek-progress-bar");
 const romMissingPanelEl = document.querySelector("#rom-missing-panel");
 const romUploadEl = document.querySelector("#rom-upload");
 const romUploadButtonEl = document.querySelector("#rom-upload-button");
@@ -62,6 +64,15 @@ function actualSpeedLabel(value) {
   const speed = Math.max(0, Number(value) || 0);
   const precision = speed > 0 && speed < 10 ? 1 : 0;
   return `Actual ${speed.toFixed(precision)}x`;
+}
+
+function renderSeekOverlay(state) {
+  const seek = state.seek || {};
+  const active = Boolean(seek.active) || backendBusy;
+  const progress = Number.isFinite(Number(seek.progress)) ? Math.max(0, Math.min(100, Number(seek.progress))) : 0;
+  screenShellEl.classList.toggle("is-seeking", active);
+  seekLabelEl.textContent = seek.label || state.status || "Seeking";
+  seekProgressBarEl.style.width = `${progress}%`;
 }
 
 function create2dRenderer(canvas) {
@@ -603,8 +614,8 @@ function renderStats(state) {
     || String(state.status).startsWith("simulating")
     || String(state.status).startsWith("jumping")
     || String(state.status).startsWith("finding next");
-  screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
   screenShellEl.classList.toggle("is-rom-missing", romMissing);
+  renderSeekOverlay(state);
   romUploadButtonEl.disabled = !romMissing || romUploadInFlight;
   if (romMissing && !romUploadInFlight) {
     romUploadStatusEl.textContent = "Pokemon Red ROM required";
@@ -667,6 +678,9 @@ async function refresh() {
     statLocationEl.textContent = "-";
     statLocationEl.title = "";
     statProgressEl.style.width = "0";
+    screenShellEl.classList.remove("is-seeking");
+    seekLabelEl.textContent = "Seeking";
+    seekProgressBarEl.style.width = "0%";
     statSpeedEl.textContent = "-";
     statActualSpeedEl.textContent = "-";
     statVolumeEl.textContent = "-";

@@ -204,11 +204,13 @@ body {
   font-size: 13px;
 }
 
-.fast-forward-overlay {
+.seek-overlay {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 14px;
   background: rgba(5, 6, 9, 0.68);
   opacity: 0;
   pointer-events: none;
@@ -216,11 +218,11 @@ body {
   transition: opacity 120ms ease;
 }
 
-.screen-shell.is-fast-forwarding .fast-forward-overlay {
+.screen-shell.is-seeking .seek-overlay {
   opacity: 1;
 }
 
-.screen-shell.is-fast-forwarding .screen {
+.screen-shell.is-seeking .screen {
   filter: brightness(0.42);
 }
 
@@ -231,6 +233,29 @@ body {
   border-top-color: #f3f1e8;
   border-radius: 50%;
   animation: spin 850ms linear infinite;
+}
+
+.seek-overlay strong {
+  color: #f3f1e8;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.seek-progress {
+  width: min(360px, 72%);
+  height: 9px;
+  overflow: hidden;
+  background: rgba(243, 241, 232, 0.18);
+  border: 1px solid rgba(243, 241, 232, 0.28);
+  border-radius: 999px;
+}
+
+.seek-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #7aa2f7, #fff4b8);
+  transition: width 140ms ease;
 }
 
 @keyframes spin {
