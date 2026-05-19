@@ -9,6 +9,7 @@ const statRendererEl = document.querySelector("#stat-renderer");
 const statInputsEl = document.querySelector("#stat-inputs");
 const statLastEl = document.querySelector("#stat-last");
 const statSnapshotsEl = document.querySelector("#stat-snapshots");
+const screenShellEl = document.querySelector(".screen-shell");
 const speedEl = document.querySelector("#speed");
 const limiterEl = document.querySelector("#limiter");
 const pauseEl = document.querySelector("#pause");
@@ -23,6 +24,7 @@ const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
 
 let frameFetchInFlight = false;
 let controlsInitialized = false;
+let fastForwarding = false;
 
 function speedFromSlider() {
   return Math.max(1, Math.min(1000, Math.round(10 ** Number(speedEl.value))));
@@ -244,6 +246,8 @@ function renderStats(state) {
     ? Math.min(100, (Number(state.digits_consumed) / Number(state.max_digits)) * 100)
     : 0;
   setStateClass(state.status);
+  fastForwarding = String(state.status).startsWith("fast forwarding");
+  screenShellEl.classList.toggle("is-fast-forwarding", fastForwarding);
   statStateEl.textContent = displayState(state.status);
   statStateEl.title = state.status;
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
@@ -280,7 +284,7 @@ async function refresh() {
 }
 
 async function drawFrameLoop() {
-  if (!frameFetchInFlight) {
+  if (!fastForwarding && !frameFetchInFlight) {
     frameFetchInFlight = true;
     try {
       const response = await fetch("/api/frame.rgba", { cache: "no-store" });

@@ -34,6 +34,7 @@ body {
 }
 
 .screen-shell {
+  position: relative;
   width: 640px;
   height: 576px;
   background: #0b0c0f;
@@ -47,6 +48,40 @@ body {
   height: 576px;
   object-fit: contain;
   image-rendering: pixelated;
+}
+
+.fast-forward-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 6, 9, 0.68);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.screen-shell.is-fast-forwarding .fast-forward-overlay {
+  opacity: 1;
+}
+
+.screen-shell.is-fast-forwarding .screen {
+  filter: brightness(0.42);
+}
+
+.buffer-spinner {
+  width: 72px;
+  height: 72px;
+  border: 7px solid rgba(243, 241, 232, 0.24);
+  border-top-color: #f3f1e8;
+  border-radius: 50%;
+  animation: spin 850ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .status-grid {
