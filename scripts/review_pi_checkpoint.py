@@ -636,7 +636,7 @@ def checkpoint_digits(path: Path, explicit_digits: int | None) -> int:
 
 def resolve_checkpoint(run_name: str, checkpoint: str, max_digits: int | None = None) -> Path:
     checkpoint_dir = Path("saves") / run_name
-    if checkpoint == "latest":
+    if checkpoint in {"latest", "penultimate"}:
         candidates = []
         for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
             match = CHECKPOINT_RE.match(candidate.name)
@@ -646,6 +646,8 @@ def resolve_checkpoint(run_name: str, checkpoint: str, max_digits: int | None = 
                     candidates.append((digits_consumed, candidate))
         if not candidates:
             raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
+        if checkpoint == "penultimate" and len(candidates) >= 2:
+            return sorted(candidates)[-2][1]
         return max(candidates)[1]
 
     candidate = Path(checkpoint)
@@ -769,7 +771,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--digits", type=Path, default=PI_DIGITS)
     parser.add_argument("--config", type=Path, default=INPUT_CONFIG)
     parser.add_argument("--run-name", default=RUN_NAME)
-    parser.add_argument("--checkpoint", default="latest", help="latest, a state path, or a digit count such as 5000000")
+    parser.add_argument("--checkpoint", default="penultimate", help="penultimate, latest, a state path, or a digit count such as 5000000")
     parser.add_argument("--digits-consumed", type=int, default=None)
     parser.add_argument("--max-digits", type=int, default=None)
     parser.add_argument("--speed", type=int, default=1)

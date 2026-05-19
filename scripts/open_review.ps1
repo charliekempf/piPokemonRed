@@ -3,7 +3,7 @@ param(
     [string]$Digits = "data\pi_10m_digits.txt",
     [string]$Config = "config\pi_input.json",
     [int]$MaxDigits = 0,
-    [string]$Checkpoint = "latest",
+    [string]$Checkpoint = "penultimate",
     [int]$Speed = 1,
     [int]$HoldFrames = -1,
     [int]$ReleaseFrames = -1,

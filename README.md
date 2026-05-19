@@ -99,7 +99,7 @@ Review a checkpoint in the local web UI:
 .\scripts\open_review.ps1
 ```
 
-The launcher closes older web or Tk reviewer instances before opening a new browser tab.
+The launcher closes older web or Tk reviewer instances before opening a new browser tab. By default, it opens the penultimate checkpoint so there is room to play forward into the newest available checkpoint.
 
 By default, the reviewer is limited only by the local pi digit file. Pass `-MaxDigits 1000000` to the PowerShell launcher, or `--max-digits 1000000` to `review_web.py`, when you want to cap playback for a shorter review.
 Audio is most reliable at `--speed 1`; higher speeds may outrun PyBoy's SDL audio queue.
