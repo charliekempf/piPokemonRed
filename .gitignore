@@ -26,6 +26,8 @@ tools/*
 *.dll
 *.zip
 
+!docs/
+!docs/review-player.png
 !.gitkeep
 !roms/.gitkeep
 !saves/.gitkeep

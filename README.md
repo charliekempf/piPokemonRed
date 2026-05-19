@@ -8,6 +8,10 @@ Experiments for mapping digits of pi to Game Boy inputs and testing whether the 
 
 The project is designed so the public repository contains only source code and documentation. You bring your own legally obtained ROM and local data files.
 
+![piPokemon web review player with local ROM preview hidden](docs/review-player.png)
+
+The README screenshot masks the gameplay preview so the public repo does not include ROM-derived imagery.
+
 ## Layout
 
 - `roms/` - local ROM files, ignored by git
