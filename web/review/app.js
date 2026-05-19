@@ -269,7 +269,11 @@ jumpButton.addEventListener("click", () => {
   post("/api/jump", { digits });
 });
 
-warpStateButton.addEventListener("click", () => {
+warpStateButton.addEventListener("click", async () => {
+  speedEl.value = "0";
+  statSpeedEl.textContent = "Set 1x";
+  await post("/api/speed", { speed: 1 });
+  await post("/api/limiter", { enabled: true });
   post("/api/warp-state", { state: warpStateEl.value, limit_digits: Number(warpLimitEl.value) });
 });
 
