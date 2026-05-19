@@ -16,9 +16,27 @@
         <ol id="checkpoints" class="checkpoint-list"></ol>
         <button id="load-checkpoint-button" class="primary-control" disabled>Load checkpoint</button>
         <div class="simulator-panel">
-          <div>
+          <div class="simulator-header">
             <span class="simulator-label">Headless simulator</span>
-            <strong id="simulate-status">Ready</strong>
+            <strong id="simulate-status" class="sr-only">Ready</strong>
+          </div>
+          <div class="simulator-stats">
+            <div>
+              <span>State</span>
+              <strong id="simulate-state">Ready</strong>
+            </div>
+            <div>
+              <span>Progress</span>
+              <strong id="simulate-progress">-</strong>
+            </div>
+            <div>
+              <span>Speed</span>
+              <strong id="simulate-rate">-</strong>
+            </div>
+            <div>
+              <span>ETA</span>
+              <strong id="simulate-eta">-</strong>
+            </div>
           </div>
           <div class="simulator-actions">
             <label class="simulator-field">

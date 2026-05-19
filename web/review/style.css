@@ -161,6 +161,15 @@ body {
   font-size: 13px;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .screen-shell {
   position: relative;
   width: 640px;
@@ -500,19 +509,40 @@ input[type="range"] {
 
 .simulator-label {
   display: block;
-  margin-bottom: 3px;
   color: #aeb4c0;
   font-size: 12px;
 }
 
-.simulator-panel strong {
-  display: block;
-  max-width: 300px;
+.simulator-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.simulator-stats div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  background: #1c1f26;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.simulator-stats span {
+  color: #aeb4c0;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.simulator-stats strong {
+  min-width: 0;
   color: #f3f1e8;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .simulator-actions {
@@ -548,10 +578,6 @@ input[type="range"] {
 .checkpoint-panel .simulator-panel {
   grid-template-columns: 1fr;
   gap: 8px;
-}
-
-.checkpoint-panel .simulator-panel strong {
-  max-width: 100%;
 }
 
 .checkpoint-panel .simulator-actions {

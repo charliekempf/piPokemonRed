@@ -28,6 +28,10 @@ const simulateCheckpointIntervalEl = document.querySelector("#simulate-checkpoin
 const simulateTargetDigitsEl = document.querySelector("#simulate-target-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
+const simulateStateEl = document.querySelector("#simulate-state");
+const simulateProgressEl = document.querySelector("#simulate-progress");
+const simulateRateEl = document.querySelector("#simulate-rate");
+const simulateEtaEl = document.querySelector("#simulate-eta");
 const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
@@ -543,6 +547,15 @@ function renderPlayerInfo(info = {}) {
   );
 }
 
+function setSimulatorStats({ state = "Ready", progress = "-", rate = "-", eta = "-", title = "" } = {}) {
+  simulateStateEl.textContent = state;
+  simulateProgressEl.textContent = progress;
+  simulateRateEl.textContent = rate;
+  simulateEtaEl.textContent = eta;
+  simulateStatusEl.textContent = [state, progress, rate, eta].filter((value) => value && value !== "-").join(", ") || "Ready";
+  simulateStatusEl.title = title;
+}
+
 function renderCheckpoints(checkpoints, currentDigits) {
   if (!checkpoints.length) {
     const row = document.createElement("li");
@@ -731,34 +744,34 @@ function renderStats(state) {
   }
   if (state.chart_simulation && state.chart_simulation.running) {
     const chart = state.chart_simulation;
-    const parts = [`${fmt(chart.digits_consumed || 0)} / ${fmt(chart.target_digits)} digits`];
-    if (Number(chart.digits_per_second) > 0) {
-      parts.push(fmtRate(chart.digits_per_second));
-      parts.push(`ETA ${fmtDuration(chart.eta_seconds)}`);
-    } else {
-      parts.push("warming up");
-    }
-    simulateStatusEl.textContent = parts.join(", ");
-    simulateStatusEl.title = chart.last_state || "Running in a separate headless process from review jumps";
+    setSimulatorStats({
+      state: "Charting",
+      progress: `${fmt(chart.digits_consumed || 0)} / ${fmt(chart.target_digits)}`,
+      rate: Number(chart.digits_per_second) > 0 ? fmtRate(chart.digits_per_second) : "warming up",
+      eta: Number(chart.digits_per_second) > 0 ? fmtDuration(chart.eta_seconds) : "-",
+      title: chart.last_state || "Running in a separate headless process from review jumps",
+    });
   } else if (String(state.status).startsWith("simulating")) {
-    simulateStatusEl.textContent = state.status;
-    simulateStatusEl.title = "";
+    setSimulatorStats({ state: state.status });
   } else if (state.last_simulation && (Number(state.last_simulation.digits) > 0 || Number(state.last_simulation.skipped_digits) > 0)) {
     const simulatedDigits = Number(state.last_simulation.digits) || 0;
     const skippedDigits = Number(state.last_simulation.skipped_digits) || 0;
-    const parts = [];
+    let progressText = "-";
     if (simulatedDigits > 0) {
-      parts.push(`${fmt(simulatedDigits)} digits`);
-      parts.push(fmtRate(state.last_simulation.digits_per_second));
+      progressText = `${fmt(simulatedDigits)} digits`;
     }
     if (skippedDigits > 0) {
-      parts.push(`skipped ${fmt(skippedDigits)}`);
+      progressText = progressText === "-" ? `skipped ${fmt(skippedDigits)}` : `${progressText}, skipped ${fmt(skippedDigits)}`;
     }
-    simulateStatusEl.textContent = parts.join(", ");
-    simulateStatusEl.title = state.last_simulation.last_state || "";
+    setSimulatorStats({
+      state: "Complete",
+      progress: progressText,
+      rate: simulatedDigits > 0 ? fmtRate(state.last_simulation.digits_per_second) : "-",
+      eta: "-",
+      title: state.last_simulation.last_state || "",
+    });
   } else {
-    simulateStatusEl.textContent = "Ready";
-    simulateStatusEl.title = "";
+    setSimulatorStats();
   }
 }
 
