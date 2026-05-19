@@ -74,6 +74,7 @@ class ReviewSession:
         rewind_history_digits: int,
         sound_volume: int,
         audio_sink: AudioSink | None,
+        initial_image: Image.Image | None = None,
     ) -> None:
         self.pyboy = pyboy
         self.digits = digits
@@ -93,7 +94,7 @@ class ReviewSession:
         self.status = "paused"
         self.inputs_sent = 0
         self.last_button = "-"
-        self.latest_image: Image.Image | None = None
+        self.latest_image = initial_image.copy() if initial_image is not None else None
         self.sound_volume = sound_volume
         self.audio_sink = audio_sink
         self._next_frame_time = time.perf_counter()
@@ -101,7 +102,8 @@ class ReviewSession:
         self._rewind_digits_requested = 0
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._take_snapshot()
-        self._capture_frame()
+        if self.latest_image is None:
+            self._capture_frame()
 
     def set_speed(self, speed: float) -> None:
         with self._lock:
@@ -156,7 +158,6 @@ class ReviewSession:
                     continue
 
                 if paused:
-                    self.pyboy.tick(1, True)
                     time.sleep(1 / 30)
                     continue
 
@@ -352,13 +353,15 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
     return root
 
 
-def render_loaded_state(pyboy: PyBoy) -> None:
+def render_loaded_state(pyboy: PyBoy) -> Image.Image:
     restore_buffer = io.BytesIO()
     pyboy.save_state(restore_buffer)
     restore_buffer.seek(0)
     pyboy.tick(1, True, True)
+    image = pyboy.screen.image.copy()
     restore_buffer.seek(0)
     pyboy.load_state(restore_buffer)
+    return image
 
 
 def parse_args() -> argparse.Namespace:
@@ -417,7 +420,7 @@ def main() -> None:
     )
     with checkpoint.open("rb") as state_file:
         pyboy.load_state(state_file)
-    render_loaded_state(pyboy)
+    initial_image = render_loaded_state(pyboy)
 
     session = ReviewSession(
         pyboy=pyboy,
@@ -430,6 +433,7 @@ def main() -> None:
         rewind_history_digits=args.rewind_history_digits,
         sound_volume=args.sound_volume,
         audio_sink=AudioSink(args.sound_sample_rate),
+        initial_image=initial_image,
     )
     session.set_speed(args.speed)
     if args.start_running:
