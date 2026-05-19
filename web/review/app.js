@@ -46,6 +46,9 @@ const inputsEl = document.querySelector("#inputs");
 const FRAME_WIDTH = 160;
 const FRAME_HEIGHT = 144;
 const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
+const INPUT_ROW_HEIGHT = 38;
+const INPUT_ROW_GAP = 6;
+const INPUT_CANVAS_PADDING = 0;
 
 let frameFetchInFlight = false;
 let controlsInitialized = false;
@@ -55,6 +58,7 @@ let romUploadInFlight = false;
 let selectedCheckpointDigits = null;
 let checkpointListSignature = "";
 let partyRenderSignature = "";
+let inputRenderSignature = "";
 let lastPartyMembers = [];
 let badgesExpanded = false;
 const expandedPartySlots = new Set();
@@ -354,32 +358,93 @@ function fmtDuration(seconds) {
 }
 
 function renderInputs(items) {
+  const width = Math.max(220, Math.floor(inputsEl.getBoundingClientRect().width || inputsEl.clientWidth || 220));
+  const height = items.length
+    ? Math.max(1, (items.length * INPUT_ROW_HEIGHT) + ((items.length - 1) * INPUT_ROW_GAP) + (INPUT_CANVAS_PADDING * 2))
+    : 72;
+  const signature = JSON.stringify({ items, width, height, pixelRatio: window.devicePixelRatio || 1 });
+  if (signature === inputRenderSignature) {
+    return;
+  }
+  inputRenderSignature = signature;
+
+  const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+  if (inputsEl.width !== Math.round(width * pixelRatio) || inputsEl.height !== Math.round(height * pixelRatio)) {
+    inputsEl.width = Math.round(width * pixelRatio);
+    inputsEl.height = Math.round(height * pixelRatio);
+    inputsEl.style.height = `${height}px`;
+  }
+
+  const context = inputsEl.getContext("2d");
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, width, height);
+  context.textBaseline = "middle";
+  inputsEl.title = items.length ? "Canvas-rendered input list" : "Out of digits. Download more.";
+  inputsEl.setAttribute("aria-label", items.length ? inputsAccessibilityLabel(items) : "Out of digits. Download more.");
+
   if (!items.length) {
-    const row = document.createElement("li");
-    const title = document.createElement("span");
-    const detail = document.createElement("span");
-    row.className = "empty";
-    title.textContent = "Out of digits";
-    detail.textContent = "Download more";
-    row.append(title, detail);
-    inputsEl.replaceChildren(row);
+    roundRect(context, 0.5, 0.5, width - 1, height - 1, 6);
+    context.fillStyle = "#46383b";
+    context.fill();
+    context.strokeStyle = "#7b5c63";
+    context.stroke();
+    context.font = "700 13px Segoe UI, system-ui, sans-serif";
+    context.fillStyle = "#fff4b8";
+    context.fillText("Out of digits", 10, 26);
+    context.font = "12px Segoe UI, system-ui, sans-serif";
+    context.fillStyle = "#d8c8c0";
+    context.fillText("Download more", 10, 48);
     return;
   }
 
-  inputsEl.replaceChildren(
-    ...items.map((item) => {
-      const row = document.createElement("li");
-      const pair = document.createElement("span");
-      const button = document.createElement("span");
-      row.className = item.role || "future";
-      pair.className = "pair";
-      button.className = "button";
-      pair.textContent = `${fmt(item.digit_index)}  ${item.pair}`;
-      button.textContent = item.button.toUpperCase();
-      row.append(pair, button);
-      return row;
-    }),
-  );
+  items.forEach((item, index) => {
+    const role = item.role || "future";
+    const y = INPUT_CANVAS_PADDING + (index * (INPUT_ROW_HEIGHT + INPUT_ROW_GAP));
+    drawInputRow(context, item, role, 0.5, y + 0.5, width - 1, INPUT_ROW_HEIGHT);
+  });
+}
+
+function drawInputRow(context, item, role, x, y, width, height) {
+  const isCurrent = role === "current";
+  const isPast = role === "past";
+  roundRect(context, x, y, width, height, 6);
+  context.fillStyle = isCurrent ? "#3b4a61" : isPast ? "#292c34" : "#30333c";
+  context.fill();
+  context.strokeStyle = isCurrent ? "#6f89af" : isPast ? "#3a3f4a" : "#454b58";
+  context.stroke();
+
+  context.save();
+  context.globalAlpha = isPast ? 0.48 : 1;
+  context.font = "13px Consolas, 'Cascadia Mono', monospace";
+  context.fillStyle = "#b8c0d0";
+  context.fillText(`${fmt(item.digit_index)}  ${item.pair}`, x + 8, y + (height / 2));
+  context.font = "700 13px Consolas, 'Cascadia Mono', monospace";
+  context.fillStyle = "#fff4b8";
+  const button = String(item.button || "").toUpperCase();
+  const buttonWidth = context.measureText(button).width;
+  context.fillText(button, x + width - 8 - buttonWidth, y + (height / 2));
+  context.restore();
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.lineTo(x + width - safeRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  context.lineTo(x + width, y + height - safeRadius);
+  context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  context.lineTo(x + safeRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  context.lineTo(x, y + safeRadius);
+  context.quadraticCurveTo(x, y, x + safeRadius, y);
+  context.closePath();
+}
+
+function inputsAccessibilityLabel(items) {
+  return items
+    .map((item) => `${item.role || "future"} ${fmt(item.digit_index)} ${item.pair} ${String(item.button || "").toUpperCase()}`)
+    .join(", ");
 }
 
 function renderParty(members) {

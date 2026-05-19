@@ -1007,55 +1007,10 @@ button:disabled {
   font-size: 12px;
 }
 
-.inputs {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.inputs li {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  padding: 7px 8px;
-  min-height: 22px;
-  background: #30333c;
-  border: 1px solid #454b58;
-  border-radius: 6px;
-  font-family: Consolas, "Cascadia Mono", monospace;
-  font-size: 13px;
-}
-
-.inputs li.current {
-  background: #3b4a61;
-  border-color: #6f89af;
-}
-
-.inputs li.past {
-  opacity: 0.48;
-  background: #292c34;
-  border-color: #3a3f4a;
-}
-
-.inputs li.empty {
-  grid-template-columns: 1fr;
-  gap: 3px;
-  padding: 12px 10px;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  background: #46383b;
-  border-color: #7b5c63;
-}
-
-.inputs li.empty span:first-child {
-  color: #fff4b8;
-  font-weight: 700;
-}
-
-.inputs li.empty span:last-child {
-  color: #d8c8c0;
-  font-size: 12px;
+.inputs-canvas {
+  display: block;
+  width: 100%;
+  min-height: 72px;
 }
 
 .pair {
