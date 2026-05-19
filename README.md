@@ -47,7 +47,7 @@ The current verified run uses the first million digits with checkpoints every 10
 py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_digits.txt --max-digits 1000000 --checkpoint-digits 100000 --hold-frames 2 --release-frames 1
 ```
 
-Review a checkpoint with full PyBoy graphics and sound:
+Review a checkpoint with graphics, sound, and controls in one window:
 
 ```powershell
 py scripts\review_pi_checkpoint.py --checkpoint latest --speed 1
@@ -63,4 +63,4 @@ Open a specific checkpoint by digit count:
 py scripts\review_pi_checkpoint.py --checkpoint 5000000 --speed 1
 ```
 
-The review window continues the same pi input stream from the checkpoint. The control panel has a logarithmic speed slider from `1x` to `100x`, an `inputs sent` counter, the last pi-derived button sent, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.
+The review window continues the same pi input stream from the checkpoint. It embeds the Game Boy screen and controls in a single window, with a logarithmic speed slider from `1x` to `100x`, an `inputs sent` counter, the last pi-derived button sent, and a digit-based rewind dropdown (`10`, `100`, `1000`, etc.) backed by in-memory savestate snapshots.

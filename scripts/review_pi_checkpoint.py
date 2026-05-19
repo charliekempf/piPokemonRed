@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from tkinter import ttk
 
+import sdl2
+from PIL import Image, ImageTk
 from pyboy import PyBoy
 
 from run_pi_pyboy import PI_DIGITS, ROM, RUN_NAME, button_for_pair, latest_checkpoint
@@ -27,6 +29,38 @@ class Snapshot:
     state: bytes
 
 
+class AudioSink:
+    def __init__(self, sample_rate: int) -> None:
+        self.device = 0
+        if sdl2.SDL_InitSubSystem(sdl2.SDL_INIT_AUDIO) != 0:
+            return
+
+        want = sdl2.SDL_AudioSpec(sample_rate, sdl2.AUDIO_S8, 2, 128)
+        have = sdl2.SDL_AudioSpec(0, 0, 0, 0)
+        self.device = sdl2.SDL_OpenAudioDevice(None, 0, want, have, 0)
+        if self.device:
+            sdl2.SDL_PauseAudioDevice(self.device, 0)
+
+    def queue(self, pyboy: PyBoy, volume: int) -> None:
+        if not self.device:
+            return
+
+        head = pyboy.sound.raw_buffer_head
+        if head <= 0:
+            return
+
+        data = bytes(pyboy.sound.raw_buffer[:head])
+        if volume < 100:
+            scale = max(0, min(100, volume)) / 100
+            data = bytes(max(-128, min(127, int(int.from_bytes(bytes([sample]), "little", signed=True) * scale))) & 0xFF for sample in data)
+        sdl2.SDL_QueueAudio(self.device, data, len(data))
+
+    def close(self) -> None:
+        if self.device:
+            sdl2.SDL_CloseAudioDevice(self.device)
+            self.device = 0
+
+
 class ReviewSession:
     def __init__(
         self,
@@ -38,6 +72,8 @@ class ReviewSession:
         release_frames: int,
         rewind_interval_digits: int,
         rewind_history_digits: int,
+        sound_volume: int,
+        audio_sink: AudioSink | None,
     ) -> None:
         self.pyboy = pyboy
         self.digits = digits
@@ -56,11 +92,15 @@ class ReviewSession:
         self.status = "running"
         self.inputs_sent = 0
         self.last_button = "-"
+        self.latest_image: Image.Image | None = None
+        self.sound_volume = sound_volume
+        self.audio_sink = audio_sink
         self._next_frame_time = time.perf_counter()
         self._lock = threading.Lock()
         self._rewind_digits_requested = 0
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._take_snapshot()
+        self._capture_frame()
 
     def set_speed(self, speed: float) -> None:
         with self._lock:
@@ -135,11 +175,16 @@ class ReviewSession:
                 if self.digits_consumed - self._last_snapshot_digits >= self.rewind_interval_digits:
                     self._take_snapshot()
         finally:
+            if self.audio_sink:
+                self.audio_sink.close()
             self.pyboy.stop()
 
     def _tick_frames(self, frames: int) -> None:
         for _ in range(frames):
             self.pyboy.tick(1, True, True)
+            if self.audio_sink:
+                self.audio_sink.queue(self.pyboy, self.sound_volume)
+            self._capture_frame()
             self._limit_frame_rate()
 
     def _limit_frame_rate(self) -> None:
@@ -179,6 +224,16 @@ class ReviewSession:
             self.frames_elapsed = snapshot.frames_elapsed
             self.status = f"rewound to {snapshot.digits_consumed:,} digits"
             self._last_snapshot_digits = snapshot.digits_consumed
+        self._capture_frame()
+
+    def _capture_frame(self) -> None:
+        image = self.pyboy.screen.image.copy()
+        with self._lock:
+            self.latest_image = image
+
+    def frame_image(self) -> Image.Image | None:
+        with self._lock:
+            return self.latest_image.copy() if self.latest_image is not None else None
 
 
 def checkpoint_digits(path: Path, explicit_digits: int | None) -> int:
@@ -216,29 +271,32 @@ def resolve_checkpoint(run_name: str, checkpoint: str, max_digits: int | None = 
     raise FileNotFoundError(f"Checkpoint not found: {checkpoint}")
 
 
-def build_control_panel(session: ReviewSession) -> tk.Tk:
+def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
     root = tk.Tk()
-    root.title("piPokemon review controls")
+    root.title("piPokemon review")
     root.resizable(False, False)
 
     status_var = tk.StringVar()
     speed_var = tk.DoubleVar(value=math.log10(max(1, session.speed)))
 
-    ttk.Label(root, textvariable=status_var, width=52).grid(row=0, column=0, columnspan=4, padx=10, pady=(10, 4))
+    screen_label = ttk.Label(root)
+    screen_label.grid(row=0, column=0, columnspan=4, padx=10, pady=(10, 6))
+
+    ttk.Label(root, textvariable=status_var, width=62).grid(row=1, column=0, columnspan=4, padx=10, pady=(0, 4))
 
     def speed_changed(value: str) -> None:
         session.set_speed(10 ** float(value))
 
-    ttk.Label(root, text="Speed").grid(row=1, column=0, padx=(10, 4), sticky="w")
+    ttk.Label(root, text="Speed").grid(row=2, column=0, padx=(10, 4), sticky="w")
     speed_slider = ttk.Scale(root, from_=0, to=2, variable=speed_var, command=speed_changed, length=320)
-    speed_slider.grid(row=1, column=1, columnspan=3, padx=(0, 10), pady=4, sticky="ew")
+    speed_slider.grid(row=2, column=1, columnspan=3, padx=(0, 10), pady=4, sticky="ew")
     rewind_digits_var = tk.StringVar(value="1000")
 
     def toggle_pause() -> None:
         info = session.info()
         session.set_paused(info["status"] != "paused")
 
-    ttk.Button(root, text="Pause/Resume", command=toggle_pause).grid(row=2, column=0, padx=10, pady=8)
+    ttk.Button(root, text="Pause/Resume", command=toggle_pause).grid(row=3, column=0, padx=10, pady=8)
     rewind_menu = ttk.Combobox(
         root,
         textvariable=rewind_digits_var,
@@ -246,11 +304,20 @@ def build_control_panel(session: ReviewSession) -> tk.Tk:
         width=10,
         state="readonly",
     )
-    rewind_menu.grid(row=2, column=1, padx=4, pady=8)
+    rewind_menu.grid(row=3, column=1, padx=4, pady=8)
     ttk.Button(root, text="Rewind Digits", command=lambda: session.request_rewind(int(rewind_digits_var.get()))).grid(
-        row=2, column=2, padx=4, pady=8
+        row=3, column=2, padx=4, pady=8
     )
-    ttk.Button(root, text="Quit", command=lambda: (session.stop(), root.destroy())).grid(row=2, column=3, padx=10, pady=8)
+    ttk.Button(root, text="Quit", command=lambda: (session.stop(), root.destroy())).grid(row=3, column=3, padx=10, pady=8)
+
+    def refresh_screen() -> None:
+        image = session.frame_image()
+        if image is not None:
+            scaled = image.resize((160 * scale, 144 * scale), Image.Resampling.NEAREST)
+            photo = ImageTk.PhotoImage(scaled)
+            screen_label.configure(image=photo)
+            screen_label.image = photo
+        root.after(33, refresh_screen)
 
     def refresh_status() -> None:
         info = session.info()
@@ -263,6 +330,7 @@ def build_control_panel(session: ReviewSession) -> tk.Tk:
 
     root.protocol("WM_DELETE_WINDOW", lambda: (session.stop(), root.destroy()))
     refresh_status()
+    refresh_screen()
     return root
 
 
@@ -311,8 +379,7 @@ def main() -> None:
 
     pyboy = PyBoy(
         str(args.rom),
-        window="SDL2",
-        scale=args.scale,
+        window="null",
         sound_emulated=True,
         sound_volume=args.sound_volume,
         sound_sample_rate=args.sound_sample_rate,
@@ -332,13 +399,15 @@ def main() -> None:
         release_frames=args.release_frames,
         rewind_interval_digits=args.rewind_interval_digits,
         rewind_history_digits=args.rewind_history_digits,
+        sound_volume=args.sound_volume,
+        audio_sink=AudioSink(args.sound_sample_rate),
     )
     session.set_speed(args.speed)
 
     emulator_thread = threading.Thread(target=session.run, name="pyboy-review", daemon=True)
     emulator_thread.start()
 
-    control_panel = build_control_panel(session)
+    control_panel = build_control_panel(session, args.scale)
     control_panel.mainloop()
     session.stop()
     emulator_thread.join(timeout=5)
