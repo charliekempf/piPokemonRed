@@ -240,10 +240,7 @@ class ReviewWebApp:
     def refresh_available_digits(self) -> None:
         if self.session is None:
             return
-        checkpoint = latest_checkpoint(Path("saves") / self.run_name)
-        if checkpoint is None:
-            return
-        available_digits = checkpoint[0]
+        available_digits = len(self.session.digits)
         if self.hard_max_digits is not None:
             available_digits = min(available_digits, self.hard_max_digits)
         if available_digits % self.digits_per_input:
@@ -480,7 +477,7 @@ def main() -> None:
             raise RomMissingError(f"ROM not found: {args.rom}")
         newest_checkpoint = latest_checkpoint(Path("saves") / args.run_name)
         newest_checkpoint_digits = newest_checkpoint[0] if newest_checkpoint is not None else 0
-        max_digits = min(args.max_digits or newest_checkpoint_digits or len(digits), len(digits))
+        max_digits = min(args.max_digits or len(digits), len(digits))
         if max_digits % input_config.digits_per_input:
             max_digits -= max_digits % input_config.digits_per_input
 
