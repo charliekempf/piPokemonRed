@@ -13,6 +13,8 @@ const pauseEl = document.querySelector("#pause");
 const rewindEl = document.querySelector("#rewind");
 const rewindButton = document.querySelector("#rewind-button");
 const fastForwardButton = document.querySelector("#fast-forward-button");
+const jumpDigitsEl = document.querySelector("#jump-digits");
+const jumpButton = document.querySelector("#jump-button");
 const simulateEl = document.querySelector("#simulate-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
@@ -185,6 +187,11 @@ fastForwardButton.addEventListener("click", () => {
   post("/api/fast-forward", { digits: Number(rewindEl.value) });
 });
 
+jumpButton.addEventListener("click", () => {
+  const digits = Math.max(0, Number(String(jumpDigitsEl.value).replaceAll(",", "")) || 0);
+  post("/api/jump", { digits });
+});
+
 simulateButton.addEventListener("click", () => {
   post("/api/simulate", { digits: Number(simulateEl.value) });
 });
@@ -306,6 +313,9 @@ function displayState(status) {
   if (value.startsWith("simulating")) {
     return "Simulating";
   }
+  if (value.startsWith("jumping")) {
+    return "Jumping";
+  }
   if (value.startsWith("rewound")) {
     return "Rewound";
   }
@@ -318,7 +328,8 @@ function renderStats(state) {
     : 0;
   setStateClass(state.status);
   backendBusy = String(state.status).startsWith("fast forwarding")
-    || String(state.status).startsWith("simulating");
+    || String(state.status).startsWith("simulating")
+    || String(state.status).startsWith("jumping");
   screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
   statProgressEl.style.width = `${progress}%`;
@@ -327,6 +338,7 @@ function renderStats(state) {
   statRendererEl.textContent = renderer.mode;
   statLastEl.textContent = String(state.last_button).toUpperCase();
 
+  jumpButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
   if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;

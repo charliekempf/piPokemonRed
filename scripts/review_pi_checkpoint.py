@@ -176,6 +176,7 @@ class ReviewSession:
         self._rewind_digits_requested = 0
         self._fast_forward_target_digits: int | None = None
         self._simulate_target_digits: int | None = None
+        self._jump_target_digits: int | None = None
         self._simulation_started_at: float | None = None
         self._last_simulation: dict[str, int | float | str] | None = None
         self._auto_snapshots_enabled = True
@@ -216,6 +217,7 @@ class ReviewSession:
                 self.pause_requested = True
                 self._fast_forward_target_digits = None
                 self._simulate_target_digits = None
+                self._jump_target_digits = None
                 self.pyboy.set_emulation_speed(self.speed)
                 self.status = "pause pending"
 
@@ -224,6 +226,7 @@ class ReviewSession:
             self._rewind_digits_requested = max(self._rewind_digits_requested, digits)
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
+            self._jump_target_digits = None
             self.pyboy.set_emulation_speed(self.speed)
 
     def request_fast_forward(self, digits: int) -> None:
@@ -237,6 +240,7 @@ class ReviewSession:
                 return
             self._fast_forward_target_digits = target
             self._simulate_target_digits = None
+            self._jump_target_digits = None
             self.pyboy.set_emulation_speed(0)
             self.paused = False
             self.pause_requested = False
@@ -256,10 +260,26 @@ class ReviewSession:
             self._simulate_target_digits = target
             self._simulation_started_at = time.perf_counter()
             self._fast_forward_target_digits = None
+            self._jump_target_digits = None
             self.paused = False
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
             self.status = f"simulating to {target:,} digits"
+
+    def request_jump(self, digits: int) -> int:
+        target = max(0, min(self.max_digits, int(digits)))
+        if target % self.input_config.digits_per_input:
+            target -= target % self.input_config.digits_per_input
+        with self._lock:
+            self._jump_target_digits = target
+            self._rewind_digits_requested = 0
+            self._fast_forward_target_digits = None
+            self._simulate_target_digits = None
+            self.paused = False
+            self.pause_requested = False
+            self.pyboy.set_emulation_speed(0)
+            self.status = f"jumping to {target:,} digits"
+        return target
 
     def stop(self) -> None:
         with self._lock:
@@ -323,9 +343,14 @@ class ReviewSession:
                     self._rewind_digits_requested = 0
                     fast_forward_target = self._fast_forward_target_digits
                     simulate_target = self._simulate_target_digits
+                    jump_target = self._jump_target_digits
 
                 if rewind_digits:
                     self._rewind(rewind_digits)
+                    continue
+
+                if jump_target is not None:
+                    self._jump_to(jump_target)
                     continue
 
                 if paused or pause_requested:
@@ -593,6 +618,55 @@ class ReviewSession:
                 self.last_button = last_button
             self.status = f"rewound to {digits_consumed:,} digits"
             self.latest_image = image
+
+    def _jump_to(self, target: int) -> None:
+        target = max(0, min(self.max_digits, target))
+        if target % self.input_config.digits_per_input:
+            target -= target % self.input_config.digits_per_input
+
+        checkpoint_dir = Path("saves") / self.run_name
+        candidates: list[tuple[int, Path]] = []
+        for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
+            match = CHECKPOINT_RE.match(candidate.name)
+            if match:
+                digits_consumed = int(match.group(1))
+                if digits_consumed <= target:
+                    candidates.append((digits_consumed, candidate))
+        if not candidates:
+            with self._lock:
+                self.paused = True
+                self._jump_target_digits = None
+                self.pyboy.set_emulation_speed(self.speed)
+                self.status = "no checkpoint before target"
+            return
+
+        checkpoint_digits_consumed, checkpoint_path = max(candidates)
+        with checkpoint_path.open("rb") as state_file:
+            self.pyboy.load_state(state_file)
+
+        digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+            self.pyboy,
+            self.digits,
+            checkpoint_digits_consumed,
+            target,
+            self.hold_frames,
+            self.release_frames,
+            input_config=self.input_config,
+        )
+        image = render_loaded_state(self.pyboy)
+        with self._lock:
+            self.digits_consumed = digits_consumed
+            self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
+            self.inputs_sent = inputs_sent
+            if inputs_sent:
+                self.last_button = last_button
+            self.paused = True
+            self._jump_target_digits = None
+            self.pyboy.set_emulation_speed(self.speed)
+            self.status = "paused"
+            self._next_frame_time = time.perf_counter()
+            self.latest_image = image
+            self._auto_snapshots_enabled = False
 
     def _normalize_digit_distance(self, digits: int) -> int:
         digits_per_input = self.input_config.digits_per_input

@@ -152,6 +152,7 @@ body {
 
 #pause[data-state^="fast-forwarding"],
 #pause[data-state^="simulating"],
+#pause[data-state^="jumping"],
 #pause[data-state="pause-pending"] {
   border-color: #7a6ca7;
   background: #3e3755;
@@ -222,6 +223,33 @@ input[type="range"] {
   grid-template-columns: minmax(118px, auto) 38px minmax(132px, 150px) 38px;
   gap: 8px;
   align-items: center;
+}
+
+.jump-panel {
+  display: grid;
+  grid-template-columns: 94px 1fr 118px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.jump-panel label {
+  color: #aeb4c0;
+  font-size: 12px;
+}
+
+.jump-panel input {
+  height: 34px;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #555c6c;
+  border-radius: 6px;
+  background: #1c1f26;
+  color: #f3f1e8;
+  padding: 0 10px;
 }
 
 .simulator-panel {
