@@ -975,7 +975,7 @@ class AudioSink:
         if self.device:
             sdl2.SDL_PauseAudioDevice(self.device, 0)
 
-    def queue(self, pyboy: PyBoy, volume: int) -> None:
+    def queue(self, pyboy: PyBoy, volume: int, playback_speed: float = 1.0) -> None:
         if not self.device:
             return
 
@@ -984,12 +984,34 @@ class AudioSink:
             return
 
         data = bytes(pyboy.sound.raw_buffer[:head])
+        data = self._scale_playback_speed(data, playback_speed)
+        if not data:
+            return
         if volume < 100:
             scale = max(0, min(100, volume)) / 100
             data = bytes(max(-128, min(127, int(int.from_bytes(bytes([sample]), "little", signed=True) * scale))) & 0xFF for sample in data)
         if sdl2.SDL_GetQueuedAudioSize(self.device) > self.max_queued_bytes:
             sdl2.SDL_ClearQueuedAudio(self.device)
         sdl2.SDL_QueueAudio(self.device, data, len(data))
+
+    def _scale_playback_speed(self, data: bytes, playback_speed: float) -> bytes:
+        speed = max(0.1, min(1000.0, float(playback_speed or 1.0)))
+        if 0.995 <= speed <= 1.005:
+            return data
+
+        frame_count = len(data) // 2
+        if frame_count <= 0:
+            return b""
+
+        output_count = max(1, int(round(frame_count / speed)))
+        output = bytearray(output_count * 2)
+        for output_index in range(output_count):
+            source_index = min(frame_count - 1, int(output_index * speed))
+            source_offset = source_index * 2
+            output_offset = output_index * 2
+            output[output_offset] = data[source_offset]
+            output[output_offset + 1] = data[source_offset + 1]
+        return bytes(output)
 
     def close(self) -> None:
         if self.device:
@@ -1613,8 +1635,11 @@ class ReviewSession:
             render_frame = not fast_forwarding or (force_final_render and frame_index == frames - 1)
             self._limit_frame_rate()
             self.pyboy.tick(1, render_frame, not fast_forwarding)
-            if self.audio_sink and not fast_forwarding:
-                self.audio_sink.queue(self.pyboy, self.sound_volume)
+            with self._lock:
+                playback_speed = self.speed
+                audio_enabled = self.speed_limiter_enabled
+            if self.audio_sink and not fast_forwarding and audio_enabled:
+                self.audio_sink.queue(self.pyboy, self.sound_volume, playback_speed)
             if render_frame:
                 self._capture_frame()
             self._record_playback_frame()
