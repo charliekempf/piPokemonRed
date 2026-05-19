@@ -53,11 +53,17 @@ body {
   grid-row: 2 / span 2;
 }
 
+.timeline-panel {
+  grid-column: 1 / -1;
+  grid-row: 4;
+}
+
 .screen-panel,
 .checkpoint-panel,
 .event-panel,
 .party-panel,
-.next-panel {
+.next-panel,
+.timeline-panel {
   background: #24262d;
   border: 1px solid #3c404a;
   border-radius: 8px;
@@ -424,13 +430,15 @@ button:disabled {
 
 .event-panel,
 .party-panel,
-.next-panel {
+.next-panel,
+.timeline-panel {
   padding: 12px;
 }
 
 .event-panel h1,
 .party-panel h1,
-.next-panel h1 {
+.next-panel h1,
+.timeline-panel h1 {
   margin: 0 0 10px;
   font-size: 16px;
   font-weight: 650;
@@ -630,4 +638,89 @@ button:disabled {
 .button {
   color: #fff4b8;
   font-weight: 700;
+}
+
+.timeline {
+  min-height: 86px;
+}
+
+.timeline-track {
+  position: relative;
+  height: 74px;
+  margin: 0 7px;
+}
+
+.timeline-track::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: #1c1f26;
+  border: 1px solid #454b58;
+  border-radius: 999px;
+}
+
+.timeline-fill {
+  position: absolute;
+  top: 35px;
+  left: 1px;
+  height: 6px;
+  max-width: calc(100% - 2px);
+  background: #6f89af;
+  border-radius: 999px;
+}
+
+.timeline-cursor {
+  position: absolute;
+  top: 25px;
+  width: 2px;
+  height: 28px;
+  background: #fff4b8;
+  box-shadow: 0 0 0 2px rgba(255, 244, 184, 0.2);
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.timeline-markers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline-markers li {
+  position: absolute;
+  top: 24px;
+  transform: translateX(-50%);
+}
+
+.timeline-markers button {
+  width: 14px;
+  height: 28px;
+  min-width: 0;
+  padding: 0;
+  border-color: #596274;
+  border-radius: 999px;
+  background: #303441;
+}
+
+.timeline-markers button:hover:not(:disabled) {
+  border-color: #d8e3f8;
+  background: #3b4a61;
+  box-shadow: 0 0 0 3px rgba(111, 137, 175, 0.28);
+}
+
+.timeline-markers button.is-current {
+  border-color: #fff4b8;
+  background: #6f89af;
+}
+
+.timeline-empty {
+  padding: 12px 10px;
+  color: #aeb4c0;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+  font-size: 13px;
 }
