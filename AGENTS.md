@@ -21,3 +21,8 @@
 - Keep reusable source code in `src/`.
 - Keep utility scripts in `scripts/`.
 - Keep downloaded external tools and emulator cores in `tools/`.
+
+## Review Software
+
+- Before opening `scripts/review_pi_checkpoint.py`, close any older running instances of that same reviewer script.
+- Only target processes whose command line includes `review_pi_checkpoint.py`; do not stop unrelated Python processes.

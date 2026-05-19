@@ -74,8 +74,10 @@ py scripts\run_pi_pyboy.py --run-name pi_1m_hold2_release1 --digits data\pi_10m_
 Review a checkpoint with graphics, sound, and controls in one window:
 
 ```powershell
-py scripts\review_pi_checkpoint.py --checkpoint latest --speed 1
+.\scripts\open_review.ps1
 ```
+
+The launcher closes older `review_pi_checkpoint.py` instances before opening a new reviewer window.
 
 `latest` selects the latest checkpoint that still has remaining pi digits to play. With the 10 million digit test data, that means the 9 million digit checkpoint rather than the completed 10 million digit checkpoint.
 Audio is most reliable at `--speed 1`; higher speeds may outrun PyBoy's SDL audio queue.
