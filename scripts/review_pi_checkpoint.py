@@ -1150,6 +1150,7 @@ class ReviewSession:
         self._rewind_digits_requested = 0
         self._fast_forward_target_digits: int | None = None
         self._simulate_target_digits: int | None = None
+        self._simulate_checkpoint_interval_digits = 1_000_000
         self._jump_target_digits: int | None = None
         self._warp_target_state: str | None = None
         self._warp_limit_digits = 1_000_000
@@ -1183,6 +1184,8 @@ class ReviewSession:
 
     def set_max_digits(self, max_digits: int) -> None:
         with self._lock:
+            if self._simulate_target_digits is not None:
+                return
             self.max_digits = max(self.digits_consumed, max_digits)
 
     def set_paused(self, paused: bool) -> None:
@@ -1234,18 +1237,20 @@ class ReviewSession:
             self.pause_requested = False
             self.status = f"fast forwarding to {target:,} digits"
 
-    def request_simulate(self, digits: int) -> None:
-        digits = self._normalize_digit_distance(digits)
+    def request_simulate(self, target_digits: int, checkpoint_interval_digits: int = 1_000_000) -> int:
+        target = max(0, min(len(self.digits), int(target_digits)))
+        if target % self.input_config.digits_per_input:
+            target -= target % self.input_config.digits_per_input
+        checkpoint_interval_digits = self._normalize_digit_distance(checkpoint_interval_digits)
         with self._lock:
             if self._simulate_target_digits is not None:
-                return
-            target = min(self.max_digits, self.digits_consumed + digits)
-            if target % self.input_config.digits_per_input:
-                target -= target % self.input_config.digits_per_input
+                return self._simulate_target_digits
             if target <= self.digits_consumed:
                 self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
-                return
+                return self.digits_consumed
             self._simulate_target_digits = target
+            self._simulate_checkpoint_interval_digits = checkpoint_interval_digits
+            self.max_digits = max(self.max_digits, target)
             self._simulation_started_at = time.perf_counter()
             self._fast_forward_target_digits = None
             self._jump_target_digits = None
@@ -1254,6 +1259,7 @@ class ReviewSession:
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
             self.status = f"simulating to {target:,} digits"
+        return target
 
     def request_jump(self, digits: int) -> int:
         target = max(0, min(self.max_digits, int(digits)))
@@ -1386,6 +1392,7 @@ class ReviewSession:
                     self._rewind_digits_requested = 0
                     fast_forward_target = self._fast_forward_target_digits
                     simulate_target = self._simulate_target_digits
+                    simulate_checkpoint_interval = self._simulate_checkpoint_interval_digits
                     jump_target = self._jump_target_digits
                     warp_target_state = self._warp_target_state
                     warp_limit_digits = self._warp_limit_digits
@@ -1423,7 +1430,7 @@ class ReviewSession:
                     continue
 
                 if simulate_target is not None:
-                    self._simulate_with_backend(simulate_target)
+                    self._simulate_with_backend(simulate_target, simulate_checkpoint_interval)
                     continue
 
                 will_finish_fast_forward = (
@@ -1538,7 +1545,7 @@ class ReviewSession:
             self.latest_image = image
             self._auto_snapshots_enabled = False
 
-    def _simulate_with_backend(self, target_digits: int) -> None:
+    def _simulate_with_backend(self, target_digits: int, checkpoint_interval_digits: int) -> None:
         with self._lock:
             start_digits = self.digits_consumed
             started_at = self._simulation_started_at or time.perf_counter()
@@ -1558,26 +1565,55 @@ class ReviewSession:
             log_level="CRITICAL",
         )
         simulator.set_emulation_speed(0)
+        checkpoint_dir = Path("saves") / self.run_name
+        screenshot_dir = Path("results") / self.run_name / "screenshots"
+        progress_path = Path("results") / self.run_name / "progress.json"
+        digits_consumed = start_digits
+        inputs_sent = 0
+        last_button = self.last_button
+        last_state: Path | None = None
+        next_checkpoint = ((start_digits // checkpoint_interval_digits) + 1) * checkpoint_interval_digits
+        next_checkpoint = min(next_checkpoint, target_digits)
         try:
             simulator.load_state(state_buffer)
-            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
-                simulator,
-                self.digits,
-                start_digits,
-                target_digits,
-                self.hold_frames,
-                self.release_frames,
-                input_config=self.input_config,
-            )
-            checkpoint_dir = Path("saves") / self.run_name
-            screenshot_dir = Path("results") / self.run_name / "screenshots"
-            last_state = save_checkpoint(
-                simulator,
-                checkpoint_dir,
-                screenshot_dir,
-                digits_consumed,
-                save_screenshot=True,
-            )
+            while digits_consumed < target_digits:
+                chunk_target = min(next_checkpoint, target_digits)
+                digits_consumed, chunk_inputs, last_button = advance_pi_inputs(
+                    simulator,
+                    self.digits,
+                    digits_consumed,
+                    chunk_target,
+                    self.hold_frames,
+                    self.release_frames,
+                    input_config=self.input_config,
+                )
+                inputs_sent += chunk_inputs
+                if digits_consumed >= next_checkpoint or digits_consumed >= target_digits:
+                    last_state = save_checkpoint(
+                        simulator,
+                        checkpoint_dir,
+                        screenshot_dir,
+                        digits_consumed,
+                        save_screenshot=True,
+                    )
+                    elapsed_so_far = max(time.perf_counter() - started_at, 0.000001)
+                    frames_advanced_so_far = inputs_sent * self.frames_per_input
+                    effective_fps_so_far = frames_advanced_so_far / elapsed_so_far
+                    progress = Progress(
+                        run_name=self.run_name,
+                        digits_path=str(self.digits_path),
+                        rom_path=str(self.rom_path or ROM),
+                        digits_consumed=digits_consumed,
+                        input_pairs_consumed=digits_consumed // self.input_config.digits_per_input,
+                        frames_elapsed=(digits_consumed // self.input_config.digits_per_input) * self.frames_per_input,
+                        checkpoints_completed=len(list(checkpoint_dir.glob("checkpoint_*_digits.state"))),
+                        elapsed_seconds=elapsed_so_far,
+                        effective_fps=effective_fps_so_far,
+                        effective_realtime_x=effective_fps_so_far / GAMEBOY_FPS,
+                        last_state=str(last_state),
+                    )
+                    write_progress(progress_path, progress)
+                    next_checkpoint = min(next_checkpoint + checkpoint_interval_digits, target_digits)
             final_state = io.BytesIO()
             simulator.save_state(final_state)
         finally:
@@ -1587,21 +1623,6 @@ class ReviewSession:
         effective_digits_per_second = (digits_consumed - start_digits) / elapsed
         frames_advanced = inputs_sent * self.frames_per_input
         effective_fps = frames_advanced / elapsed
-        progress = Progress(
-            run_name=self.run_name,
-            digits_path=str(self.digits_path),
-            rom_path=str(self.rom_path or ROM),
-            digits_consumed=digits_consumed,
-            input_pairs_consumed=digits_consumed // self.input_config.digits_per_input,
-            frames_elapsed=(digits_consumed // self.input_config.digits_per_input) * self.frames_per_input,
-            checkpoints_completed=len(list(checkpoint_dir.glob("checkpoint_*_digits.state"))),
-            elapsed_seconds=elapsed,
-            effective_fps=effective_fps,
-            effective_realtime_x=effective_fps / GAMEBOY_FPS,
-            last_state=str(last_state),
-        )
-        write_progress(Path("results") / self.run_name / "progress.json", progress)
-
         final_state.seek(0)
         self.pyboy.load_state(final_state)
         image = render_loaded_state(self.pyboy)

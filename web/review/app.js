@@ -17,7 +17,8 @@ const jumpButton = document.querySelector("#jump-button");
 const warpStateEl = document.querySelector("#warp-state");
 const warpLimitEl = document.querySelector("#warp-limit");
 const warpStateButton = document.querySelector("#warp-state-button");
-const simulateEl = document.querySelector("#simulate-digits");
+const simulateCheckpointIntervalEl = document.querySelector("#simulate-checkpoint-interval");
+const simulateTargetDigitsEl = document.querySelector("#simulate-target-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
 const checkpointsEl = document.querySelector("#checkpoints");
@@ -218,7 +219,11 @@ warpStateButton.addEventListener("click", () => {
 });
 
 simulateButton.addEventListener("click", () => {
-  post("/api/simulate", { digits: Number(simulateEl.value) });
+  const targetDigits = Math.max(0, Number(String(simulateTargetDigitsEl.value).replaceAll(",", "")) || 0);
+  post("/api/simulate", {
+    target_digits: targetDigits,
+    checkpoint_interval_digits: Number(simulateCheckpointIntervalEl.value),
+  });
 });
 
 loadCheckpointButton.addEventListener("click", () => {
@@ -523,6 +528,7 @@ function setInitialControls(state) {
     ? speedEl.max
     : Math.log10(Math.max(1, Math.min(1000, Number(state.speed))));
   volumeEl.value = String(Math.max(0, Math.min(100, Number(state.sound_volume ?? 100))));
+  simulateTargetDigitsEl.value = String(Math.max(0, Number(state.max_digits) || 0));
   controlsInitialized = true;
 }
 

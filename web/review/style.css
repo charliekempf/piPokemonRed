@@ -431,9 +431,32 @@ input[type="range"] {
 
 .simulator-actions {
   display: grid;
-  grid-template-columns: minmax(132px, 150px) 118px;
+  grid-template-columns: minmax(132px, 150px) minmax(150px, 180px) 118px;
   gap: 8px;
   align-items: center;
+}
+
+.simulator-field {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.simulator-field span {
+  color: #aeb4c0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.simulator-field input {
+  height: 34px;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #555c6c;
+  border-radius: 6px;
+  background: #1c1f26;
+  color: #f3f1e8;
+  padding: 0 10px;
 }
 
 .checkpoint-panel .simulator-panel {

@@ -163,8 +163,11 @@ def make_handler(app: ReviewWebApp):
                 app.session.request_fast_forward(int(body.get("digits", 1000)))
                 self._send_json({"ok": True})
             elif path == "/api/simulate":
-                app.session.request_simulate(int(body.get("digits", 1000)))
-                self._send_json({"ok": True})
+                target_digits = app.session.request_simulate(
+                    int(body.get("target_digits", body.get("digits", 1000))),
+                    int(body.get("checkpoint_interval_digits", 1_000_000)),
+                )
+                self._send_json({"ok": True, "target_digits": target_digits})
             elif path == "/api/jump":
                 app.refresh_available_digits()
                 rounded_digits = app.session.request_jump(int(body.get("digits", 0)))
