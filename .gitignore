@@ -2,11 +2,13 @@
 roms/*
 saves/*
 results/*
+tas/*
 
 !.gitkeep
 !roms/.gitkeep
 !saves/.gitkeep
 !results/.gitkeep
+!tas/.gitkeep
 
 # Python/runtime noise
 __pycache__/
