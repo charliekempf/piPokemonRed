@@ -431,7 +431,7 @@ button:disabled {
 .party-body {
   min-width: 0;
   display: grid;
-  gap: 5px;
+  gap: 3px;
 }
 
 .party-top,
@@ -454,6 +454,16 @@ button:disabled {
   color: #d8dce6;
   font-size: 12px;
   font-weight: 700;
+}
+
+.party-species {
+  min-width: 0;
+  color: #fff4b8;
+  font-size: 12px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .party-lower {

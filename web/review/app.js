@@ -259,6 +259,7 @@ function renderParty(members) {
       const body = document.createElement("div");
       const top = document.createElement("div");
       const name = document.createElement("strong");
+      const speciesName = document.createElement("span");
       const level = document.createElement("span");
       const lower = document.createElement("div");
       const hpWrap = document.createElement("span");
@@ -273,6 +274,7 @@ function renderParty(members) {
       badge.className = "party-badge";
       body.className = "party-body";
       top.className = "party-top";
+      speciesName.className = "party-species";
       lower.className = "party-lower";
       hpWrap.className = "hp-wrap";
       hpBar.className = "hp-bar";
@@ -281,6 +283,7 @@ function renderParty(members) {
 
       badge.textContent = String(member.slot);
       name.textContent = member.name || `MON ${member.species}`;
+      speciesName.textContent = member.species_name || `Species ${member.species}`;
       level.textContent = `Lv ${member.level || "-"}`;
       hpBar.style.width = `${hpPercent}%`;
       hpText.textContent = maxHp > 0 ? `${fmt(hp)} / ${fmt(maxHp)}` : "- / -";
@@ -290,7 +293,7 @@ function renderParty(members) {
       hpWrap.append(hpBar);
       top.append(name, level);
       lower.append(hpWrap, hpText, status);
-      body.append(top, lower);
+      body.append(top, speciesName, lower);
       row.append(badge, body);
       return row;
     }),
