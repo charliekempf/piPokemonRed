@@ -50,6 +50,14 @@ def image_to_png(image: Image.Image | None, scale: int) -> bytes:
     return buffer.getvalue()
 
 
+def image_to_rgba(image: Image.Image | None) -> bytes:
+    if image is None:
+        image = Image.new("RGBA", (160, 144), "black")
+    elif image.mode != "RGBA":
+        image = image.convert("RGBA")
+    return image.tobytes()
+
+
 class ReviewWebApp:
     def __init__(self, session: ReviewSession, scale: int) -> None:
         self.session = session
@@ -76,6 +84,9 @@ class ReviewWebApp:
     def frame_png(self) -> bytes:
         return image_to_png(self.session.frame_image(), self.scale)
 
+    def frame_rgba(self) -> bytes:
+        return image_to_rgba(self.session.frame_image())
+
 
 def make_handler(app: ReviewWebApp):
     class Handler(BaseHTTPRequestHandler):
@@ -87,6 +98,8 @@ def make_handler(app: ReviewWebApp):
                 self._send_json(app.state())
             elif path == "/api/frame.png":
                 self._send_bytes(app.frame_png(), "image/png")
+            elif path == "/api/frame.rgba":
+                self._send_bytes(app.frame_rgba(), "application/octet-stream")
             else:
                 candidate = (WEB_ROOT / path.lstrip("/")).resolve()
                 if WEB_ROOT.resolve() in candidate.parents and candidate.is_file():
