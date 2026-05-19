@@ -389,6 +389,7 @@ function renderParty(members) {
       const hp = Math.max(0, Number(member.hp));
       const maxHp = Math.max(0, Number(member.max_hp));
       const hpPercent = maxHp > 0 ? Math.min(100, (hp / maxHp) * 100) : 0;
+      const hpState = hpPercent <= 20 ? "red" : hpPercent <= 50 ? "yellow" : "green";
       const isExpanded = expandedPartySlots.has(Number(member.slot));
 
       row.className = "party-member";
@@ -404,6 +405,7 @@ function renderParty(members) {
       hpText.className = "hp-text";
       status.className = "party-status";
       moves.className = "party-moves";
+      hpBar.dataset.hpState = hpState;
 
       header.type = "button";
       header.setAttribute("aria-expanded", String(isExpanded));

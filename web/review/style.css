@@ -745,6 +745,18 @@ button:disabled {
   border-radius: inherit;
 }
 
+.hp-bar[data-hp-state="green"] {
+  background: #6e9b7b;
+}
+
+.hp-bar[data-hp-state="yellow"] {
+  background: #d3b95e;
+}
+
+.hp-bar[data-hp-state="red"] {
+  background: #b85d5d;
+}
+
 .hp-text {
   color: #b8c0d0;
   font-family: Consolas, "Cascadia Mono", monospace;
