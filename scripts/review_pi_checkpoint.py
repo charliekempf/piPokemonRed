@@ -89,6 +89,7 @@ class ReviewSession:
         self.snapshots: deque[Snapshot] = deque(maxlen=self.max_snapshots)
         self.running = True
         self.paused = True
+        self.pause_requested = False
         self.speed = 1
         self.speed_limiter_enabled = True
         self.status = "paused"
@@ -118,7 +119,19 @@ class ReviewSession:
     def set_paused(self, paused: bool) -> None:
         with self._lock:
             self.paused = paused
+            if not paused:
+                self.pause_requested = False
             self.status = "paused" if paused else "running"
+
+    def toggle_pause_at_boundary(self) -> None:
+        with self._lock:
+            if self.paused:
+                self.paused = False
+                self.pause_requested = False
+                self.status = "running"
+            else:
+                self.pause_requested = True
+                self.status = "pause pending"
 
     def request_rewind(self, digits: int) -> None:
         with self._lock:
@@ -150,6 +163,7 @@ class ReviewSession:
                     if not self.running:
                         break
                     paused = self.paused
+                    pause_requested = self.pause_requested
                     rewind_digits = self._rewind_digits_requested
                     self._rewind_digits_requested = 0
 
@@ -157,7 +171,12 @@ class ReviewSession:
                     self._rewind(rewind_digits)
                     continue
 
-                if paused:
+                if paused or pause_requested:
+                    with self._lock:
+                        if pause_requested:
+                            self.paused = True
+                            self.pause_requested = False
+                            self.status = "paused"
                     time.sleep(1 / 30)
                     continue
 
@@ -308,8 +327,7 @@ def build_control_panel(session: ReviewSession, scale: int) -> tk.Tk:
     rewind_digits_var = tk.StringVar(value="1000")
 
     def toggle_pause() -> None:
-        info = session.info()
-        session.set_paused(info["status"] != "paused")
+        session.toggle_pause_at_boundary()
 
     ttk.Checkbutton(root, text="Use speed slider", variable=speed_limiter_var, command=speed_limiter_changed).grid(
         row=4, column=0, columnspan=2, padx=10, pady=(2, 4), sticky="w"

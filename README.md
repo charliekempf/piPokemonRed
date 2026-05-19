@@ -96,7 +96,7 @@ The launcher closes older `review_pi_checkpoint.py` instances before opening a n
 
 `latest` selects the latest checkpoint that still has remaining pi digits to play. With the 10 million digit test data, that means the 9 million digit checkpoint rather than the completed 10 million digit checkpoint.
 Audio is most reliable at `--speed 1`; higher speeds may outrun PyBoy's SDL audio queue.
-The reviewer opens paused by default. Press `Pause/Resume` to start playback, or pass `--start-running` when launching directly. It applies its own frame limiter, so `1x` targets normal Game Boy speed even though the emulator loop is driven manually.
+The reviewer opens paused by default. Press `Pause/Resume` to start playback, or pass `--start-running` when launching directly. During playback, pausing is applied at the next input boundary: after the current held/released input cycle finishes and before the next pi-derived button is sent. It applies its own frame limiter, so `1x` targets normal Game Boy speed even though the emulator loop is driven manually.
 
 Open a specific checkpoint by digit count:
 
