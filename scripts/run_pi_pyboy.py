@@ -238,7 +238,38 @@ def save_checkpoint(
 
 def write_progress(progress_path: Path, progress: Progress) -> None:
     progress_path.parent.mkdir(parents=True, exist_ok=True)
-    progress_path.write_text(json.dumps(asdict(progress), indent=2), encoding="utf-8")
+    temp_path = progress_path.with_suffix(progress_path.suffix + ".tmp")
+    temp_path.write_text(json.dumps(asdict(progress), indent=2), encoding="utf-8")
+    temp_path.replace(progress_path)
+
+
+def progress_snapshot(
+    run_name: str,
+    digits_path: Path,
+    rom_path: Path,
+    digits_consumed: int,
+    start_digits: int,
+    frames_elapsed: int,
+    checkpoint_digits: int,
+    started_at: float,
+    last_state: Path | None,
+    input_config: PiInputConfig,
+) -> Progress:
+    elapsed = time.perf_counter() - started_at
+    effective_fps = (digits_consumed - start_digits) / elapsed if elapsed else 0
+    return Progress(
+        run_name=run_name,
+        digits_path=str(digits_path),
+        rom_path=str(rom_path),
+        digits_consumed=digits_consumed,
+        input_pairs_consumed=digits_consumed // input_config.digits_per_input,
+        frames_elapsed=frames_elapsed,
+        checkpoints_completed=digits_consumed // checkpoint_digits,
+        elapsed_seconds=elapsed,
+        effective_fps=effective_fps,
+        effective_realtime_x=effective_fps / GAMEBOY_FPS,
+        last_state=str(last_state) if last_state else None,
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -307,6 +338,10 @@ def main() -> None:
 
     next_checkpoint = ((start_digits // args.checkpoint_digits) + 1) * args.checkpoint_digits
     next_checkpoint = min(next_checkpoint, max_digits)
+    progress_chunk_digits = min(args.checkpoint_digits, 10_000)
+    if progress_chunk_digits % input_config.digits_per_input:
+        progress_chunk_digits -= progress_chunk_digits % input_config.digits_per_input
+    progress_chunk_digits = max(input_config.digits_per_input, progress_chunk_digits)
     digits_consumed = start_digits
     frames_per_input = hold_frames + release_frames
     frames_elapsed = (digits_consumed // input_config.digits_per_input) * frames_per_input
@@ -315,7 +350,7 @@ def main() -> None:
 
     try:
         while digits_consumed < max_digits:
-            chunk_target = min(next_checkpoint, max_digits)
+            chunk_target = min(next_checkpoint, digits_consumed + progress_chunk_digits, max_digits)
             digits_consumed, inputs_sent, _ = advance_pi_inputs(
                 pyboy,
                 digits,
@@ -335,27 +370,40 @@ def main() -> None:
                     digits_consumed,
                     save_screenshot=not args.no_screenshots,
                 )
-                elapsed = time.perf_counter() - started_at
-                effective_fps = (digits_consumed - start_digits) / elapsed if elapsed else 0
-                progress = Progress(
-                    run_name=args.run_name,
-                    digits_path=str(args.digits),
-                    rom_path=str(args.rom),
-                    digits_consumed=digits_consumed,
-                    input_pairs_consumed=digits_consumed // input_config.digits_per_input,
-                    frames_elapsed=frames_elapsed,
-                    checkpoints_completed=digits_consumed // args.checkpoint_digits,
-                    elapsed_seconds=elapsed,
-                    effective_fps=effective_fps,
-                    effective_realtime_x=effective_fps / GAMEBOY_FPS,
-                    last_state=str(last_state),
+                progress = progress_snapshot(
+                    args.run_name,
+                    args.digits,
+                    args.rom,
+                    digits_consumed,
+                    start_digits,
+                    frames_elapsed,
+                    args.checkpoint_digits,
+                    started_at,
+                    last_state,
+                    input_config,
                 )
                 write_progress(progress_path, progress)
                 print(
                     f"checkpoint {digits_consumed:,}/{max_digits:,} digits "
-                    f"({effective_fps:,.0f} fps, {effective_fps / GAMEBOY_FPS:,.0f}x)"
+                    f"({progress.effective_fps:,.0f} fps, {progress.effective_realtime_x:,.0f}x)"
                 )
                 next_checkpoint = min(next_checkpoint + args.checkpoint_digits, max_digits)
+            else:
+                write_progress(
+                    progress_path,
+                    progress_snapshot(
+                        args.run_name,
+                        args.digits,
+                        args.rom,
+                        digits_consumed,
+                        start_digits,
+                        frames_elapsed,
+                        args.checkpoint_digits,
+                        started_at,
+                        last_state,
+                        input_config,
+                    ),
+                )
     finally:
         pyboy.stop()
 
