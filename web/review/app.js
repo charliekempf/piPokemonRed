@@ -638,9 +638,11 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
   }
 
   const checkpointItems = checkpoints.map(checkpointInfo);
+  const highestCheckpointDigits = Math.max(...checkpointItems.map((checkpoint) => checkpoint.digits));
   const timelineMax = Math.max(
     Number(maxDigits) || 0,
-    ...checkpointItems.map((checkpoint) => checkpoint.digits),
+    highestCheckpointDigits,
+    1,
   );
   const track = document.createElement("div");
   const fill = document.createElement("span");
@@ -650,9 +652,9 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
   fill.className = "timeline-fill";
   cursor.className = "timeline-cursor";
 
-  fill.style.width = `${Math.min(100, (Number(currentDigits) / timelineMax) * 100)}%`;
+  fill.style.width = `${Math.min(100, (highestCheckpointDigits / timelineMax) * 100)}%`;
   cursor.style.left = `${Math.min(100, (Number(currentDigits) / timelineMax) * 100)}%`;
-  track.title = "Click to jump to the nearest checkpoint";
+  track.title = `Checkpoint coverage: ${fmt(highestCheckpointDigits)} digits charted. Click to jump to the nearest checkpoint.`;
   track.addEventListener("click", (event) => {
     if (backendBusy || !checkpointItems.length) {
       return;
