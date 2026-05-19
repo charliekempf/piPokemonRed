@@ -16,6 +16,9 @@ const pauseEl = document.querySelector("#pause");
 const rewindEl = document.querySelector("#rewind");
 const rewindButton = document.querySelector("#rewind-button");
 const fastForwardButton = document.querySelector("#fast-forward-button");
+const simulateEl = document.querySelector("#simulate-digits");
+const simulateButton = document.querySelector("#simulate-button");
+const simulateStatusEl = document.querySelector("#simulate-status");
 const upcomingEl = document.querySelector("#upcoming");
 
 const FRAME_WIDTH = 160;
@@ -24,7 +27,7 @@ const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
 
 let frameFetchInFlight = false;
 let controlsInitialized = false;
-let fastForwarding = false;
+let backendBusy = false;
 
 function speedFromSlider() {
   return Math.max(1, Math.min(1000, Math.round(10 ** Number(speedEl.value))));
@@ -184,8 +187,20 @@ fastForwardButton.addEventListener("click", () => {
   post("/api/fast-forward", { digits: Number(rewindEl.value) });
 });
 
+simulateButton.addEventListener("click", () => {
+  post("/api/simulate", { digits: Number(simulateEl.value) });
+});
+
 function fmt(value) {
   return Number(value).toLocaleString();
+}
+
+function fmtRate(value) {
+  const rate = Number(value);
+  if (!Number.isFinite(rate)) {
+    return "-";
+  }
+  return `${fmt(Math.round(rate))}/s`;
 }
 
 function renderUpcoming(items) {
@@ -235,6 +250,9 @@ function displayState(status) {
   if (value.startsWith("fast forwarding")) {
     return "Fast-forward";
   }
+  if (value.startsWith("simulating")) {
+    return "Simulating";
+  }
   if (value.startsWith("rewound")) {
     return "Rewound";
   }
@@ -246,8 +264,9 @@ function renderStats(state) {
     ? Math.min(100, (Number(state.digits_consumed) / Number(state.max_digits)) * 100)
     : 0;
   setStateClass(state.status);
-  fastForwarding = String(state.status).startsWith("fast forwarding");
-  screenShellEl.classList.toggle("is-fast-forwarding", fastForwarding);
+  backendBusy = String(state.status).startsWith("fast forwarding")
+    || String(state.status).startsWith("simulating");
+  screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
   statStateEl.textContent = displayState(state.status);
   statStateEl.title = state.status;
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
@@ -258,6 +277,17 @@ function renderStats(state) {
   statInputsEl.textContent = fmt(state.inputs_sent);
   statLastEl.textContent = String(state.last_button).toUpperCase();
   statSnapshotsEl.textContent = fmt(state.snapshots);
+
+  simulateButton.disabled = backendBusy;
+  if (String(state.status).startsWith("simulating")) {
+    simulateStatusEl.textContent = state.status;
+  } else if (state.last_simulation && Number(state.last_simulation.digits) > 0) {
+    simulateStatusEl.textContent = `${fmt(state.last_simulation.digits)} digits, ${fmtRate(state.last_simulation.digits_per_second)}`;
+    simulateStatusEl.title = state.last_simulation.last_state || "";
+  } else {
+    simulateStatusEl.textContent = "Ready";
+    simulateStatusEl.title = "";
+  }
 }
 
 async function refresh() {
@@ -284,7 +314,7 @@ async function refresh() {
 }
 
 async function drawFrameLoop() {
-  if (!fastForwarding && !frameFetchInFlight) {
+  if (!backendBusy && !frameFetchInFlight) {
     frameFetchInFlight = true;
     try {
       const response = await fetch("/api/frame.rgba", { cache: "no-store" });

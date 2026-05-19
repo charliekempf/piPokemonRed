@@ -67,7 +67,8 @@ class ReviewWebApp:
 
     def state(self) -> dict[str, object]:
         info = self.session.info()
-        if not str(info["status"]).startswith("fast forwarding"):
+        status = str(info["status"])
+        if not (status.startswith("fast forwarding") or status.startswith("simulating")):
             image = self.session.frame_image()
             frame_digest = hashlib.blake2s(image.tobytes(), digest_size=8).hexdigest() if image else ""
             if frame_digest != self._last_frame_digest:
@@ -125,6 +126,9 @@ def make_handler(app: ReviewWebApp):
                 self._send_json({"ok": True})
             elif path == "/api/fast-forward":
                 app.session.request_fast_forward(int(body.get("digits", 1000)))
+                self._send_json({"ok": True})
+            elif path == "/api/simulate":
+                app.session.request_simulate(int(body.get("digits", 1000)))
                 self._send_json({"ok": True})
             else:
                 self.send_error(404)
@@ -218,6 +222,8 @@ def main() -> None:
         audio_sink=AudioSink(args.sound_sample_rate),
         initial_image=initial_image,
         rom_path=args.rom,
+        run_name=args.run_name,
+        digits_path=args.digits,
     )
     session.set_speed(args.speed)
     if args.start_running:

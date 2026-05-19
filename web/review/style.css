@@ -136,6 +136,7 @@ body {
 }
 
 .status-grid[data-state^="fast-forwarding"] .state-card,
+.status-grid[data-state^="simulating"] .state-card,
 .status-grid[data-state="pause-pending"] .state-card {
   border-color: #7a6ca7;
   background: #3e3755;
@@ -213,6 +214,41 @@ input[type="range"] {
   align-items: center;
 }
 
+.simulator-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.simulator-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #aeb4c0;
+  font-size: 12px;
+}
+
+.simulator-panel strong {
+  display: block;
+  max-width: 300px;
+  color: #f3f1e8;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulator-actions {
+  display: grid;
+  grid-template-columns: minmax(132px, 150px) 118px;
+  gap: 8px;
+  align-items: center;
+}
+
 button,
 select {
   height: 34px;
@@ -237,6 +273,11 @@ select {
 button:hover,
 select:hover {
   border-color: #7f8aa0;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .next-panel {

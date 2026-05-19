@@ -16,7 +16,18 @@ import sdl2
 from PIL import Image, ImageTk
 from pyboy import PyBoy
 
-from run_pi_pyboy import PI_DIGITS, ROM, RUN_NAME, advance_pi_inputs, button_for_pair, latest_checkpoint
+from run_pi_pyboy import (
+    GAMEBOY_FPS,
+    PI_DIGITS,
+    ROM,
+    RUN_NAME,
+    Progress,
+    advance_pi_inputs,
+    button_for_pair,
+    latest_checkpoint,
+    save_checkpoint,
+    write_progress,
+)
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d{8})_digits\.state$")
@@ -76,9 +87,13 @@ class ReviewSession:
         audio_sink: AudioSink | None,
         initial_image: Image.Image | None = None,
         rom_path: Path | None = None,
+        run_name: str = RUN_NAME,
+        digits_path: Path = PI_DIGITS,
     ) -> None:
         self.pyboy = pyboy
         self.rom_path = rom_path
+        self.run_name = run_name
+        self.digits_path = digits_path
         self.digits = digits
         self.digits_consumed = digits_consumed
         self.max_digits = max_digits
@@ -104,6 +119,9 @@ class ReviewSession:
         self._lock = threading.Lock()
         self._rewind_digits_requested = 0
         self._fast_forward_target_digits: int | None = None
+        self._simulate_target_digits: int | None = None
+        self._simulation_started_at: float | None = None
+        self._last_simulation: dict[str, int | float | str] | None = None
         self._auto_snapshots_enabled = True
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._take_snapshot()
@@ -113,7 +131,7 @@ class ReviewSession:
     def set_speed(self, speed: float) -> None:
         with self._lock:
             self.speed = max(1, min(1000, int(round(speed))))
-            if self._fast_forward_target_digits is None:
+            if self._fast_forward_target_digits is None and self._simulate_target_digits is None:
                 self.pyboy.set_emulation_speed(self.speed)
 
     def set_speed_limiter_enabled(self, enabled: bool) -> None:
@@ -137,6 +155,7 @@ class ReviewSession:
             else:
                 self.pause_requested = True
                 self._fast_forward_target_digits = None
+                self._simulate_target_digits = None
                 self.pyboy.set_emulation_speed(self.speed)
                 self.status = "pause pending"
 
@@ -144,12 +163,11 @@ class ReviewSession:
         with self._lock:
             self._rewind_digits_requested = max(self._rewind_digits_requested, digits)
             self._fast_forward_target_digits = None
+            self._simulate_target_digits = None
             self.pyboy.set_emulation_speed(self.speed)
 
     def request_fast_forward(self, digits: int) -> None:
-        digits = max(2, digits)
-        if digits % 2:
-            digits -= 1
+        digits = self._normalize_digit_distance(digits)
         with self._lock:
             target = min(self.max_digits, self.digits_consumed + digits)
             if target % 2:
@@ -158,10 +176,30 @@ class ReviewSession:
                 self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
                 return
             self._fast_forward_target_digits = target
+            self._simulate_target_digits = None
             self.pyboy.set_emulation_speed(0)
             self.paused = False
             self.pause_requested = False
             self.status = f"fast forwarding to {target:,} digits"
+
+    def request_simulate(self, digits: int) -> None:
+        digits = self._normalize_digit_distance(digits)
+        with self._lock:
+            if self._simulate_target_digits is not None:
+                return
+            target = min(self.max_digits, self.digits_consumed + digits)
+            if target % 2:
+                target -= 1
+            if target <= self.digits_consumed:
+                self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
+                return
+            self._simulate_target_digits = target
+            self._simulation_started_at = time.perf_counter()
+            self._fast_forward_target_digits = None
+            self.paused = False
+            self.pause_requested = False
+            self.pyboy.set_emulation_speed(0)
+            self.status = f"simulating to {target:,} digits"
 
     def stop(self) -> None:
         with self._lock:
@@ -179,6 +217,7 @@ class ReviewSession:
                 "snapshots": len(self.snapshots),
                 "inputs_sent": self.inputs_sent,
                 "last_button": self.last_button,
+                "last_simulation": self._last_simulation or {},
             }
 
     def run(self) -> None:
@@ -193,6 +232,7 @@ class ReviewSession:
                     rewind_digits = self._rewind_digits_requested
                     self._rewind_digits_requested = 0
                     fast_forward_target = self._fast_forward_target_digits
+                    simulate_target = self._simulate_target_digits
 
                 if rewind_digits:
                     self._rewind(rewind_digits)
@@ -216,6 +256,10 @@ class ReviewSession:
 
                 if fast_forward_target is not None:
                     self._fast_forward_with_backend(fast_forward_target)
+                    continue
+
+                if simulate_target is not None:
+                    self._simulate_with_backend(simulate_target)
                     continue
 
                 will_finish_fast_forward = (
@@ -312,6 +356,92 @@ class ReviewSession:
             self.latest_image = image
             self._auto_snapshots_enabled = False
 
+    def _simulate_with_backend(self, target_digits: int) -> None:
+        with self._lock:
+            start_digits = self.digits_consumed
+            started_at = self._simulation_started_at or time.perf_counter()
+            if self.paused or self.pause_requested or self._simulate_target_digits is None:
+                return
+            state_buffer = io.BytesIO()
+            self.pyboy.save_state(state_buffer)
+
+        target_digits = min(target_digits, self.max_digits)
+        state_buffer.seek(0)
+        simulator = PyBoy(
+            str(self.rom_path or ROM),
+            window="null",
+            sound_emulated=False,
+            no_input=False,
+            ram_file=io.BytesIO(bytes(32768)),
+            log_level="CRITICAL",
+        )
+        simulator.set_emulation_speed(0)
+        try:
+            simulator.load_state(state_buffer)
+            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+                simulator,
+                self.digits,
+                start_digits,
+                target_digits,
+                self.hold_frames,
+                self.release_frames,
+            )
+            checkpoint_dir = Path("saves") / self.run_name
+            screenshot_dir = Path("results") / self.run_name / "screenshots"
+            last_state = save_checkpoint(
+                simulator,
+                checkpoint_dir,
+                screenshot_dir,
+                digits_consumed,
+                save_screenshot=True,
+            )
+            final_state = io.BytesIO()
+            simulator.save_state(final_state)
+        finally:
+            simulator.stop()
+
+        elapsed = max(time.perf_counter() - started_at, 0.000001)
+        effective_digits_per_second = (digits_consumed - start_digits) / elapsed
+        frames_advanced = inputs_sent * self.frames_per_input
+        effective_fps = frames_advanced / elapsed
+        progress = Progress(
+            run_name=self.run_name,
+            digits_path=str(self.digits_path),
+            rom_path=str(self.rom_path or ROM),
+            digits_consumed=digits_consumed,
+            input_pairs_consumed=digits_consumed // 2,
+            frames_elapsed=(digits_consumed // 2) * self.frames_per_input,
+            checkpoints_completed=len(list(checkpoint_dir.glob("checkpoint_*_digits.state"))),
+            elapsed_seconds=elapsed,
+            effective_fps=effective_fps,
+            effective_realtime_x=effective_fps / GAMEBOY_FPS,
+            last_state=str(last_state),
+        )
+        write_progress(Path("results") / self.run_name / "progress.json", progress)
+
+        final_state.seek(0)
+        self.pyboy.load_state(final_state)
+        image = render_loaded_state(self.pyboy)
+        with self._lock:
+            self.digits_consumed = digits_consumed
+            self.frames_elapsed += inputs_sent * self.frames_per_input
+            self.inputs_sent += inputs_sent
+            self.last_button = last_button
+            self.paused = True
+            self._simulate_target_digits = None
+            self._simulation_started_at = None
+            self.pyboy.set_emulation_speed(self.speed)
+            self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
+            self._next_frame_time = time.perf_counter()
+            self.latest_image = image
+            self._auto_snapshots_enabled = False
+            self._last_simulation = {
+                "digits": digits_consumed - start_digits,
+                "elapsed_seconds": elapsed,
+                "digits_per_second": effective_digits_per_second,
+                "last_state": str(last_state),
+            }
+
     def _limit_frame_rate(self) -> None:
         with self._lock:
             speed = self.speed
@@ -370,6 +500,12 @@ class ReviewSession:
                 self.last_button = last_button
             self.status = f"rewound to {digits_consumed:,} digits"
             self.latest_image = image
+
+    def _normalize_digit_distance(self, digits: int) -> int:
+        digits = max(2, int(digits))
+        if digits % 2:
+            digits -= 1
+        return digits
 
     def _capture_frame(self) -> None:
         image = self.pyboy.screen.image.copy()
@@ -603,6 +739,8 @@ def main() -> None:
         audio_sink=AudioSink(args.sound_sample_rate),
         initial_image=initial_image,
         rom_path=args.rom,
+        run_name=args.run_name,
+        digits_path=args.digits,
     )
     session.set_speed(args.speed)
     if args.start_running:

@@ -26,7 +26,7 @@ Current core approach:
 Important scripts:
 
 - `scripts/run_pi_pyboy.py` runs the headless deterministic simulation and writes savestates/screenshots/progress.
-- `scripts/review_web.py` runs the local web reviewer with WebGL canvas rendering, speed control, digit-based rewind/fast-forward, and an upcoming-input preview.
+- `scripts/review_web.py` runs the local web reviewer/control surface with WebGL canvas rendering, speed control, digit-based rewind/fast-forward, backend simulation controls, and an upcoming-input preview.
 - `scripts/review_pi_checkpoint.py` is the older Tk-based reviewer kept for reference.
 - `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh web reviewer.
 - `scripts/tally_tas_buttons.py` parses BizHawk `.bk2` TAS files to tally button usage.
@@ -48,6 +48,7 @@ Current reviewer UI behavior:
 - The transport controls are `Pause/Resume`, `<<`, a digit-distance dropdown, and `>>`.
 - `<<` rewinds by the selected digit count using in-memory savestate snapshots.
 - `>>` fast-forwards by the selected digit count by transferring the current state into a separate headless PyBoy backend simulator with sound/rendering disabled, running the real pi-derived input stream there, loading the resulting state back into the reviewer, darkening the emulator frame with a buffering spinner, then pausing at an input boundary.
+- The `Headless simulator` panel advances the real run by the selected digit count using the same backend simulator path, then writes a checkpoint, screenshot, and `results/<run>/progress.json` so the headless run can continue from the new state.
 - After backend fast-forward, automatic in-memory snapshot capture is disabled for that review session because PyBoy can hang when saving reviewer snapshots after loading the backend-simulated state.
 - Checkpoint and rewind frame displays use a one-frame render/restore path so the screen is populated after loading state.
 
