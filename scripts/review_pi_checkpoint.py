@@ -42,6 +42,12 @@ PARTY_NICKS_ADDR = 0xD2B5
 PARTY_NAME_LENGTH = 11
 PARTY_SIZE = 6
 BATTLE_FLAG_ADDR = 0xD057
+CURRENT_MAP_ADDR = 0xD35E
+WARP_STATE_LABELS = {
+    "battle": "battle",
+    "blackout": "blackout",
+    "scene_change": "scene change",
+}
 SPECIES_NAMES = {
     0x01: "Rhydon",
     0x02: "Kangaskhan",
@@ -284,6 +290,10 @@ def is_in_battle(pyboy: PyBoy) -> bool:
     return int(pyboy.memory[BATTLE_FLAG_ADDR]) != 0
 
 
+def current_map_id(pyboy: PyBoy) -> int:
+    return int(pyboy.memory[CURRENT_MAP_ADDR])
+
+
 def is_party_blackout(pyboy: PyBoy) -> bool:
     count = int(pyboy.memory[PARTY_COUNT_ADDR])
     if count <= 0 or count > PARTY_SIZE:
@@ -463,8 +473,9 @@ class ReviewSession:
 
     def request_warp_state(self, target_state: str) -> str:
         target_state = target_state.lower().strip()
-        if target_state not in {"battle", "blackout"}:
+        if target_state not in WARP_STATE_LABELS:
             raise ValueError(f"Unsupported warp state: {target_state}")
+        label = WARP_STATE_LABELS[target_state]
         with self._lock:
             self._warp_target_state = target_state
             self._rewind_digits_requested = 0
@@ -474,7 +485,7 @@ class ReviewSession:
             self.paused = False
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
-            self.status = f"finding next {target_state}"
+            self.status = f"finding next {label}"
         return target_state
 
     def stop(self) -> None:
@@ -907,6 +918,7 @@ class ReviewSession:
             simulator.load_state(state_buffer)
             battle_seen = is_in_battle(simulator)
             blackout_seen = is_party_blackout(simulator)
+            starting_map = current_map_id(simulator)
             while digits_consumed < self.max_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 button = button_for_value(value, self.input_config)
@@ -928,13 +940,16 @@ class ReviewSession:
                     elif in_battle:
                         found = True
                         break
-                else:
+                elif target_state == "blackout":
                     if blackout_seen:
                         if not blackout:
                             blackout_seen = False
                     elif blackout:
                         found = True
                         break
+                elif current_map_id(simulator) != starting_map:
+                    found = True
+                    break
 
             final_state = io.BytesIO()
             if found:
@@ -947,7 +962,7 @@ class ReviewSession:
                 self.paused = True
                 self._warp_target_state = None
                 self.pyboy.set_emulation_speed(self.speed)
-                self.status = f"no {target_state} before limit"
+                self.status = f"no {WARP_STATE_LABELS[target_state]} before limit"
             return
 
         final_state.seek(0)
