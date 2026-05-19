@@ -8,7 +8,7 @@ Experiments for mapping digits of pi to Game Boy inputs and testing whether the 
 
 The project is designed so the public repository contains only source code and documentation. You bring your own legally obtained ROM and local data files.
 
-**Highest digit reached:** 50,000,000 digits consumed in the `pi_50m_two_digit` run.
+**Highest digit reached:** 196,000,000 digits consumed in the `pi_50m_two_digit` run.
 
 ![piPokemon web review player with local ROM preview hidden](docs/review-player.png)
 
@@ -76,6 +76,8 @@ The active input scheme consumes two decimal digits at a time and presses the ma
 
 The input timing and mapping live in `config/pi_input.json`:
 
+- `name` is the friendly label shown in the config dropdown.
+- `game` records the target game title, version, and region. The current config targets `Pokemon Red` version `1.0`, region `USA/Europe`.
 - `on_frames` controls how many frames the selected button is held.
 - `off_frames` controls how many blank frames follow the button press.
 - `digits_per_input` controls how many pi digits are consumed for each input.
@@ -112,7 +114,7 @@ Open the current 50M run explicitly:
 The launcher closes older web or Tk reviewer instances before opening a new browser tab. By default, it opens the penultimate checkpoint so there is room to play forward into the newest available checkpoint.
 
 By default, the reviewer is limited only by the local pi digit file. Pass `-MaxDigits 1000000` to the PowerShell launcher, or `--max-digits 1000000` to `review_web.py`, when you want to cap playback for a shorter review.
-The reviewer opens at `10x` by default. Audio is most reliable at `--speed 1`; higher speeds may outrun PyBoy's SDL audio queue.
+The reviewer opens at `10x` by default. The speed slider ranges from `0.1x` through `1000x` to `Unlimited`, and the UI reports both requested speed and measured playback speed. Audio is controlled by a simple mute/unmute button beside Play; audio output is muted while long seeks or simulations are buffering.
 The reviewer opens paused by default. Press `Pause/Resume` to start playback, or pass `--start-running` when launching directly. During playback, pausing is applied at the next input boundary: after the current held/released input cycle finishes and before the next pi-derived button is sent. It applies its own frame limiter, so `1x` targets normal Game Boy speed even though the emulator loop is driven manually.
 
 Open a specific checkpoint by digit count:
@@ -124,14 +126,16 @@ py scripts\review_web.py --checkpoint 5000000 --speed 1 --open-browser
 The web reviewer continues the same pi input stream from the checkpoint. It serves the Game Boy screen and controls from a local web app with:
 
 - WebGL canvas rendering with Canvas 2D fallback.
-- A speed slider from `1x` through `1000x` to `Unlimited`.
-- Digit-based rewind and fast-forward controls.
-- A checkpoint list, clickable timeline, and jump-to-digit control.
+- A speed slider from `0.1x` through `1000x` to `Unlimited`, with a mute/unmute audio toggle.
+- Digit-based rewind and fast-forward controls folded into the jump panel.
+- Arbitrary jump-to-digit support, using the nearest checkpoint first and simulating the remaining gap.
+- A checkpoint list, clickable timeline, and current charted-checkpoint progress fill.
 - An input preview showing the last three inputs, current input, and upcoming inputs.
 - Live location display, including building context such as `Pallet Town | Oak's Lab`.
 - Live party panel with expandable moves and PP.
-- Gym badge panel.
-- Event Finder for warping to the next battle, trainer battle, location change, level up, evolution, or blackout, with a digit-limit dropdown to prevent long searches.
+- Player panel with money, Pokedex seen/caught, actual elapsed emulator time with days, bag contents, and gym badges.
+- Config panel showing game version/region, digits per input, button ranges, and a button-spread chart.
+- Event Finder for warping to the next battle, wild battle, trainer battle, location change, item pickup, level up, evolution, or blackout, with a digit-limit dropdown to prevent long searches.
 
 The Headless simulator panel can extend a run from the browser. Enter an absolute `Simulate up to` digit target and choose `Checkpoint every` to control how frequently savestates/screenshots are written. The simulator resumes from the highest usable checkpoint at or before the target, so extending a run does not replay already-saved work. The resume path has been checked by comparing a full 49M -> 50M advance against loading the 50M checkpoint; the final PyBoy savestates matched byte-for-byte.
 
