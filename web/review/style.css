@@ -15,7 +15,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: 270px auto 280px;
+  grid-template-columns: 340px auto 280px;
   gap: 18px;
   align-items: start;
   padding: 18px;
@@ -36,6 +36,7 @@ body {
 .checkpoint-panel {
   grid-column: 1;
   grid-row: 2;
+  width: 340px;
 }
 
 .screen-panel {
