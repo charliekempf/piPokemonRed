@@ -121,8 +121,14 @@ function actualSpeedLabel(value) {
   return `Actual ${speed.toFixed(precision)}x`;
 }
 
-function digitRateLabel(actualSpeed, digitsPerInput, framesPerInput = 3) {
-  const rate = Math.max(0, Number(actualSpeed) || 0) * GAMEBOY_FPS * Math.max(1, Number(digitsPerInput) || 1) / framesPerInput;
+function digitRateLabel(actualSpeed, digitsPerInput, framesPerInput) {
+  const safeFramesPerInput = Math.max(1, Number(framesPerInput) || 1);
+  const rate = Math.max(0, Number(actualSpeed) || 0) * GAMEBOY_FPS * Math.max(1, Number(digitsPerInput) || 1) / safeFramesPerInput;
+  return digitRateValueLabel(rate);
+}
+
+function digitRateValueLabel(value) {
+  const rate = Math.max(0, Number(value) || 0);
   if (rate >= 1000) {
     return `${fmt(Math.round(rate))} digits/s`;
   }
@@ -979,7 +985,9 @@ function renderStats(state) {
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Set Unlimited" : `Set ${speedLabel(state.speed)}`;
   statActualSpeedEl.textContent = actualSpeedLabel(state.actual_speed_x);
-  statDigitRateEl.textContent = digitRateLabel(state.actual_speed_x, state.digits_per_input);
+  statDigitRateEl.textContent = Number.isFinite(Number(state.actual_digits_per_second))
+    ? digitRateValueLabel(state.actual_digits_per_second)
+    : digitRateLabel(state.actual_speed_x, state.digits_per_input, state.frames_per_input);
   const muted = Number(state.sound_volume ?? 100) <= 0;
   muteEl.dataset.muted = muted ? "true" : "false";
   muteEl.textContent = muted ? "🔇" : "🔊";

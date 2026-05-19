@@ -1606,10 +1606,15 @@ class ReviewSession:
                 "digits_consumed": self.digits_consumed,
                 "max_digits": self.max_digits,
                 "frames_elapsed": self.frames_elapsed,
+                "frames_per_input": self.frames_per_input,
                 "map_id": map_id,
                 "location": map_name(map_id),
                 "speed": self.speed,
                 "actual_speed_x": round(self._actual_speed_x, 1),
+                "actual_digits_per_second": self._actual_speed_x
+                * GAMEBOY_FPS
+                * self.input_config.digits_per_input
+                / self.frames_per_input,
                 "speed_limiter_enabled": "on" if self.speed_limiter_enabled else "off",
                 "sound_volume": self.sound_volume,
                 "status": self.status,

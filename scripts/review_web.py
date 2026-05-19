@@ -205,6 +205,7 @@ class ReviewWebApp:
         scale: int,
         run_name: str,
         digits_per_input: int,
+        frames_per_input: int,
         hard_max_digits: int | None,
         rom_path: Path,
         digits_path: Path,
@@ -215,6 +216,7 @@ class ReviewWebApp:
         self.scale = scale
         self.run_name = run_name
         self.digits_per_input = digits_per_input
+        self.frames_per_input = frames_per_input
         self.hard_max_digits = hard_max_digits
         self.rom_path = rom_path
         self.digits_path = digits_path
@@ -278,6 +280,7 @@ class ReviewWebApp:
             self.run_name = run_name
             self.config_path = config_path
             self.digits_per_input = input_config.digits_per_input
+            self.frames_per_input = input_config.on_frames + input_config.off_frames
             self.session = session
             self.chart_simulation = None
             self.chart_target_digits = 0
@@ -369,6 +372,8 @@ class ReviewWebApp:
                 "map_id": None,
                 "location": "-",
                 "speed": 10,
+                "actual_speed_x": 0,
+                "actual_digits_per_second": 0,
                 "speed_limiter_enabled": "on",
                 "sound_volume": 100,
                 "snapshots": 0,
@@ -385,6 +390,7 @@ class ReviewWebApp:
                 "runs": list_runs(self.run_name),
                 "active_run": self.run_name,
                 "digits_per_input": self.digits_per_input,
+                "frames_per_input": self.frames_per_input,
                 "config": config_info(self.config_path) if self.config_path.exists() else {},
                 "chart_simulation": self.chart_simulation_info(),
             }
@@ -417,6 +423,7 @@ class ReviewWebApp:
             "runs": list_runs(self.run_name),
             "active_run": self.run_name,
             "digits_per_input": self.digits_per_input,
+            "frames_per_input": int(info.get("frames_per_input", self.frames_per_input)),
             "config": config_info(self.config_path) if self.config_path.exists() else {},
             "chart_simulation": self.chart_simulation_info(),
         }
@@ -688,6 +695,7 @@ def main() -> None:
         args.scale,
         args.run_name,
         input_config.digits_per_input,
+        input_config.on_frames + input_config.off_frames,
         args.max_digits,
         args.rom,
         args.digits,
