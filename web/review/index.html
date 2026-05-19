@@ -16,10 +16,6 @@
           </div>
         </div>
         <div id="status" class="status-grid" aria-live="polite">
-          <div class="stat-card state-card">
-            <span class="stat-label">State</span>
-            <strong id="stat-state">Loading</strong>
-          </div>
           <div class="stat-card progress-card">
             <span class="stat-label">Digits</span>
             <strong id="stat-digits">-</strong>
@@ -30,24 +26,12 @@
             <strong id="stat-speed">-</strong>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Limiter</span>
-            <strong id="stat-limiter">-</strong>
-          </div>
-          <div class="stat-card">
             <span class="stat-label">Renderer</span>
             <strong id="stat-renderer">-</strong>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Inputs</span>
-            <strong id="stat-inputs">-</strong>
-          </div>
-          <div class="stat-card">
             <span class="stat-label">Last</span>
             <strong id="stat-last">-</strong>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Snapshots</span>
-            <strong id="stat-snapshots">-</strong>
           </div>
         </div>
         <div class="controls">
@@ -63,10 +47,14 @@
           </div>
           <label class="check">
             <input id="limiter" type="checkbox" checked />
-            Use speed slider
+            <span>Use speed slider</span>
+            <strong id="stat-limiter">on</strong>
           </label>
           <div class="transport">
-            <button id="pause" class="primary-control">Pause/Resume</button>
+            <button id="pause" class="state-control">
+              <span class="control-label">State</span>
+              <strong id="stat-state">Loading</strong>
+            </button>
             <button id="rewind-button" class="icon-control" title="Rewind selected digits" aria-label="Rewind selected digits">&lt;&lt;</button>
             <select id="rewind">
               <option value="10">10 digits</option>

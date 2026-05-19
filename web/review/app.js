@@ -6,9 +6,7 @@ const statProgressEl = document.querySelector("#stat-progress span");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statLimiterEl = document.querySelector("#stat-limiter");
 const statRendererEl = document.querySelector("#stat-renderer");
-const statInputsEl = document.querySelector("#stat-inputs");
 const statLastEl = document.querySelector("#stat-last");
-const statSnapshotsEl = document.querySelector("#stat-snapshots");
 const screenShellEl = document.querySelector(".screen-shell");
 const speedEl = document.querySelector("#speed");
 const limiterEl = document.querySelector("#limiter");
@@ -243,6 +241,7 @@ function setInitialControls(state) {
 function setStateClass(status) {
   const normalized = String(status).toLowerCase().replace(/[^a-z]+/g, "-");
   statusEl.dataset.state = normalized || "unknown";
+  pauseEl.dataset.state = normalized || "unknown";
 }
 
 function displayState(status) {
@@ -274,9 +273,7 @@ function renderStats(state) {
   statSpeedEl.textContent = `${state.speed}x`;
   statLimiterEl.textContent = state.speed_limiter_enabled;
   statRendererEl.textContent = renderer.mode;
-  statInputsEl.textContent = fmt(state.inputs_sent);
   statLastEl.textContent = String(state.last_button).toUpperCase();
-  statSnapshotsEl.textContent = fmt(state.snapshots);
 
   simulateButton.disabled = backendBusy;
   if (String(state.status).startsWith("simulating")) {
@@ -305,9 +302,7 @@ async function refresh() {
     statSpeedEl.textContent = "-";
     statLimiterEl.textContent = "-";
     statRendererEl.textContent = renderer.mode;
-    statInputsEl.textContent = "-";
     statLastEl.textContent = "-";
-    statSnapshotsEl.textContent = "-";
   } finally {
     setTimeout(refresh, 150);
   }

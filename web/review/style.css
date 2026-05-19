@@ -86,7 +86,7 @@ body {
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 10px 0;
 }
@@ -102,7 +102,6 @@ body {
   border-radius: 6px;
 }
 
-.state-card,
 .progress-card {
   grid-column: span 2;
 }
@@ -124,30 +123,30 @@ body {
   white-space: nowrap;
 }
 
-.status-grid[data-state="running"] .state-card {
+.state-control[data-state="running"] {
   border-color: #6f89af;
   background: #344257;
 }
 
-.status-grid[data-state="paused"] .state-card,
-.status-grid[data-state="rewound-to-digits"] .state-card {
+.state-control[data-state="paused"],
+.state-control[data-state="rewound-to-digits"] {
   border-color: #7a6f49;
   background: #403b2d;
 }
 
-.status-grid[data-state^="fast-forwarding"] .state-card,
-.status-grid[data-state^="simulating"] .state-card,
-.status-grid[data-state="pause-pending"] .state-card {
+.state-control[data-state^="fast-forwarding"],
+.state-control[data-state^="simulating"],
+.state-control[data-state="pause-pending"] {
   border-color: #7a6ca7;
   background: #3e3755;
 }
 
-.status-grid[data-state="complete"] .state-card {
+.state-control[data-state="complete"] {
   border-color: #6e9b7b;
   background: #334b3a;
 }
 
-.status-grid[data-state="disconnected"] .state-card {
+.state-control[data-state="disconnected"] {
   border-color: #9d6670;
   background: #4a3438;
 }
@@ -205,6 +204,16 @@ input[type="range"] {
   gap: 8px;
   align-items: center;
   color: #e4e1d7;
+}
+
+.check strong {
+  min-width: 28px;
+  padding: 2px 7px;
+  border: 1px solid #555c6c;
+  border-radius: 999px;
+  color: #fff4b8;
+  font-size: 12px;
+  text-align: center;
 }
 
 .transport {
@@ -266,8 +275,29 @@ select {
   font-family: Consolas, "Cascadia Mono", monospace;
 }
 
-.primary-control {
+.primary-control,
+.state-control {
   min-width: 118px;
+}
+
+.state-control {
+  height: 44px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  text-align: left;
+}
+
+.state-control .control-label {
+  color: #aeb4c0;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.state-control strong {
+  color: #f3f1e8;
+  font-size: 13px;
+  line-height: 1.15;
 }
 
 button:hover,
