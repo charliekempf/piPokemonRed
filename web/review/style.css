@@ -403,8 +403,7 @@ body {
   gap: 8px;
 }
 
-.speed-card,
-.volume-card {
+.speed-card {
   min-height: 48px;
   padding: 8px 9px;
   display: grid;
@@ -416,7 +415,7 @@ body {
 
 .play-speed-row {
   display: grid;
-  grid-template-columns: 66px 1fr;
+  grid-template-columns: 66px 66px 1fr;
   gap: 8px;
   align-items: stretch;
 }
@@ -428,15 +427,34 @@ body {
   aspect-ratio: 1;
 }
 
-.volume-jump-row {
+.play-speed-row .mute-control {
+  width: 66px;
+  height: 100%;
+  min-height: 66px;
+  aspect-ratio: 1;
+  font-size: 24px;
+  line-height: 1;
+  font-family: "Segoe UI Emoji", "Segoe UI Symbol", "Segoe UI", system-ui, sans-serif;
+}
+
+.mute-control[data-muted="true"] {
+  border-color: #7a6f49;
+  background: #403b2d;
+}
+
+.mute-control:hover:not(:disabled) {
+  border-color: #d8e3f8;
+  box-shadow: 0 0 0 2px rgba(111, 137, 175, 0.28);
+  filter: brightness(1.08);
+}
+
+.jump-row {
   display: grid;
-  grid-template-columns: minmax(210px, 0.38fr) minmax(0, 0.62fr);
   gap: 8px;
   align-items: stretch;
 }
 
-.speed-row,
-.volume-row {
+.speed-row {
   display: grid;
   grid-template-columns: 64px 1fr 78px;
   gap: 10px;
@@ -447,8 +465,7 @@ body {
   grid-template-columns: 64px 1fr 154px;
 }
 
-.speed-row strong,
-.volume-row strong {
+.speed-row strong {
   color: #fff4b8;
   font-size: 13px;
   text-align: right;

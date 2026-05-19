@@ -88,6 +88,7 @@
         <div class="controls">
           <div class="play-speed-row">
             <button id="pause" class="icon-control play-pause-control" title="Play/Pause" aria-label="Play or pause" type="button"></button>
+            <button id="mute" class="icon-control mute-control" title="Mute" aria-label="Mute audio" type="button"></button>
             <div class="speed-card">
               <label class="speed-row">
                 <span>Speed</span>
@@ -108,14 +109,7 @@
               </div>
             </div>
           </div>
-          <div class="volume-jump-row">
-            <div class="volume-card">
-              <label class="volume-row">
-                <span>Volume</span>
-                <input id="volume" type="range" min="0" max="100" step="1" value="100" />
-                <strong id="stat-volume">100%</strong>
-              </label>
-            </div>
+          <div class="jump-row">
             <div class="jump-control">
               <label for="jump-digits">Jump</label>
               <button id="rewind-button" class="icon-control" title="Rewind selected digits" aria-label="Rewind selected digits">&lt;&lt;</button>

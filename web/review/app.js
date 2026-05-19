@@ -6,7 +6,6 @@ const statLocationEl = document.querySelector("#stat-location");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statActualSpeedEl = document.querySelector("#stat-actual-speed");
 const statDigitRateEl = document.querySelector("#stat-digit-rate");
-const statVolumeEl = document.querySelector("#stat-volume");
 const screenShellEl = document.querySelector(".screen-shell");
 const seekLabelEl = document.querySelector("#seek-label");
 const seekProgressBarEl = document.querySelector("#seek-progress-bar");
@@ -15,8 +14,8 @@ const romUploadEl = document.querySelector("#rom-upload");
 const romUploadButtonEl = document.querySelector("#rom-upload-button");
 const romUploadStatusEl = document.querySelector("#rom-upload-status");
 const speedEl = document.querySelector("#speed");
-const volumeEl = document.querySelector("#volume");
 const pauseEl = document.querySelector("#pause");
+const muteEl = document.querySelector("#mute");
 const rewindEl = document.querySelector("#rewind");
 const rewindButton = document.querySelector("#rewind-button");
 const fastForwardButton = document.querySelector("#fast-forward-button");
@@ -313,10 +312,9 @@ speedEl.addEventListener("input", () => {
   post("/api/limiter", { enabled: !speedSliderIsUnlimited() });
 });
 
-volumeEl.addEventListener("input", () => {
-  const volume = Math.max(0, Math.min(100, Math.round(Number(volumeEl.value))));
-  statVolumeEl.textContent = `${volume}%`;
-  post("/api/volume", { volume });
+muteEl.addEventListener("click", () => {
+  const muted = muteEl.dataset.muted === "true";
+  post("/api/volume", { volume: muted ? 100 : 0 });
 });
 
 runSelectEl.addEventListener("change", async () => {
@@ -933,7 +931,6 @@ function setInitialControls(state) {
   speedEl.value = state.speed_limiter_enabled === "off"
     ? speedEl.max
     : Math.log10(Math.max(0.1, Math.min(1000, Number(state.speed))));
-  volumeEl.value = String(Math.max(0, Math.min(100, Number(state.sound_volume ?? 100))));
   simulateTargetDigitsEl.value = String(Math.max(0, Number(state.max_digits) || 0));
   controlsInitialized = true;
 }
@@ -978,7 +975,11 @@ function renderStats(state) {
   statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Set Unlimited" : `Set ${speedLabel(state.speed)}`;
   statActualSpeedEl.textContent = actualSpeedLabel(state.actual_speed_x);
   statDigitRateEl.textContent = digitRateLabel(state.actual_speed_x, state.digits_per_input);
-  statVolumeEl.textContent = `${Math.max(0, Math.min(100, Number(state.sound_volume ?? 100)))}%`;
+  const muted = Number(state.sound_volume ?? 100) <= 0;
+  muteEl.dataset.muted = muted ? "true" : "false";
+  muteEl.textContent = muted ? "🔇" : "🔊";
+  muteEl.setAttribute("aria-label", muted ? "Unmute audio" : "Mute audio");
+  muteEl.title = muted ? "Unmute" : "Mute";
 
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
@@ -1049,7 +1050,10 @@ async function refresh() {
     statSpeedEl.textContent = "-";
     statActualSpeedEl.textContent = "-";
     statDigitRateEl.textContent = "-";
-    statVolumeEl.textContent = "-";
+    muteEl.dataset.muted = "false";
+    muteEl.textContent = "🔊";
+    muteEl.setAttribute("aria-label", "Mute audio");
+    muteEl.title = "Mute";
     renderRuns([], "");
     renderConfigInfo({});
     renderCheckpoints([], 0);
