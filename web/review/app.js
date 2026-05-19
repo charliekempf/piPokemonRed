@@ -4,7 +4,6 @@ const statDigitsEl = document.querySelector("#stat-digits");
 const statProgressEl = document.querySelector("#stat-progress span");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statLimiterEl = document.querySelector("#stat-limiter");
-const statRendererEl = document.querySelector("#stat-renderer");
 const screenShellEl = document.querySelector(".screen-shell");
 const speedEl = document.querySelector("#speed");
 const limiterEl = document.querySelector("#limiter");
@@ -504,7 +503,6 @@ function renderStats(state) {
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = `${state.speed}x`;
   statLimiterEl.textContent = state.speed_limiter_enabled;
-  statRendererEl.textContent = renderer.mode;
 
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
@@ -536,7 +534,6 @@ async function refresh() {
     statProgressEl.style.width = "0";
     statSpeedEl.textContent = "-";
     statLimiterEl.textContent = "-";
-    statRendererEl.textContent = renderer.mode;
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);
