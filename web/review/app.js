@@ -5,7 +5,6 @@ const statProgressEl = document.querySelector("#stat-progress span");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statLimiterEl = document.querySelector("#stat-limiter");
 const statRendererEl = document.querySelector("#stat-renderer");
-const statLastEl = document.querySelector("#stat-last");
 const screenShellEl = document.querySelector(".screen-shell");
 const speedEl = document.querySelector("#speed");
 const limiterEl = document.querySelector("#limiter");
@@ -22,7 +21,7 @@ const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
 const checkpointsEl = document.querySelector("#checkpoints");
 const partyEl = document.querySelector("#party");
-const upcomingEl = document.querySelector("#upcoming");
+const inputsEl = document.querySelector("#inputs");
 
 const FRAME_WIDTH = 160;
 const FRAME_HEIGHT = 144;
@@ -215,7 +214,7 @@ function fmtRate(value) {
   return `${fmt(Math.round(rate))}/s`;
 }
 
-function renderUpcoming(items) {
+function renderInputs(items) {
   if (!items.length) {
     const row = document.createElement("li");
     const title = document.createElement("span");
@@ -224,15 +223,16 @@ function renderUpcoming(items) {
     title.textContent = "Out of digits";
     detail.textContent = "Download more";
     row.append(title, detail);
-    upcomingEl.replaceChildren(row);
+    inputsEl.replaceChildren(row);
     return;
   }
 
-  upcomingEl.replaceChildren(
+  inputsEl.replaceChildren(
     ...items.map((item) => {
       const row = document.createElement("li");
       const pair = document.createElement("span");
       const button = document.createElement("span");
+      row.className = item.role || "future";
       pair.className = "pair";
       button.className = "button";
       pair.textContent = `${fmt(item.digit_index)}  ${item.pair}`;
@@ -374,7 +374,6 @@ function renderStats(state) {
   statSpeedEl.textContent = `${state.speed}x`;
   statLimiterEl.textContent = state.speed_limiter_enabled;
   statRendererEl.textContent = renderer.mode;
-  statLastEl.textContent = String(state.last_button).toUpperCase();
 
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
@@ -398,7 +397,7 @@ async function refresh() {
     renderStats(state);
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderParty(state.party || []);
-    renderUpcoming(state.upcoming);
+    renderInputs(state.inputs || []);
   } catch (error) {
     setStateClass("disconnected");
     statDigitsEl.textContent = "-";
@@ -406,9 +405,9 @@ async function refresh() {
     statSpeedEl.textContent = "-";
     statLimiterEl.textContent = "-";
     statRendererEl.textContent = renderer.mode;
-    statLastEl.textContent = "-";
     renderCheckpoints([], 0);
     renderParty([]);
+    renderInputs([]);
   } finally {
     setTimeout(refresh, 150);
   }

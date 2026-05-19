@@ -108,10 +108,7 @@ class ReviewWebApp:
         return {
             **info,
             "frame_version": self.frame_version,
-            "upcoming": [
-                {"digit_index": digit_index, "pair": pair, "button": button}
-                for digit_index, pair, button in self.session.upcoming_buttons(12)
-            ],
+            "inputs": self.session.input_window(previous_count=3, next_count=11),
             "party": self.session.party(),
             "checkpoints": list_checkpoints(self.run_name),
         }

@@ -135,7 +135,7 @@ body {
 
 .status-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin: 10px 0;
 }
@@ -504,7 +504,7 @@ button:disabled {
   font-size: 13px;
 }
 
-.upcoming {
+.inputs {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -512,7 +512,7 @@ button:disabled {
   gap: 6px;
 }
 
-.upcoming li {
+.inputs li {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
@@ -525,12 +525,18 @@ button:disabled {
   font-size: 13px;
 }
 
-.upcoming li:first-child {
+.inputs li.current {
   background: #3b4a61;
   border-color: #6f89af;
 }
 
-.upcoming li.empty {
+.inputs li.past {
+  opacity: 0.48;
+  background: #292c34;
+  border-color: #3a3f4a;
+}
+
+.inputs li.empty {
   grid-template-columns: 1fr;
   gap: 3px;
   padding: 12px 10px;
@@ -539,12 +545,12 @@ button:disabled {
   border-color: #7b5c63;
 }
 
-.upcoming li.empty span:first-child {
+.inputs li.empty span:first-child {
   color: #fff4b8;
   font-weight: 700;
 }
 
-.upcoming li.empty span:last-child {
+.inputs li.empty span:last-child {
   color: #d8c8c0;
   font-size: 12px;
 }

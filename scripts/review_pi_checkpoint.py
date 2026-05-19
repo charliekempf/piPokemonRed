@@ -841,6 +841,35 @@ class ReviewSession:
             buttons.append((digit_index, digits_slice, button_for_value(int(digits_slice), self.input_config)))
         return buttons
 
+    def input_window(self, previous_count: int = 3, next_count: int = 11) -> list[dict[str, int | str]]:
+        with self._lock:
+            current = self.digits_consumed
+            max_digits = self.max_digits
+
+        items: list[dict[str, int | str]] = []
+        digits_per_input = self.input_config.digits_per_input
+        first = max(0, current - (previous_count * digits_per_input))
+        last = min(max_digits, current + ((next_count + 1) * digits_per_input))
+        for digit_index in range(first, last, digits_per_input):
+            if digit_index + digits_per_input > max_digits:
+                break
+            digits_slice = self.digits[digit_index : digit_index + digits_per_input]
+            if digit_index < current:
+                role = "past"
+            elif digit_index == current:
+                role = "current"
+            else:
+                role = "future"
+            items.append(
+                {
+                    "digit_index": digit_index,
+                    "pair": digits_slice,
+                    "button": button_for_value(int(digits_slice), self.input_config),
+                    "role": role,
+                }
+            )
+        return items
+
 
 def checkpoint_digits(path: Path, explicit_digits: int | None) -> int:
     if explicit_digits is not None:
