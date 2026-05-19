@@ -4,6 +4,7 @@ saves/*
 results/*
 tas/*
 data/*
+tools/*
 
 !.gitkeep
 !roms/.gitkeep
@@ -11,12 +12,15 @@ data/*
 !results/.gitkeep
 !tas/.gitkeep
 !data/.gitkeep
+!tools/.gitkeep
 
 # Python/runtime noise
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+bin/
+obj/
 
 # Editor/OS noise
 .vscode/
