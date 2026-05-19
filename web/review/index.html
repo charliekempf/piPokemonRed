@@ -12,7 +12,41 @@
         <div class="screen-shell">
           <canvas id="screen" class="screen" width="160" height="144" aria-label="Game Boy screen"></canvas>
         </div>
-        <div id="status" class="status">Loading...</div>
+        <div id="status" class="status-grid" aria-live="polite">
+          <div class="stat-card state-card">
+            <span class="stat-label">State</span>
+            <strong id="stat-state">Loading</strong>
+          </div>
+          <div class="stat-card progress-card">
+            <span class="stat-label">Digits</span>
+            <strong id="stat-digits">-</strong>
+            <span id="stat-progress" class="progress-bar"><span></span></span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Speed</span>
+            <strong id="stat-speed">-</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Limiter</span>
+            <strong id="stat-limiter">-</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Renderer</span>
+            <strong id="stat-renderer">-</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Inputs</span>
+            <strong id="stat-inputs">-</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Last</span>
+            <strong id="stat-last">-</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Snapshots</span>
+            <strong id="stat-snapshots">-</strong>
+          </div>
+        </div>
         <div class="controls">
           <label class="speed-row">
             <span>Speed</span>

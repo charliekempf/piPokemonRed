@@ -1,5 +1,14 @@
 const screen = document.querySelector("#screen");
 const statusEl = document.querySelector("#status");
+const statStateEl = document.querySelector("#stat-state");
+const statDigitsEl = document.querySelector("#stat-digits");
+const statProgressEl = document.querySelector("#stat-progress span");
+const statSpeedEl = document.querySelector("#stat-speed");
+const statLimiterEl = document.querySelector("#stat-limiter");
+const statRendererEl = document.querySelector("#stat-renderer");
+const statInputsEl = document.querySelector("#stat-inputs");
+const statLastEl = document.querySelector("#stat-last");
+const statSnapshotsEl = document.querySelector("#stat-snapshots");
 const speedEl = document.querySelector("#speed");
 const limiterEl = document.querySelector("#limiter");
 const pauseEl = document.querySelector("#pause");
@@ -214,15 +223,57 @@ function setInitialControls(state) {
   controlsInitialized = true;
 }
 
+function setStateClass(status) {
+  const normalized = String(status).toLowerCase().replace(/[^a-z]+/g, "-");
+  statusEl.dataset.state = normalized || "unknown";
+}
+
+function displayState(status) {
+  const value = String(status);
+  if (value.startsWith("fast forwarding")) {
+    return "Fast-forward";
+  }
+  if (value.startsWith("rewound")) {
+    return "Rewound";
+  }
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function renderStats(state) {
+  const progress = state.max_digits > 0
+    ? Math.min(100, (Number(state.digits_consumed) / Number(state.max_digits)) * 100)
+    : 0;
+  setStateClass(state.status);
+  statStateEl.textContent = displayState(state.status);
+  statStateEl.title = state.status;
+  statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
+  statProgressEl.style.width = `${progress}%`;
+  statSpeedEl.textContent = `${state.speed}x`;
+  statLimiterEl.textContent = state.speed_limiter_enabled;
+  statRendererEl.textContent = renderer.mode;
+  statInputsEl.textContent = fmt(state.inputs_sent);
+  statLastEl.textContent = String(state.last_button).toUpperCase();
+  statSnapshotsEl.textContent = fmt(state.snapshots);
+}
+
 async function refresh() {
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     const state = await response.json();
     setInitialControls(state);
-    statusEl.textContent = `${state.status} | ${fmt(state.digits_consumed)}/${fmt(state.max_digits)} digits | ${state.speed}x (${state.speed_limiter_enabled}) | ${renderer.mode} | inputs sent: ${fmt(state.inputs_sent)} | last: ${state.last_button} | snapshots: ${state.snapshots}`;
+    renderStats(state);
     renderUpcoming(state.upcoming);
   } catch (error) {
-    statusEl.textContent = `Disconnected: ${error}`;
+    setStateClass("disconnected");
+    statStateEl.textContent = "Disconnected";
+    statDigitsEl.textContent = "-";
+    statProgressEl.style.width = "0";
+    statSpeedEl.textContent = "-";
+    statLimiterEl.textContent = "-";
+    statRendererEl.textContent = renderer.mode;
+    statInputsEl.textContent = "-";
+    statLastEl.textContent = "-";
+    statSnapshotsEl.textContent = "-";
   } finally {
     setTimeout(refresh, 150);
   }

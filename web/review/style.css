@@ -49,12 +49,86 @@ body {
   image-rendering: pixelated;
 }
 
-.status {
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
   margin: 10px 0;
-  min-height: 22px;
-  font-size: 14px;
-  color: #d9d7ce;
+}
+
+.stat-card {
+  min-height: 48px;
+  padding: 8px 9px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.state-card,
+.progress-card {
+  grid-column: span 2;
+}
+
+.stat-label {
+  color: #aeb4c0;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.stat-card strong {
+  min-width: 0;
+  color: #f3f1e8;
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.status-grid[data-state="running"] .state-card {
+  border-color: #6f89af;
+  background: #344257;
+}
+
+.status-grid[data-state="paused"] .state-card,
+.status-grid[data-state="rewound-to-digits"] .state-card {
+  border-color: #7a6f49;
+  background: #403b2d;
+}
+
+.status-grid[data-state^="fast-forwarding"] .state-card,
+.status-grid[data-state="pause-pending"] .state-card {
+  border-color: #7a6ca7;
+  background: #3e3755;
+}
+
+.status-grid[data-state="complete"] .state-card {
+  border-color: #6e9b7b;
+  background: #334b3a;
+}
+
+.status-grid[data-state="disconnected"] .state-card {
+  border-color: #9d6670;
+  background: #4a3438;
+}
+
+.progress-bar {
+  height: 4px;
+  overflow: hidden;
+  background: #1c1f26;
+  border-radius: 999px;
+}
+
+.progress-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #6f89af;
+  border-radius: inherit;
 }
 
 .controls {
