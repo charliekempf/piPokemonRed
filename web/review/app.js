@@ -615,8 +615,12 @@ function renderStats(state) {
     warpStateButton.disabled = true;
     simulateButton.disabled = true;
   }
-  if (String(state.status).startsWith("simulating")) {
+  if (state.background_simulation && state.background_simulation.running) {
+    simulateStatusEl.textContent = `simulating to ${fmt(state.background_simulation.target_digits)} digits`;
+    simulateStatusEl.title = "Running in a separate headless process";
+  } else if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;
+    simulateStatusEl.title = "";
   } else if (state.last_simulation && (Number(state.last_simulation.digits) > 0 || Number(state.last_simulation.skipped_digits) > 0)) {
     const simulatedDigits = Number(state.last_simulation.digits) || 0;
     const skippedDigits = Number(state.last_simulation.skipped_digits) || 0;

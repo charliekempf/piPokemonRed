@@ -5,6 +5,8 @@ import hashlib
 import io
 import json
 import mimetypes
+import subprocess
+import sys
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -83,6 +85,8 @@ class ReviewWebApp:
         digits_per_input: int,
         hard_max_digits: int | None,
         rom_path: Path,
+        digits_path: Path,
+        config_path: Path,
         session_factory,
     ) -> None:
         self.session = session
@@ -91,8 +95,12 @@ class ReviewWebApp:
         self.digits_per_input = digits_per_input
         self.hard_max_digits = hard_max_digits
         self.rom_path = rom_path
+        self.digits_path = digits_path
+        self.config_path = config_path
         self.session_factory = session_factory
         self.emulator_thread: threading.Thread | None = None
+        self.background_simulation: subprocess.Popen[bytes] | None = None
+        self.background_target_digits = 0
         self.frame_version = 0
         self._last_frame_digest = ""
         self._lock = threading.Lock()
@@ -120,6 +128,51 @@ class ReviewWebApp:
                     self.rom_path.unlink(missing_ok=True)
                     raise
                 self.start_emulator_thread()
+
+    def start_background_simulation(self, target_digits: int, checkpoint_interval_digits: int) -> int:
+        target_digits = max(0, int(target_digits))
+        checkpoint_interval_digits = max(self.digits_per_input, int(checkpoint_interval_digits))
+        if checkpoint_interval_digits % self.digits_per_input:
+            checkpoint_interval_digits -= checkpoint_interval_digits % self.digits_per_input
+        if target_digits % self.digits_per_input:
+            target_digits -= target_digits % self.digits_per_input
+        with self._lock:
+            if self.background_simulation is not None and self.background_simulation.poll() is None:
+                return self.background_target_digits
+            command = [
+                sys.executable,
+                "scripts/run_pi_pyboy.py",
+                "--rom",
+                str(self.rom_path),
+                "--run-name",
+                self.run_name,
+                "--digits",
+                str(self.digits_path),
+                "--config",
+                str(self.config_path),
+                "--checkpoint-digits",
+                str(checkpoint_interval_digits),
+                "--max-digits",
+                str(target_digits),
+            ]
+            self.background_simulation = subprocess.Popen(
+                command,
+                cwd=Path.cwd(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            self.background_target_digits = target_digits
+            return target_digits
+
+    def background_simulation_info(self) -> dict[str, object]:
+        process = self.background_simulation
+        if process is None:
+            return {"running": False, "target_digits": 0}
+        return {
+            "running": process.poll() is None,
+            "target_digits": self.background_target_digits,
+        }
 
     def refresh_available_digits(self) -> None:
         if self.session is None:
@@ -159,6 +212,7 @@ class ReviewWebApp:
                 "party": [],
                 "badges": [],
                 "checkpoints": checkpoints,
+                "background_simulation": self.background_simulation_info(),
             }
         self.refresh_available_digits()
         info = self.session.info()
@@ -183,6 +237,7 @@ class ReviewWebApp:
             "party": self.session.party(),
             "badges": self.session.badges(),
             "checkpoints": list_checkpoints(self.run_name),
+            "background_simulation": self.background_simulation_info(),
         }
 
     def frame_png(self) -> bytes:
@@ -248,7 +303,7 @@ def make_handler(app: ReviewWebApp):
                 app.session.request_fast_forward(int(body.get("digits", 1000)))
                 self._send_json({"ok": True})
             elif path == "/api/simulate":
-                target_digits = app.session.request_simulate(
+                target_digits = app.start_background_simulation(
                     int(body.get("target_digits", body.get("digits", 1000))),
                     int(body.get("checkpoint_interval_digits", 1_000_000)),
                 )
@@ -416,6 +471,8 @@ def main() -> None:
         input_config.digits_per_input,
         args.max_digits,
         args.rom,
+        args.digits,
+        args.config,
         create_session,
     )
     app.start_emulator_thread()
