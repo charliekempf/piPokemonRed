@@ -468,14 +468,34 @@ button:disabled {
 
 .party-member {
   display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 8px;
-  align-items: center;
-  padding: 8px;
   min-height: 48px;
   background: #30333c;
   border: 1px solid #454b58;
   border-radius: 6px;
+}
+
+.party-member.is-expanded {
+  border-color: #6f89af;
+}
+
+.party-toggle {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.party-toggle:hover {
+  background: #363a45;
 }
 
 .party-badge {
@@ -569,6 +589,48 @@ button:disabled {
 .party-status:not([data-status="ok"]) {
   border-color: #8d7352;
   color: #fff4b8;
+}
+
+.party-moves {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px 46px;
+  gap: 5px;
+}
+
+.party-member.is-expanded .party-moves {
+  display: grid;
+}
+
+.party-moves li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 5px 7px;
+  background: #262a33;
+  border: 1px solid #3d4350;
+  border-radius: 5px;
+  color: #d8dce6;
+  font-size: 12px;
+}
+
+.party-moves li span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.party-moves li span:last-child {
+  color: #fff4b8;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-weight: 700;
+}
+
+.party-moves li.empty {
+  grid-template-columns: 1fr;
+  color: #aeb4c0;
 }
 
 .party-empty {

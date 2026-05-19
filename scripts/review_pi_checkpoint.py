@@ -48,6 +48,174 @@ WARP_STATE_LABELS = {
     "blackout": "blackout",
     "scene_change": "scene change",
 }
+MOVE_NAMES = [
+    "-",
+    "Pound",
+    "Karate Chop",
+    "Double Slap",
+    "Comet Punch",
+    "Mega Punch",
+    "Pay Day",
+    "Fire Punch",
+    "Ice Punch",
+    "Thunder Punch",
+    "Scratch",
+    "Vice Grip",
+    "Guillotine",
+    "Razor Wind",
+    "Swords Dance",
+    "Cut",
+    "Gust",
+    "Wing Attack",
+    "Whirlwind",
+    "Fly",
+    "Bind",
+    "Slam",
+    "Vine Whip",
+    "Stomp",
+    "Double Kick",
+    "Mega Kick",
+    "Jump Kick",
+    "Rolling Kick",
+    "Sand Attack",
+    "Headbutt",
+    "Horn Attack",
+    "Fury Attack",
+    "Horn Drill",
+    "Tackle",
+    "Body Slam",
+    "Wrap",
+    "Take Down",
+    "Thrash",
+    "Double-Edge",
+    "Tail Whip",
+    "Poison Sting",
+    "Twineedle",
+    "Pin Missile",
+    "Leer",
+    "Bite",
+    "Growl",
+    "Roar",
+    "Sing",
+    "Supersonic",
+    "Sonic Boom",
+    "Disable",
+    "Acid",
+    "Ember",
+    "Flamethrower",
+    "Mist",
+    "Water Gun",
+    "Hydro Pump",
+    "Surf",
+    "Ice Beam",
+    "Blizzard",
+    "Psybeam",
+    "Bubble Beam",
+    "Aurora Beam",
+    "Hyper Beam",
+    "Peck",
+    "Drill Peck",
+    "Submission",
+    "Low Kick",
+    "Counter",
+    "Seismic Toss",
+    "Strength",
+    "Absorb",
+    "Mega Drain",
+    "Leech Seed",
+    "Growth",
+    "Razor Leaf",
+    "Solar Beam",
+    "Poison Powder",
+    "Stun Spore",
+    "Sleep Powder",
+    "Petal Dance",
+    "String Shot",
+    "Dragon Rage",
+    "Fire Spin",
+    "Thunder Shock",
+    "Thunderbolt",
+    "Thunder Wave",
+    "Thunder",
+    "Rock Throw",
+    "Earthquake",
+    "Fissure",
+    "Dig",
+    "Toxic",
+    "Confusion",
+    "Psychic",
+    "Hypnosis",
+    "Meditate",
+    "Agility",
+    "Quick Attack",
+    "Rage",
+    "Teleport",
+    "Night Shade",
+    "Mimic",
+    "Screech",
+    "Double Team",
+    "Recover",
+    "Harden",
+    "Minimize",
+    "Smokescreen",
+    "Confuse Ray",
+    "Withdraw",
+    "Defense Curl",
+    "Barrier",
+    "Light Screen",
+    "Haze",
+    "Reflect",
+    "Focus Energy",
+    "Bide",
+    "Metronome",
+    "Mirror Move",
+    "Self-Destruct",
+    "Egg Bomb",
+    "Lick",
+    "Smog",
+    "Sludge",
+    "Bone Club",
+    "Fire Blast",
+    "Waterfall",
+    "Clamp",
+    "Swift",
+    "Skull Bash",
+    "Spike Cannon",
+    "Constrict",
+    "Amnesia",
+    "Kinesis",
+    "Soft-Boiled",
+    "High Jump Kick",
+    "Glare",
+    "Dream Eater",
+    "Poison Gas",
+    "Barrage",
+    "Leech Life",
+    "Lovely Kiss",
+    "Sky Attack",
+    "Transform",
+    "Bubble",
+    "Dizzy Punch",
+    "Spore",
+    "Flash",
+    "Psywave",
+    "Splash",
+    "Acid Armor",
+    "Crabhammer",
+    "Explosion",
+    "Fury Swipes",
+    "Bonemerang",
+    "Rest",
+    "Rock Slide",
+    "Hyper Fang",
+    "Sharpen",
+    "Conversion",
+    "Tri Attack",
+    "Super Fang",
+    "Slash",
+    "Substitute",
+    "Struggle",
+]
 SPECIES_NAMES = {
     0x01: "Rhydon",
     0x02: "Kangaskhan",
@@ -294,6 +462,12 @@ def current_map_id(pyboy: PyBoy) -> int:
     return int(pyboy.memory[CURRENT_MAP_ADDR])
 
 
+def move_name(move_id: int) -> str:
+    if 0 <= move_id < len(MOVE_NAMES):
+        return MOVE_NAMES[move_id]
+    return f"Move {move_id:03d}"
+
+
 def is_party_blackout(pyboy: PyBoy) -> bool:
     count = int(pyboy.memory[PARTY_COUNT_ADDR])
     if count <= 0 or count > PARTY_SIZE:
@@ -507,7 +681,7 @@ class ReviewSession:
                 "last_simulation": self._last_simulation or {},
             }
 
-    def party(self) -> list[dict[str, int | str]]:
+    def party(self) -> list[dict[str, object]]:
         with self._lock:
             count = int(self.pyboy.memory[PARTY_COUNT_ADDR])
             if count < 0 or count > PARTY_SIZE:
@@ -525,6 +699,20 @@ class ReviewSession:
                 current_hp = read_u16_be(self.pyboy, mon_addr + 1)
                 max_hp = read_u16_be(self.pyboy, mon_addr + 34)
                 status = int(self.pyboy.memory[mon_addr + 4])
+                moves = []
+                for move_index in range(4):
+                    move_id = int(self.pyboy.memory[mon_addr + 8 + move_index])
+                    pp_byte = int(self.pyboy.memory[mon_addr + 29 + move_index])
+                    if move_id == 0:
+                        continue
+                    moves.append(
+                        {
+                            "slot": move_index + 1,
+                            "id": move_id,
+                            "name": move_name(move_id),
+                            "pp": pp_byte & 0x3F,
+                        }
+                    )
                 members.append(
                     {
                         "slot": index + 1,
@@ -535,6 +723,7 @@ class ReviewSession:
                         "hp": current_hp,
                         "max_hp": max_hp,
                         "status": status_label(status),
+                        "moves": moves,
                     }
                 )
             return members

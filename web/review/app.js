@@ -31,6 +31,7 @@ const FRAME_BYTES = FRAME_WIDTH * FRAME_HEIGHT * 4;
 let frameFetchInFlight = false;
 let controlsInitialized = false;
 let backendBusy = false;
+const expandedPartySlots = new Set();
 
 function speedFromSlider() {
   return Math.max(1, Math.min(1000, Math.round(10 ** Number(speedEl.value))));
@@ -256,6 +257,7 @@ function renderParty(members) {
   partyEl.replaceChildren(
     ...members.map((member) => {
       const row = document.createElement("li");
+      const header = document.createElement("button");
       const badge = document.createElement("span");
       const body = document.createElement("div");
       const top = document.createElement("div");
@@ -267,11 +269,15 @@ function renderParty(members) {
       const hpBar = document.createElement("span");
       const hpText = document.createElement("span");
       const status = document.createElement("span");
+      const moves = document.createElement("ol");
       const hp = Math.max(0, Number(member.hp));
       const maxHp = Math.max(0, Number(member.max_hp));
       const hpPercent = maxHp > 0 ? Math.min(100, (hp / maxHp) * 100) : 0;
+      const isExpanded = expandedPartySlots.has(Number(member.slot));
 
       row.className = "party-member";
+      row.classList.toggle("is-expanded", isExpanded);
+      header.className = "party-toggle";
       badge.className = "party-badge";
       body.className = "party-body";
       top.className = "party-top";
@@ -281,7 +287,19 @@ function renderParty(members) {
       hpBar.className = "hp-bar";
       hpText.className = "hp-text";
       status.className = "party-status";
+      moves.className = "party-moves";
 
+      header.type = "button";
+      header.setAttribute("aria-expanded", String(isExpanded));
+      header.addEventListener("click", () => {
+        const slot = Number(member.slot);
+        if (expandedPartySlots.has(slot)) {
+          expandedPartySlots.delete(slot);
+        } else {
+          expandedPartySlots.add(slot);
+        }
+        renderParty(members);
+      });
       badge.textContent = String(member.slot);
       name.textContent = member.name || `MON ${member.species}`;
       speciesName.textContent = member.species_name || `Species ${member.species}`;
@@ -295,7 +313,25 @@ function renderParty(members) {
       top.append(name, level);
       lower.append(hpWrap, hpText, status);
       body.append(top, speciesName, lower);
-      row.append(badge, body);
+      header.append(badge, body);
+      moves.replaceChildren(
+        ...(member.moves || []).map((move) => {
+          const moveRow = document.createElement("li");
+          const moveName = document.createElement("span");
+          const pp = document.createElement("span");
+          moveName.textContent = move.name || `Move ${move.id}`;
+          pp.textContent = `PP ${fmt(move.pp)}`;
+          moveRow.append(moveName, pp);
+          return moveRow;
+        }),
+      );
+      if (!moves.children.length) {
+        const emptyMove = document.createElement("li");
+        emptyMove.className = "empty";
+        emptyMove.textContent = "No moves";
+        moves.append(emptyMove);
+      }
+      row.append(header, moves);
       return row;
     }),
   );
