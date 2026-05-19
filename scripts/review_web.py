@@ -67,11 +67,12 @@ class ReviewWebApp:
 
     def state(self) -> dict[str, object]:
         info = self.session.info()
-        image = self.session.frame_image()
-        frame_digest = hashlib.blake2s(image.tobytes(), digest_size=8).hexdigest() if image else ""
-        if frame_digest != self._last_frame_digest:
-            self.frame_version += 1
-            self._last_frame_digest = frame_digest
+        if not str(info["status"]).startswith("fast forwarding"):
+            image = self.session.frame_image()
+            frame_digest = hashlib.blake2s(image.tobytes(), digest_size=8).hexdigest() if image else ""
+            if frame_digest != self._last_frame_digest:
+                self.frame_version += 1
+                self._last_frame_digest = frame_digest
         return {
             **info,
             "frame_version": self.frame_version,
@@ -216,6 +217,7 @@ def main() -> None:
         sound_volume=args.sound_volume,
         audio_sink=AudioSink(args.sound_sample_rate),
         initial_image=initial_image,
+        rom_path=args.rom,
     )
     session.set_speed(args.speed)
     if args.start_running:

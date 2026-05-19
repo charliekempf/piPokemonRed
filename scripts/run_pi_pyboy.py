@@ -48,6 +48,33 @@ def button_for_pair(value: int) -> str:
     return "start"
 
 
+def advance_pi_inputs(
+    pyboy: PyBoy,
+    digits: str,
+    start_digits: int,
+    target_digits: int,
+    hold_frames: int,
+    release_frames: int,
+    render_final: bool = False,
+) -> tuple[int, int, str]:
+    digits_consumed = start_digits
+    inputs_sent = 0
+    last_button = "-"
+    while digits_consumed < target_digits:
+        pair = int(digits[digits_consumed : digits_consumed + 2])
+        button = button_for_pair(pair)
+        finishing = digits_consumed + 2 >= target_digits
+        pyboy.button_press(button)
+        pyboy.tick(hold_frames, False, False)
+        pyboy.button_release(button)
+        if release_frames:
+            pyboy.tick(release_frames, render_final and finishing, False)
+        digits_consumed += 2
+        inputs_sent += 1
+        last_button = button
+    return digits_consumed, inputs_sent, last_button
+
+
 def latest_checkpoint(checkpoint_dir: Path) -> tuple[int, Path] | None:
     pattern = re.compile(r"checkpoint_(\d{8})_digits\.state$")
     candidates: list[tuple[int, Path]] = []
@@ -157,15 +184,16 @@ def main() -> None:
 
     try:
         while digits_consumed < max_digits:
-            pair = int(digits[digits_consumed : digits_consumed + 2])
-            button = button_for_pair(pair)
-            pyboy.button_press(button)
-            pyboy.tick(args.hold_frames, False)
-            pyboy.button_release(button)
-            if args.release_frames:
-                pyboy.tick(args.release_frames, False)
-            digits_consumed += 2
-            frames_elapsed += frames_per_input
+            chunk_target = min(next_checkpoint, max_digits)
+            digits_consumed, inputs_sent, _ = advance_pi_inputs(
+                pyboy,
+                digits,
+                digits_consumed,
+                chunk_target,
+                args.hold_frames,
+                args.release_frames,
+            )
+            frames_elapsed += inputs_sent * frames_per_input
 
             if digits_consumed >= next_checkpoint:
                 last_state = save_checkpoint(

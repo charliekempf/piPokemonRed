@@ -47,7 +47,8 @@ Current reviewer UI behavior:
 - The right-hand `Next` panel shows upcoming pi digit pairs and buttons; if no pairs remain, it shows `Out of digits` / `Download more`.
 - The transport controls are `Pause/Resume`, `<<`, a digit-distance dropdown, and `>>`.
 - `<<` rewinds by the selected digit count using in-memory savestate snapshots.
-- `>>` fast-forwards by the selected digit count using the real pi-derived input stream, disables audio/intermediate video rendering in the backend, stops browser frame requests, darkens the emulator frame, shows a buffering spinner, then pauses at an input boundary.
+- `>>` fast-forwards by the selected digit count by transferring the current state into a separate headless PyBoy backend simulator with sound/rendering disabled, running the real pi-derived input stream there, loading the resulting state back into the reviewer, darkening the emulator frame with a buffering spinner, then pausing at an input boundary.
+- After backend fast-forward, automatic in-memory snapshot capture is disabled for that review session because PyBoy can hang when saving reviewer snapshots after loading the backend-simulated state.
 - Checkpoint and rewind frame displays use a one-frame render/restore path so the screen is populated after loading state.
 
 ## Git Workflow

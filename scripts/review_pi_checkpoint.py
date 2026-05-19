@@ -16,7 +16,7 @@ import sdl2
 from PIL import Image, ImageTk
 from pyboy import PyBoy
 
-from run_pi_pyboy import PI_DIGITS, ROM, RUN_NAME, button_for_pair, latest_checkpoint
+from run_pi_pyboy import PI_DIGITS, ROM, RUN_NAME, advance_pi_inputs, button_for_pair, latest_checkpoint
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d{8})_digits\.state$")
@@ -75,8 +75,10 @@ class ReviewSession:
         sound_volume: int,
         audio_sink: AudioSink | None,
         initial_image: Image.Image | None = None,
+        rom_path: Path | None = None,
     ) -> None:
         self.pyboy = pyboy
+        self.rom_path = rom_path
         self.digits = digits
         self.digits_consumed = digits_consumed
         self.max_digits = max_digits
@@ -102,6 +104,7 @@ class ReviewSession:
         self._lock = threading.Lock()
         self._rewind_digits_requested = 0
         self._fast_forward_target_digits: int | None = None
+        self._auto_snapshots_enabled = True
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._take_snapshot()
         if self.latest_image is None:
@@ -211,6 +214,10 @@ class ReviewSession:
                     time.sleep(1 / 30)
                     continue
 
+                if fast_forward_target is not None:
+                    self._fast_forward_with_backend(fast_forward_target)
+                    continue
+
                 will_finish_fast_forward = (
                     fast_forward_target is not None
                     and self.digits_consumed + 2 >= fast_forward_target
@@ -233,7 +240,10 @@ class ReviewSession:
                         self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
                         self._next_frame_time = time.perf_counter()
 
-                if self.digits_consumed - self._last_snapshot_digits >= self.rewind_interval_digits:
+                if (
+                    self._auto_snapshots_enabled
+                    and self.digits_consumed - self._last_snapshot_digits >= self.rewind_interval_digits
+                ):
                     self._take_snapshot()
         finally:
             if self.audio_sink:
@@ -251,6 +261,56 @@ class ReviewSession:
             if render_frame:
                 self._capture_frame()
             self._limit_frame_rate()
+
+    def _fast_forward_with_backend(self, target_digits: int) -> None:
+        with self._lock:
+            start_digits = self.digits_consumed
+            if self.paused or self.pause_requested or self._fast_forward_target_digits is None:
+                return
+            state_buffer = io.BytesIO()
+            self.pyboy.save_state(state_buffer)
+
+        target_digits = min(target_digits, self.max_digits)
+        state_buffer.seek(0)
+        simulator = PyBoy(
+            str(self.rom_path or ROM),
+            window="null",
+            sound_emulated=False,
+            no_input=False,
+            ram_file=io.BytesIO(bytes(32768)),
+            log_level="CRITICAL",
+        )
+        simulator.set_emulation_speed(0)
+        try:
+            simulator.load_state(state_buffer)
+            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+                simulator,
+                self.digits,
+                start_digits,
+                target_digits,
+                self.hold_frames,
+                self.release_frames,
+            )
+            final_state = io.BytesIO()
+            simulator.save_state(final_state)
+        finally:
+            simulator.stop()
+
+        final_state.seek(0)
+        self.pyboy.load_state(final_state)
+        image = render_loaded_state(self.pyboy)
+        with self._lock:
+            self.digits_consumed = digits_consumed
+            self.frames_elapsed += inputs_sent * self.frames_per_input
+            self.inputs_sent += inputs_sent
+            self.last_button = last_button
+            self.paused = True
+            self._fast_forward_target_digits = None
+            self.pyboy.set_emulation_speed(self.speed)
+            self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
+            self._next_frame_time = time.perf_counter()
+            self.latest_image = image
+            self._auto_snapshots_enabled = False
 
     def _limit_frame_rate(self) -> None:
         with self._lock:
@@ -284,17 +344,31 @@ class ReviewSession:
     def _rewind(self, digits: int) -> None:
         with self._lock:
             target = max(0, self.digits_consumed - digits)
+            if target % 2:
+                target -= 1
             candidates = [snapshot for snapshot in self.snapshots if snapshot.digits_consumed <= target]
             snapshot = candidates[-1] if candidates else self.snapshots[0]
             self.pyboy.load_state(io.BytesIO(snapshot.state))
-            self.digits_consumed = snapshot.digits_consumed
-            self.frames_elapsed = snapshot.frames_elapsed
-            self.status = f"rewound to {snapshot.digits_consumed:,} digits"
+            snapshot_digits = snapshot.digits_consumed
+            snapshot_frames = snapshot.frames_elapsed
             self._last_snapshot_digits = snapshot.digits_consumed
             self._fast_forward_target_digits = None
             self.pyboy.set_emulation_speed(self.speed)
+        digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+            self.pyboy,
+            self.digits,
+            snapshot_digits,
+            target,
+            self.hold_frames,
+            self.release_frames,
+        )
         image = render_loaded_state(self.pyboy)
         with self._lock:
+            self.digits_consumed = digits_consumed
+            self.frames_elapsed = snapshot_frames + inputs_sent * self.frames_per_input
+            if inputs_sent:
+                self.last_button = last_button
+            self.status = f"rewound to {digits_consumed:,} digits"
             self.latest_image = image
 
     def _capture_frame(self) -> None:
@@ -528,6 +602,7 @@ def main() -> None:
         sound_volume=args.sound_volume,
         audio_sink=AudioSink(args.sound_sample_rate),
         initial_image=initial_image,
+        rom_path=args.rom,
     )
     session.set_speed(args.speed)
     if args.start_running:
