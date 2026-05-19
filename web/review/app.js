@@ -752,10 +752,15 @@ function renderPlayerInfo(info = {}) {
   const hours = Number(time.hours) || 0;
   const minutes = Number(time.minutes) || 0;
   const seconds = Number(time.seconds) || 0;
+  const totalSeconds = Number.isFinite(Number(time.total_seconds))
+    ? Number(time.total_seconds)
+    : (hours * 3600) + (minutes * 60) + seconds;
+  const days = totalSeconds / 86400;
+  const dayLabel = days >= 10 ? days.toFixed(1) : days.toFixed(2);
   const rows = [
     ["Money", `$${fmt(info.money || 0)}`],
     ["Pokedex", `${fmt(info.pokedex_seen || 0)} seen / ${fmt(info.pokedex_caught || 0)} caught`],
-    ["Time", `${fmt(hours)}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`],
+    ["Time", `${fmt(hours)}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")} [${dayLabel} days]`],
   ];
   playerInfoEl.replaceChildren(
     ...rows.flatMap(([label, value]) => {
