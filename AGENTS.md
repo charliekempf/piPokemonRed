@@ -9,6 +9,7 @@ Current core approach:
 - Use PyBoy for the main simulator and checkpoint reviewer.
 - Use a legally obtained local Pokemon Red ROM in `roms/`; the ROM is ignored and must never be committed.
 - Use local pi digit text files in `data/`; these are ignored and must not be committed.
+- The active public/review run is `pi_10m_two_digit`; older `pi_1m_hold2_release1` and `smoke_hold2_release1` generated runs were removed locally.
 - Current input mapping consumes two decimal digits at a time:
   - `00-53` -> A
   - `54-63` -> Up
@@ -19,11 +20,13 @@ Current core approach:
   - `99` -> Start
 - Current verified timing is hold button for 2 frames, then release for 1 frame. One-frame taps were tested and often did not affect Pokemon Red gameplay.
 - Current verified run is `pi_10m_two_digit`: first 10,000,000 digits, checkpoints/screenshots every 1,000,000 digits.
+- Highest digit reached for README/status purposes is 10,000,000 digits consumed in `pi_10m_two_digit`.
+- The current web reviewer normally starts from the latest playable checkpoint, which is 9,000,000/10,000,000 for the local 10M run.
 
 Important scripts:
 
 - `scripts/run_pi_pyboy.py` runs the headless deterministic simulation and writes savestates/screenshots/progress.
-- `scripts/review_web.py` runs the local web reviewer with speed control, digit-based rewind, and an upcoming-input preview.
+- `scripts/review_web.py` runs the local web reviewer with WebGL canvas rendering, speed control, digit-based rewind/fast-forward, and an upcoming-input preview.
 - `scripts/review_pi_checkpoint.py` is the older Tk-based reviewer kept for reference.
 - `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh web reviewer.
 - `scripts/tally_tas_buttons.py` parses BizHawk `.bk2` TAS files to tally button usage.
@@ -36,6 +39,17 @@ py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digi
 .\scripts\open_review.ps1
 ```
 
+Current reviewer UI behavior:
+
+- The browser UI is served locally, usually at `http://127.0.0.1:8765/`.
+- The screen is a WebGL-backed canvas fed by raw RGBA frames from `scripts/review_web.py`; Canvas 2D is the fallback.
+- The status under the emulator is a stat-card grid, not a pipe-separated status line.
+- The right-hand `Next` panel shows upcoming pi digit pairs and buttons; if no pairs remain, it shows `Out of digits` / `Download more`.
+- The transport controls are `Pause/Resume`, `<<`, a digit-distance dropdown, and `>>`.
+- `<<` rewinds by the selected digit count using in-memory savestate snapshots.
+- `>>` fast-forwards by the selected digit count using the real pi-derived input stream, disables audio/intermediate video rendering in the backend, stops browser frame requests, darkens the emulator frame, shows a buffering spinner, then pauses at an input boundary.
+- Checkpoint and rewind frame displays use a one-frame render/restore path so the screen is populated after loading state.
+
 ## Git Workflow
 
 - Make frequent local git commits while working.
@@ -44,6 +58,7 @@ py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digi
 - Before committing, run the most relevant quick verification for the change.
 - Check `git status --short --ignored` before committing so generated files and local assets do not slip in.
 - Do not commit ROMs, saves, downloaded TAS files, generated benchmark results, build outputs, or local tool binaries.
+- Do not commit `data/`, `saves/`, `results/`, `roms/`, `tas/`, or `tools/` contents except tracked `.gitkeep` placeholders and explicitly approved docs assets.
 - Prefer committing reusable source, scripts, documentation, and tracked placeholders for ignored workspace folders.
 - Never rewrite or discard user changes unless explicitly asked.
 
@@ -63,5 +78,6 @@ py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digi
 - Prefer the web reviewer (`scripts/review_web.py`) for UI work.
 - Do not update `docs/review-player.png` or other README screenshots unless Charlie explicitly asks for a screenshot update.
 - The launcher uses the full local pi digit file by default; pass `-MaxDigits <n>` only when a capped review is wanted.
+- The launcher default run is `pi_10m_two_digit`; do not switch it back to removed old runs.
 - Before opening a reviewer, close any older running reviewer process.
 - Only target processes whose command line includes `review_web.py` or `review_pi_checkpoint.py`; do not stop unrelated Python processes.
