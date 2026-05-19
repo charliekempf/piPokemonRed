@@ -198,6 +198,34 @@ def running_chart_target(run_name: str) -> int:
     return max(targets, default=0)
 
 
+def stop_running_chart_processes(run_name: str) -> int:
+    if sys.platform != "win32":
+        return 0
+    try:
+        command = (
+            "$stopped = 0; "
+            "Get-CimInstance Win32_Process | "
+            "Where-Object { ($_.Name -in @('py.exe','python.exe','pythonw.exe')) -and "
+            "($_.CommandLine -match 'run_pi_pyboy\\.py') } | "
+            f"Where-Object {{ $_.CommandLine -match '--run-name\\s+{re.escape(run_name)}(\\s|$)' }} | "
+            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $stopped++ }; "
+            "Write-Output $stopped"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", command],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    try:
+        return int((result.stdout.strip().splitlines() or ["0"])[-1])
+    except ValueError:
+        return 0
+
+
 class ReviewWebApp:
     def __init__(
         self,
@@ -323,6 +351,25 @@ class ReviewWebApp:
             )
             self.chart_target_digits = target_digits
             return target_digits
+
+    def stop_chart_simulation(self) -> int:
+        stopped = 0
+        with self._lock:
+            process = self.chart_simulation
+            self.chart_simulation = None
+            self.chart_target_digits = 0
+
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+            stopped += 1
+
+        stopped += stop_running_chart_processes(self.run_name)
+        return stopped
 
     def chart_simulation_info(self) -> dict[str, object]:
         process = self.chart_simulation
@@ -494,6 +541,11 @@ def make_handler(app: ReviewWebApp):
                     self._send_json({"ok": True, "run_name": app.run_name})
                 except Exception as error:
                     self._send_json({"ok": False, "error": str(error)})
+                return
+
+            if path == "/api/stop-simulate":
+                stopped = app.stop_chart_simulation()
+                self._send_json({"ok": True, "stopped": stopped})
                 return
 
             if app.session is None:

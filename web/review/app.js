@@ -27,6 +27,7 @@ const warpStateButton = document.querySelector("#warp-state-button");
 const simulateCheckpointIntervalEl = document.querySelector("#simulate-checkpoint-interval");
 const simulateTargetDigitsEl = document.querySelector("#simulate-target-digits");
 const simulateButton = document.querySelector("#simulate-button");
+const stopSimulateButton = document.querySelector("#stop-simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
 const simulateStateEl = document.querySelector("#simulate-state");
 const simulateProgressEl = document.querySelector("#simulate-progress");
@@ -380,6 +381,12 @@ simulateButton.addEventListener("click", () => {
     target_digits: targetDigits,
     checkpoint_interval_digits: Number(simulateCheckpointIntervalEl.value),
   });
+});
+
+stopSimulateButton.addEventListener("click", () => {
+  stopSimulateButton.disabled = true;
+  setSimulatorStats({ state: "Stopping" });
+  post("/api/stop-simulate");
 });
 
 badgesToggleEl.addEventListener("click", () => {
@@ -1007,6 +1014,7 @@ function renderStats(state) {
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
+  stopSimulateButton.disabled = true;
   runSelectEl.disabled = backendBusy || !(state.runs || []).length;
   if (romMissing) {
     jumpButton.disabled = true;
@@ -1015,6 +1023,7 @@ function renderStats(state) {
   }
   if (state.chart_simulation && state.chart_simulation.running) {
     const chart = state.chart_simulation;
+    stopSimulateButton.disabled = false;
     setSimulatorStats({
       state: "Charting",
       progress: `${fmt(chart.digits_consumed || 0)} / ${fmt(chart.target_digits)}`,

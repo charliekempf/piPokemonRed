@@ -603,7 +603,7 @@ input[type="range"] {
 
 .simulator-actions {
   display: grid;
-  grid-template-columns: minmax(132px, 150px) minmax(150px, 180px) 118px;
+  grid-template-columns: minmax(132px, 150px) minmax(150px, 180px) 92px 72px;
   gap: 8px;
   align-items: center;
 }
@@ -640,7 +640,8 @@ input[type="range"] {
   grid-template-columns: 1fr;
 }
 
-.checkpoint-panel .simulator-actions .primary-control {
+.checkpoint-panel .simulator-actions .primary-control,
+.checkpoint-panel .simulator-actions .danger-control {
   width: 100%;
 }
 
@@ -663,6 +664,12 @@ select {
 
 .primary-control {
   min-width: 118px;
+}
+
+.danger-control {
+  min-width: 72px;
+  border-color: #8b5a62;
+  background: #4a3438;
 }
 
 button:hover,
