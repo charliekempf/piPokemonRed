@@ -966,6 +966,7 @@ class AudioSink:
     def __init__(self, sample_rate: int) -> None:
         self.device = 0
         self.max_queued_bytes = max(4096, int(sample_rate * 2 * 0.18))
+        self._audio_chunk_credit = 0.0
         if sdl2.SDL_InitSubSystem(sdl2.SDL_INIT_AUDIO) != 0:
             return
 
@@ -983,8 +984,7 @@ class AudioSink:
         if head <= 0:
             return
 
-        data = bytes(pyboy.sound.raw_buffer[:head])
-        data = self._scale_playback_speed(data, playback_speed)
+        data = self._sync_playback_speed(bytes(pyboy.sound.raw_buffer[:head]), playback_speed)
         if not data:
             return
         if volume < 100:
@@ -994,24 +994,18 @@ class AudioSink:
             sdl2.SDL_ClearQueuedAudio(self.device)
         sdl2.SDL_QueueAudio(self.device, data, len(data))
 
-    def _scale_playback_speed(self, data: bytes, playback_speed: float) -> bytes:
+    def _sync_playback_speed(self, data: bytes, playback_speed: float) -> bytes:
         speed = max(0.1, min(1000.0, float(playback_speed or 1.0)))
         if 0.995 <= speed <= 1.005:
+            self._audio_chunk_credit = 0.0
             return data
 
-        frame_count = len(data) // 2
-        if frame_count <= 0:
+        self._audio_chunk_credit += 1 / speed
+        chunk_count = int(self._audio_chunk_credit)
+        if chunk_count <= 0:
             return b""
-
-        output_count = max(1, int(round(frame_count / speed)))
-        output = bytearray(output_count * 2)
-        for output_index in range(output_count):
-            source_index = min(frame_count - 1, int(output_index * speed))
-            source_offset = source_index * 2
-            output_offset = output_index * 2
-            output[output_offset] = data[source_offset]
-            output[output_offset + 1] = data[source_offset + 1]
-        return bytes(output)
+        self._audio_chunk_credit -= chunk_count
+        return data * min(chunk_count, 12)
 
     def close(self) -> None:
         if self.device:
