@@ -331,7 +331,21 @@ function fmtRate(value) {
   if (!Number.isFinite(rate)) {
     return "-";
   }
-  return `${fmt(Math.round(rate))}/s`;
+  return `${fmt(Math.round(rate))} digits/s`;
+}
+
+function fmtDuration(seconds) {
+  const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${String(secs).padStart(2, "0")}s`;
+  }
+  return `${secs}s`;
 }
 
 function renderInputs(items) {
@@ -694,8 +708,16 @@ function renderStats(state) {
     simulateButton.disabled = true;
   }
   if (state.chart_simulation && state.chart_simulation.running) {
-    simulateStatusEl.textContent = `charting to ${fmt(state.chart_simulation.target_digits)} digits`;
-    simulateStatusEl.title = "Running in a separate headless process from review jumps";
+    const chart = state.chart_simulation;
+    const parts = [`${fmt(chart.digits_consumed || 0)} / ${fmt(chart.target_digits)} digits`];
+    if (Number(chart.digits_per_second) > 0) {
+      parts.push(fmtRate(chart.digits_per_second));
+      parts.push(`ETA ${fmtDuration(chart.eta_seconds)}`);
+    } else {
+      parts.push("warming up");
+    }
+    simulateStatusEl.textContent = parts.join(", ");
+    simulateStatusEl.title = chart.last_state || "Running in a separate headless process from review jumps";
   } else if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;
     simulateStatusEl.title = "";

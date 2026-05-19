@@ -169,9 +169,24 @@ class ReviewWebApp:
         process = self.chart_simulation
         if process is None:
             return {"running": False, "target_digits": 0}
+        progress: dict[str, object] = {}
+        progress_path = Path("results") / self.run_name / "progress.json"
+        if progress_path.exists():
+            try:
+                progress = json.loads(progress_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                progress = {}
+        digits_consumed = int(progress.get("digits_consumed", 0) or 0)
+        digits_per_second = float(progress.get("effective_fps", 0) or 0)
+        remaining_digits = max(0, self.chart_target_digits - digits_consumed)
+        eta_seconds = remaining_digits / digits_per_second if digits_per_second > 0 else None
         return {
             "running": process.poll() is None,
             "target_digits": self.chart_target_digits,
+            "digits_consumed": digits_consumed,
+            "digits_per_second": digits_per_second,
+            "eta_seconds": eta_seconds,
+            "last_state": progress.get("last_state", ""),
         }
 
     def refresh_available_digits(self) -> None:
