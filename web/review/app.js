@@ -32,6 +32,9 @@ const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
 const partyEl = document.querySelector("#party");
+const badgesPanelEl = document.querySelector("#badges-panel");
+const badgesToggleEl = document.querySelector("#badges-toggle");
+const badgesCountEl = document.querySelector("#badges-count");
 const badgesEl = document.querySelector("#badges");
 const inputsEl = document.querySelector("#inputs");
 
@@ -48,6 +51,7 @@ let selectedCheckpointDigits = null;
 let checkpointListSignature = "";
 let partyRenderSignature = "";
 let lastPartyMembers = [];
+let badgesExpanded = false;
 const expandedPartySlots = new Set();
 
 function speedSliderIsUnlimited() {
@@ -287,6 +291,12 @@ simulateButton.addEventListener("click", () => {
   });
 });
 
+badgesToggleEl.addEventListener("click", () => {
+  badgesExpanded = !badgesExpanded;
+  badgesPanelEl.classList.toggle("is-collapsed", !badgesExpanded);
+  badgesToggleEl.setAttribute("aria-expanded", String(badgesExpanded));
+});
+
 loadCheckpointButton.addEventListener("click", () => {
   if (selectedCheckpointDigits === null) {
     return;
@@ -445,6 +455,10 @@ function renderParty(members) {
 }
 
 function renderBadges(badges) {
+  const earnedCount = badges.filter((badge) => Boolean(badge.earned)).length;
+  const totalCount = badges.length || 8;
+  badgesCountEl.textContent = `${earnedCount} / ${totalCount}`;
+
   if (!badges.length) {
     const row = document.createElement("li");
     row.className = "badge-empty";
