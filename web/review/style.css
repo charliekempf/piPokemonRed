@@ -521,9 +521,10 @@ input[type="range"] {
 }
 
 .jump-control label {
-  color: #aeb4c0;
-  font-size: 12px;
-  font-weight: 700;
+  color: #f3f1e8;
+  font-family: Arial, sans-serif;
+  font-size: 13.3333px;
+  font-weight: 400;
   white-space: nowrap;
 }
 
