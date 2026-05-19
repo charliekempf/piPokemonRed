@@ -154,7 +154,7 @@ body {
 #pause[data-state^="fast-forwarding"],
 #pause[data-state^="simulating"],
 #pause[data-state^="jumping"],
-#pause[data-state^="finding-next-battle"],
+#pause[data-state^="finding-next"],
 #pause[data-state="pause-pending"] {
   border-color: #7a6ca7;
   background: #3e3755;
@@ -283,8 +283,11 @@ select {
   min-width: 118px;
 }
 
-.wide-control {
-  width: 100%;
+.warp-actions {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  gap: 8px;
+  align-items: center;
   margin-top: 8px;
 }
 

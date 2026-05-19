@@ -87,7 +87,7 @@ class ReviewWebApp:
             status.startswith("fast forwarding")
             or status.startswith("simulating")
             or status.startswith("jumping")
-            or status.startswith("finding next battle")
+            or status.startswith("finding next")
         ):
             image = self.session.frame_image()
             frame_digest = hashlib.blake2s(image.tobytes(), digest_size=8).hexdigest() if image else ""
@@ -157,8 +157,12 @@ def make_handler(app: ReviewWebApp):
                 self._send_json({"ok": True, "digits": rounded_digits})
             elif path == "/api/next-battle":
                 app.refresh_available_digits()
-                app.session.request_next_battle()
+                app.session.request_warp_state("battle")
                 self._send_json({"ok": True})
+            elif path == "/api/warp-state":
+                app.refresh_available_digits()
+                target_state = app.session.request_warp_state(str(body.get("state", "battle")))
+                self._send_json({"ok": True, "state": target_state})
             else:
                 self.send_error(404)
 

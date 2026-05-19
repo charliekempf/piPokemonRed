@@ -131,6 +131,17 @@ def is_in_battle(pyboy: PyBoy) -> bool:
     return int(pyboy.memory[BATTLE_FLAG_ADDR]) != 0
 
 
+def is_party_blackout(pyboy: PyBoy) -> bool:
+    count = int(pyboy.memory[PARTY_COUNT_ADDR])
+    if count <= 0 or count > PARTY_SIZE:
+        return False
+    for index in range(count):
+        mon_addr = PARTY_MONS_ADDR + (index * PARTY_MON_SIZE)
+        if read_u16_be(pyboy, mon_addr + 1) > 0:
+            return False
+    return True
+
+
 class ReviewSession:
     def __init__(
         self,
@@ -182,7 +193,7 @@ class ReviewSession:
         self._fast_forward_target_digits: int | None = None
         self._simulate_target_digits: int | None = None
         self._jump_target_digits: int | None = None
-        self._next_battle_requested = False
+        self._warp_target_state: str | None = None
         self._simulation_started_at: float | None = None
         self._last_simulation: dict[str, int | float | str] | None = None
         self._auto_snapshots_enabled = True
@@ -198,7 +209,7 @@ class ReviewSession:
                 self._fast_forward_target_digits is None
                 and self._simulate_target_digits is None
                 and self._jump_target_digits is None
-                and not self._next_battle_requested
+                and self._warp_target_state is None
             ):
                 self.pyboy.set_emulation_speed(self.speed)
 
@@ -229,7 +240,7 @@ class ReviewSession:
                 self._fast_forward_target_digits = None
                 self._simulate_target_digits = None
                 self._jump_target_digits = None
-                self._next_battle_requested = False
+                self._warp_target_state = None
                 self.pyboy.set_emulation_speed(self.speed)
                 self.status = "pause pending"
 
@@ -239,7 +250,7 @@ class ReviewSession:
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
             self._jump_target_digits = None
-            self._next_battle_requested = False
+            self._warp_target_state = None
             self.pyboy.set_emulation_speed(self.speed)
 
     def request_fast_forward(self, digits: int) -> None:
@@ -254,7 +265,7 @@ class ReviewSession:
             self._fast_forward_target_digits = target
             self._simulate_target_digits = None
             self._jump_target_digits = None
-            self._next_battle_requested = False
+            self._warp_target_state = None
             self.pyboy.set_emulation_speed(0)
             self.paused = False
             self.pause_requested = False
@@ -275,7 +286,7 @@ class ReviewSession:
             self._simulation_started_at = time.perf_counter()
             self._fast_forward_target_digits = None
             self._jump_target_digits = None
-            self._next_battle_requested = False
+            self._warp_target_state = None
             self.paused = False
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
@@ -290,16 +301,19 @@ class ReviewSession:
             self._rewind_digits_requested = 0
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
-            self._next_battle_requested = False
+            self._warp_target_state = None
             self.paused = False
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
             self.status = f"jumping to {target:,} digits"
         return target
 
-    def request_next_battle(self) -> None:
+    def request_warp_state(self, target_state: str) -> str:
+        target_state = target_state.lower().strip()
+        if target_state not in {"battle", "blackout"}:
+            raise ValueError(f"Unsupported warp state: {target_state}")
         with self._lock:
-            self._next_battle_requested = True
+            self._warp_target_state = target_state
             self._rewind_digits_requested = 0
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
@@ -307,7 +321,8 @@ class ReviewSession:
             self.paused = False
             self.pause_requested = False
             self.pyboy.set_emulation_speed(0)
-            self.status = "finding next battle"
+            self.status = f"finding next {target_state}"
+        return target_state
 
     def stop(self) -> None:
         with self._lock:
@@ -372,7 +387,7 @@ class ReviewSession:
                     fast_forward_target = self._fast_forward_target_digits
                     simulate_target = self._simulate_target_digits
                     jump_target = self._jump_target_digits
-                    next_battle_requested = self._next_battle_requested
+                    warp_target_state = self._warp_target_state
 
                 if rewind_digits:
                     self._rewind(rewind_digits)
@@ -382,8 +397,8 @@ class ReviewSession:
                     self._jump_to(jump_target)
                     continue
 
-                if next_battle_requested:
-                    self._find_next_battle_with_backend()
+                if warp_target_state is not None:
+                    self._find_next_warp_state_with_backend(warp_target_state)
                     continue
 
                 if paused or pause_requested:
@@ -701,10 +716,10 @@ class ReviewSession:
             self.latest_image = image
             self._auto_snapshots_enabled = False
 
-    def _find_next_battle_with_backend(self) -> None:
+    def _find_next_warp_state_with_backend(self, target_state: str) -> None:
         with self._lock:
             start_digits = self.digits_consumed
-            if self.paused or self.pause_requested or not self._next_battle_requested:
+            if self.paused or self.pause_requested or self._warp_target_state is None:
                 return
             state_buffer = io.BytesIO()
             self.pyboy.save_state(state_buffer)
@@ -726,6 +741,7 @@ class ReviewSession:
         try:
             simulator.load_state(state_buffer)
             battle_seen = is_in_battle(simulator)
+            blackout_seen = is_party_blackout(simulator)
             while digits_consumed < self.max_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 button = button_for_value(value, self.input_config)
@@ -739,12 +755,21 @@ class ReviewSession:
                 last_button = button
 
                 in_battle = is_in_battle(simulator)
-                if battle_seen:
-                    if not in_battle:
-                        battle_seen = False
-                elif in_battle:
-                    found = True
-                    break
+                blackout = is_party_blackout(simulator)
+                if target_state == "battle":
+                    if battle_seen:
+                        if not in_battle:
+                            battle_seen = False
+                    elif in_battle:
+                        found = True
+                        break
+                else:
+                    if blackout_seen:
+                        if not blackout:
+                            blackout_seen = False
+                    elif blackout:
+                        found = True
+                        break
 
             final_state = io.BytesIO()
             if found:
@@ -755,9 +780,9 @@ class ReviewSession:
         if not found:
             with self._lock:
                 self.paused = True
-                self._next_battle_requested = False
+                self._warp_target_state = None
                 self.pyboy.set_emulation_speed(self.speed)
-                self.status = "no battle before limit"
+                self.status = f"no {target_state} before limit"
             return
 
         final_state.seek(0)
@@ -769,7 +794,7 @@ class ReviewSession:
             self.inputs_sent += inputs_sent
             self.last_button = last_button
             self.paused = True
-            self._next_battle_requested = False
+            self._warp_target_state = None
             self.pyboy.set_emulation_speed(self.speed)
             self.status = "paused"
             self._next_frame_time = time.perf_counter()

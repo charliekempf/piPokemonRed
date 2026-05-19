@@ -15,7 +15,8 @@ const rewindButton = document.querySelector("#rewind-button");
 const fastForwardButton = document.querySelector("#fast-forward-button");
 const jumpDigitsEl = document.querySelector("#jump-digits");
 const jumpButton = document.querySelector("#jump-button");
-const nextBattleButton = document.querySelector("#next-battle-button");
+const warpStateEl = document.querySelector("#warp-state");
+const warpStateButton = document.querySelector("#warp-state-button");
 const simulateEl = document.querySelector("#simulate-digits");
 const simulateButton = document.querySelector("#simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
@@ -193,8 +194,8 @@ jumpButton.addEventListener("click", () => {
   post("/api/jump", { digits });
 });
 
-nextBattleButton.addEventListener("click", () => {
-  post("/api/next-battle");
+warpStateButton.addEventListener("click", () => {
+  post("/api/warp-state", { state: warpStateEl.value });
 });
 
 simulateButton.addEventListener("click", () => {
@@ -321,8 +322,8 @@ function displayState(status) {
   if (value.startsWith("jumping")) {
     return "Jumping";
   }
-  if (value.startsWith("finding next battle")) {
-    return "Finding battle";
+  if (value.startsWith("finding next")) {
+    return value.replace("finding next ", "Finding ");
   }
   if (value.startsWith("rewound")) {
     return "Rewound";
@@ -338,7 +339,7 @@ function renderStats(state) {
   backendBusy = String(state.status).startsWith("fast forwarding")
     || String(state.status).startsWith("simulating")
     || String(state.status).startsWith("jumping")
-    || String(state.status).startsWith("finding next battle");
+    || String(state.status).startsWith("finding next");
   screenShellEl.classList.toggle("is-fast-forwarding", backendBusy);
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
   statProgressEl.style.width = `${progress}%`;
@@ -348,7 +349,7 @@ function renderStats(state) {
   statLastEl.textContent = String(state.last_button).toUpperCase();
 
   jumpButton.disabled = backendBusy;
-  nextBattleButton.disabled = backendBusy;
+  warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
   if (String(state.status).startsWith("simulating")) {
     simulateStatusEl.textContent = state.status;
