@@ -35,6 +35,8 @@ from run_pi_pyboy import (
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d+)_digits\.state$")
+REVIEW_CACHE_DIRNAME = "review_cache"
+REVIEW_CACHE_INTERVAL_DIGITS = 10_000
 PARTY_COUNT_ADDR = 0xD163
 PARTY_SPECIES_ADDR = 0xD164
 PARTY_MONS_ADDR = 0xD16B
@@ -1838,6 +1840,7 @@ class ReviewSession:
                     and self.digits_consumed - self._last_snapshot_digits >= self.rewind_interval_digits
                 ):
                     self._take_snapshot()
+                self._cache_review_checkpoint_if_needed(self.pyboy, self.digits_consumed)
         finally:
             if self.audio_sink:
                 self.audio_sink.close()
@@ -1875,13 +1878,40 @@ class ReviewSession:
     def _checkpoint_at_or_before(self, target_digits: int, minimum_digits: int = 0) -> tuple[int, Path] | None:
         checkpoint_dir = Path("saves") / self.run_name
         candidates: list[tuple[int, Path]] = []
-        for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
-            match = CHECKPOINT_RE.match(candidate.name)
-            if match:
-                digits_consumed = int(match.group(1))
-                if minimum_digits <= digits_consumed <= target_digits:
-                    candidates.append((digits_consumed, candidate))
-        return max(candidates) if candidates else None
+        cache_dir = checkpoint_dir / REVIEW_CACHE_DIRNAME
+        for source_dir in (checkpoint_dir, cache_dir):
+            for candidate in source_dir.glob("checkpoint_*_digits.state"):
+                match = CHECKPOINT_RE.match(candidate.name)
+                if match:
+                    digits_consumed = int(match.group(1))
+                    if minimum_digits <= digits_consumed <= target_digits:
+                        candidates.append((digits_consumed, candidate))
+        return max(candidates, key=lambda candidate: candidate[0]) if candidates else None
+
+    def _review_cache_dir(self) -> Path:
+        return Path("saves") / self.run_name / REVIEW_CACHE_DIRNAME
+
+    def _cache_review_checkpoint_if_needed(self, pyboy: PyBoy, digits_consumed: int) -> Path | None:
+        if digits_consumed <= 0 or digits_consumed % REVIEW_CACHE_INTERVAL_DIGITS:
+            return None
+
+        cache_dir = self._review_cache_dir()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = cache_dir / f"checkpoint_{digits_consumed}_digits.state"
+        if cache_path.exists():
+            return cache_path
+
+        temp_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+        with temp_path.open("wb") as state_file:
+            pyboy.save_state(state_file)
+        temp_path.replace(cache_path)
+        return cache_path
+
+    def _next_review_cache_boundary(self, digits_consumed: int) -> int:
+        next_boundary = ((digits_consumed // REVIEW_CACHE_INTERVAL_DIGITS) + 1) * REVIEW_CACHE_INTERVAL_DIGITS
+        if next_boundary % self.input_config.digits_per_input:
+            next_boundary += self.input_config.digits_per_input - (next_boundary % self.input_config.digits_per_input)
+        return next_boundary
 
     def _advance_with_seek_progress(
         self,
@@ -1896,7 +1926,8 @@ class ReviewSession:
         last_button = "-"
         self._update_seek(digits_consumed)
         while digits_consumed < target_digits:
-            chunk_target = min(target_digits, digits_consumed + chunk_digits)
+            next_cache_boundary = self._next_review_cache_boundary(digits_consumed)
+            chunk_target = min(target_digits, digits_consumed + chunk_digits, next_cache_boundary)
             digits_consumed, inputs_sent, last_button = advance_pi_inputs(
                 pyboy,
                 self.digits,
@@ -1907,6 +1938,7 @@ class ReviewSession:
                 input_config=self.input_config,
             )
             total_inputs += inputs_sent
+            self._cache_review_checkpoint_if_needed(pyboy, digits_consumed)
             self._update_seek(digits_consumed)
         return digits_consumed, total_inputs, last_button
 
