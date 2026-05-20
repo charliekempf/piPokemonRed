@@ -57,13 +57,13 @@ VIDEO_EXPORT_PRESETS = {
         "label": "AV1",
         "extension": ".mkv",
         "input_pix_fmt": "gray",
-        "ffmpeg_args": ["-c:v", "libaom-av1", "-pix_fmt", "gray"],
+        "ffmpeg_args": ["-c:v", "libaom-av1", "-usage", "realtime", "-pix_fmt", "gray"],
     },
     "av1_lossless": {
         "label": "AV1 lossless",
         "extension": ".mkv",
         "input_pix_fmt": "gray",
-        "ffmpeg_args": ["-c:v", "libaom-av1", "-crf", "0", "-b:v", "0", "-pix_fmt", "gray"],
+        "ffmpeg_args": ["-c:v", "libaom-av1", "-usage", "realtime", "-crf", "0", "-b:v", "0", "-pix_fmt", "gray"],
     },
     "ffv1": {
         "label": "FFV1",
