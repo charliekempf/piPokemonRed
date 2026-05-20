@@ -90,7 +90,7 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
                 "active": run_dir.name == active_run_name,
             }
         )
-    return sorted(runs, key=lambda run: (-int(run["highest_digits"]), str(run["name"])))
+    return sorted(runs, key=lambda run: (str(run["label"]).casefold(), str(run["name"]).casefold()))
 
 
 def config_info(config_path: Path) -> dict[str, object]:
