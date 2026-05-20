@@ -159,9 +159,9 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
         if not run_dir.is_dir():
             continue
         checkpoints = list_checkpoints(run_dir.name)
-        if not checkpoints:
-            continue
         config_path = run_dir / RUN_CONFIG_FILENAME
+        if not checkpoints and not config_path.exists():
+            continue
         label = run_dir.name
         config_available = config_path.exists()
         if config_available:
