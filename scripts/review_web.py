@@ -52,24 +52,35 @@ VIDEO_EXPORT_PRESETS = {
         "extension": ".mp4",
         "input_pix_fmt": "rgb24",
         "ffmpeg_args": [],
+        "audio_args": ["-c:a", "aac"],
     },
     "av1": {
         "label": "AV1",
         "extension": ".mkv",
         "input_pix_fmt": "gray",
         "ffmpeg_args": ["-c:v", "libaom-av1", "-usage", "realtime", "-pix_fmt", "gray"],
+        "audio_args": ["-c:a", "flac"],
     },
     "av1_lossless": {
         "label": "AV1 lossless",
         "extension": ".mkv",
         "input_pix_fmt": "gray",
         "ffmpeg_args": ["-c:v", "libaom-av1", "-usage", "realtime", "-crf", "0", "-b:v", "0", "-pix_fmt", "gray"],
+        "audio_args": ["-c:a", "flac"],
     },
     "ffv1": {
         "label": "FFV1",
         "extension": ".mkv",
         "input_pix_fmt": "gray",
         "ffmpeg_args": ["-c:v", "ffv1", "-level", "3", "-pix_fmt", "gray"],
+        "audio_args": ["-c:a", "flac"],
+    },
+    "prores": {
+        "label": "ProRes 422 HQ",
+        "extension": ".mov",
+        "input_pix_fmt": "rgb24",
+        "ffmpeg_args": ["-c:v", "prores_ks", "-profile:v", "3", "-pix_fmt", "yuv422p10le"],
+        "audio_args": ["-c:a", "pcm_s16le"],
     },
 }
 
@@ -459,7 +470,6 @@ def run_video_export(
             output_path=str(output_path),
             preset=preset_name,
         )
-        audio_codec_args = ["-c:a", "aac"] if output_path.suffix.lower() == ".mp4" else ["-c:a", "flac"]
         mux_command = [
             "ffmpeg",
             "-y",
@@ -475,7 +485,7 @@ def run_video_export(
             str(temp_audio_path),
             "-c:v",
             "copy",
-            *audio_codec_args,
+            *list(preset["audio_args"]),
             "-shortest",
             str(temp_output_path),
         ]
