@@ -586,8 +586,6 @@ def make_handler(app: ReviewWebApp):
                 self._send_json({"ok": True})
             elif path == "/api/warp-state":
                 app.refresh_available_digits()
-                app.session.set_speed(1)
-                app.session.set_speed_limiter_enabled(True)
                 target_state = app.session.request_warp_state(
                     str(body.get("state", "battle")),
                     int(body.get("limit_digits", 1_000_000)),

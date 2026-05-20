@@ -1459,12 +1459,20 @@ class ReviewSession:
                 and self._jump_target_digits is None
                 and self._warp_target_state is None
             ):
-                self.pyboy.set_emulation_speed(self.speed)
+                self._restore_playback_speed_unlocked()
 
     def set_speed_limiter_enabled(self, enabled: bool) -> None:
         with self._lock:
             self.speed_limiter_enabled = enabled
-            self._next_frame_time = time.perf_counter()
+            if (
+                self._fast_forward_target_digits is None
+                and self._simulate_target_digits is None
+                and self._jump_target_digits is None
+                and self._warp_target_state is None
+            ):
+                self._restore_playback_speed_unlocked()
+            else:
+                self._next_frame_time = time.perf_counter()
 
     def set_sound_volume(self, volume: int) -> None:
         with self._lock:
@@ -1498,7 +1506,7 @@ class ReviewSession:
                 self._simulate_target_digits = None
                 self._jump_target_digits = None
                 self._warp_target_state = None
-                self.pyboy.set_emulation_speed(self.speed)
+                self._restore_playback_speed_unlocked()
                 self.status = "pause pending"
 
     def request_rewind(self, digits: int) -> None:
@@ -1513,7 +1521,7 @@ class ReviewSession:
             self._jump_target_digits = None
             self._warp_target_state = None
             self.pause_requested = False
-            self.pyboy.set_emulation_speed(self.speed)
+            self._set_seek_emulation_speed_unlocked()
             self.status = f"rewinding {digits:,} digits"
             self._begin_seek_unlocked("Rewinding", self.digits_consumed, target)
 
@@ -1530,7 +1538,7 @@ class ReviewSession:
             self._simulate_target_digits = None
             self._jump_target_digits = None
             self._warp_target_state = None
-            self.pyboy.set_emulation_speed(0)
+            self._set_seek_emulation_speed_unlocked()
             self.paused = False
             self.pause_requested = False
             self.status = f"fast forwarding to {target:,} digits"
@@ -1556,7 +1564,7 @@ class ReviewSession:
             self._warp_target_state = None
             self.paused = False
             self.pause_requested = False
-            self.pyboy.set_emulation_speed(0)
+            self._set_seek_emulation_speed_unlocked()
             self.status = f"simulating to {target:,} digits"
             self._begin_seek_unlocked("Simulating", self.digits_consumed, target)
         return target
@@ -1573,7 +1581,7 @@ class ReviewSession:
             self._warp_target_state = None
             self.paused = False
             self.pause_requested = False
-            self.pyboy.set_emulation_speed(0)
+            self._set_seek_emulation_speed_unlocked()
             self.status = f"jumping to {target:,} digits"
             self._begin_seek_unlocked("Jumping", self.digits_consumed, target)
         return target
@@ -1593,10 +1601,17 @@ class ReviewSession:
             self._jump_target_digits = None
             self.paused = False
             self.pause_requested = False
-            self.pyboy.set_emulation_speed(0)
+            self._set_seek_emulation_speed_unlocked()
             self.status = f"finding next {label} within {limit_digits:,} digits"
             self._begin_seek_unlocked(f"Finding next {label}", self.digits_consumed, self.digits_consumed + limit_digits)
         return target_state
+
+    def _set_seek_emulation_speed_unlocked(self) -> None:
+        self.pyboy.set_emulation_speed(0)
+
+    def _restore_playback_speed_unlocked(self) -> None:
+        self.pyboy.set_emulation_speed(self.speed if self.speed_limiter_enabled else 0)
+        self._next_frame_time = time.perf_counter()
 
     def stop(self) -> None:
         with self._lock:
@@ -1751,7 +1766,7 @@ class ReviewSession:
         return items
 
     def run(self) -> None:
-        self.pyboy.set_emulation_speed(self.speed)
+        self._restore_playback_speed_unlocked()
         try:
             while True:
                 with self._lock:
@@ -1831,9 +1846,8 @@ class ReviewSession:
                     if fast_forward_target is not None and self.digits_consumed >= fast_forward_target:
                         self.paused = True
                         self._fast_forward_target_digits = None
-                        self.pyboy.set_emulation_speed(self.speed)
+                        self._restore_playback_speed_unlocked()
                         self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
-                        self._next_frame_time = time.perf_counter()
 
                 if (
                     self._auto_snapshots_enabled
@@ -1991,9 +2005,8 @@ class ReviewSession:
             self.last_button = last_button
             self.paused = True
             self._fast_forward_target_digits = None
-            self.pyboy.set_emulation_speed(self.speed)
+            self._restore_playback_speed_unlocked()
             self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
-            self._next_frame_time = time.perf_counter()
             self.latest_image = image
             self._auto_snapshots_enabled = False
             self._end_seek_unlocked()
@@ -2103,9 +2116,8 @@ class ReviewSession:
             self.paused = True
             self._simulate_target_digits = None
             self._simulation_started_at = None
-            self.pyboy.set_emulation_speed(self.speed)
+            self._restore_playback_speed_unlocked()
             self.status = "complete" if self.digits_consumed >= self.max_digits else "paused"
-            self._next_frame_time = time.perf_counter()
             self.latest_image = image
             self._auto_snapshots_enabled = False
             self._last_simulation = {
@@ -2155,7 +2167,7 @@ class ReviewSession:
             candidates = [snapshot for snapshot in self.snapshots if snapshot.digits_consumed <= target]
             snapshot = candidates[-1] if candidates else None
             self._fast_forward_target_digits = None
-            self.pyboy.set_emulation_speed(self.speed)
+            self._set_seek_emulation_speed_unlocked()
 
         checkpoint: tuple[int, Path] | None = None
         if snapshot is None:
@@ -2164,8 +2176,7 @@ class ReviewSession:
                 with self._lock:
                     self.paused = True
                     self.status = "no rewind source before target"
-                    self.pyboy.set_emulation_speed(self.speed)
-                    self._next_frame_time = time.perf_counter()
+                    self._restore_playback_speed_unlocked()
                     self._end_seek_unlocked()
                 return
             checkpoint_digits, _ = checkpoint
@@ -2173,8 +2184,7 @@ class ReviewSession:
                 with self._lock:
                     self.paused = True
                     self.status = "rewind history unavailable before checkpoint"
-                    self.pyboy.set_emulation_speed(self.speed)
-                    self._next_frame_time = time.perf_counter()
+                    self._restore_playback_speed_unlocked()
                     self._end_seek_unlocked()
                 return
 
@@ -2241,7 +2251,7 @@ class ReviewSession:
                 )
             )
             self._last_snapshot_digits = self.digits_consumed
-            self._next_frame_time = time.perf_counter()
+            self._restore_playback_speed_unlocked()
             self._end_seek_unlocked()
 
     def _jump_to(self, target: int) -> None:
@@ -2254,7 +2264,7 @@ class ReviewSession:
             with self._lock:
                 self.paused = True
                 self._jump_target_digits = None
-                self.pyboy.set_emulation_speed(self.speed)
+                self._restore_playback_speed_unlocked()
                 self.status = "no checkpoint before target"
                 self._end_seek_unlocked()
             return
@@ -2299,9 +2309,8 @@ class ReviewSession:
                 self.last_button = last_button
             self.paused = True
             self._jump_target_digits = None
-            self.pyboy.set_emulation_speed(self.speed)
+            self._restore_playback_speed_unlocked()
             self.status = "paused"
-            self._next_frame_time = time.perf_counter()
             self.latest_image = image
             self._auto_snapshots_enabled = False
             self._end_seek_unlocked()
@@ -2420,7 +2429,7 @@ class ReviewSession:
             with self._lock:
                 self.paused = True
                 self._warp_target_state = None
-                self.pyboy.set_emulation_speed(self.speed)
+                self._restore_playback_speed_unlocked()
                 self.status = f"no {WARP_STATE_LABELS[target_state]} within {limit_digits:,} digits"
                 self._end_seek_unlocked()
             return
@@ -2436,9 +2445,8 @@ class ReviewSession:
             self.last_button = last_button
             self.paused = True
             self._warp_target_state = None
-            self.pyboy.set_emulation_speed(self.speed)
+            self._restore_playback_speed_unlocked()
             self.status = "paused"
-            self._next_frame_time = time.perf_counter()
             self.latest_image = image
             self._auto_snapshots_enabled = False
             self._end_seek_unlocked()
