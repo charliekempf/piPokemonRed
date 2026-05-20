@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import webbrowser
+from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -49,6 +50,7 @@ from run_pi_pyboy import (
 WEB_ROOT = Path("web/review")
 REVIEW_SESSION_STATE = Path("results") / "review_session_state.json"
 PROGRESSION_REFRESH_SECONDS = 0.5
+PROGRESSION_GRAPH_CACHE_LIMIT = 16
 RUN_PI_RE = re.compile(r"run_pi_pyboy\.py")
 MAX_DIGITS_RE = re.compile(r"--max-digits\s+(\d+)")
 RUN_NAME_RE = re.compile(r"--run-name\s+([^\s]+)")
@@ -590,6 +592,7 @@ def generate_progression_graph_samples(
     start_digits: int,
     end_digits: int,
     sample_digits: int,
+    cache_key: tuple[str, str, int, int, int],
 ) -> None:
     checkpoint_digits_consumed, checkpoint_path = checkpoint
     input_config = load_input_config(app.config_path)
@@ -651,13 +654,20 @@ def generate_progression_graph_samples(
                 sound=False,
             )
 
-        app.update_progression_graph(
-            state="Complete",
-            running=False,
-            current_digits=digits_consumed,
-            sample_count=len(samples),
-            samples=samples,
-        )
+        final_status = {
+            "state": "Complete",
+            "running": False,
+            "start_digits": start_digits,
+            "end_digits": end_digits,
+            "current_digits": digits_consumed,
+            "sample_digits": sample_digits,
+            "sample_count": len(samples),
+            "samples": samples,
+            "cache_hit": False,
+            "error": "",
+        }
+        app.cache_progression_graph(cache_key, final_status)
+        app.update_progression_graph(**final_status)
     finally:
         pyboy.stop()
 
@@ -695,6 +705,7 @@ class ReviewWebApp:
         self.video_export_status: dict[str, object] = {"state": "Ready"}
         self.progression_graph_thread: threading.Thread | None = None
         self.progression_graph_status: dict[str, object] = {"state": "Ready", "running": False}
+        self.progression_graph_cache: OrderedDict[tuple[str, str, int, int, int], dict[str, object]] = OrderedDict()
         self.progression_thread: threading.Thread | None = None
         self.progression_state: dict[str, object] = {}
         self.progression_signature = ""
@@ -804,6 +815,7 @@ class ReviewWebApp:
             self.video_export_status = {"state": "Ready"}
             self.progression_graph_thread = None
             self.progression_graph_status = {"state": "Ready", "running": False}
+            self.progression_graph_cache.clear()
             self.progression_state = {}
             self.progression_signature = ""
             self.frame_version = 0
@@ -910,6 +922,29 @@ class ReviewWebApp:
         with self._lock:
             self.progression_graph_status = {**self.progression_graph_status, **status}
 
+    def progression_graph_cache_key(
+        self,
+        start_digits: int,
+        end_digits: int,
+        sample_digits: int,
+    ) -> tuple[str, str, int, int, int]:
+        return (self.run_name, str(self.config_path), int(start_digits), int(end_digits), int(sample_digits))
+
+    def cached_progression_graph(self, cache_key: tuple[str, str, int, int, int]) -> dict[str, object] | None:
+        with self._lock:
+            cached = self.progression_graph_cache.get(cache_key)
+            if cached is None:
+                return None
+            self.progression_graph_cache.move_to_end(cache_key)
+            return dict(cached)
+
+    def cache_progression_graph(self, cache_key: tuple[str, str, int, int, int], status: dict[str, object]) -> None:
+        with self._lock:
+            self.progression_graph_cache[cache_key] = dict(status)
+            self.progression_graph_cache.move_to_end(cache_key)
+            while len(self.progression_graph_cache) > PROGRESSION_GRAPH_CACHE_LIMIT:
+                self.progression_graph_cache.popitem(last=False)
+
     def progression_graph_info(self) -> dict[str, object]:
         with self._lock:
             status = dict(self.progression_graph_status)
@@ -935,9 +970,15 @@ class ReviewWebApp:
         checkpoint = checkpoint_at_or_before(self.run_name, start_digits)
         if checkpoint is None:
             raise ValueError("No checkpoint before graph range start.")
+        cache_key = self.progression_graph_cache_key(start_digits, end_digits, sample_digits)
 
         with self._lock:
             if self.progression_graph_thread is not None and self.progression_graph_thread.is_alive():
+                return dict(self.progression_graph_status)
+            cached = self.progression_graph_cache.get(cache_key)
+            if cached is not None:
+                self.progression_graph_cache.move_to_end(cache_key)
+                self.progression_graph_status = {**dict(cached), "state": "Cached", "running": False, "cache_hit": True}
                 return dict(self.progression_graph_status)
             self.progression_graph_status = {
                 "state": "Starting",
@@ -946,13 +987,14 @@ class ReviewWebApp:
                 "end_digits": end_digits,
                 "current_digits": checkpoint[0],
                 "sample_digits": sample_digits,
+                "cache_hit": False,
                 "samples": [],
                 "error": "",
             }
 
             def worker() -> None:
                 try:
-                    generate_progression_graph_samples(self, checkpoint, start_digits, end_digits, sample_digits)
+                    generate_progression_graph_samples(self, checkpoint, start_digits, end_digits, sample_digits, cache_key)
                 except Exception as error:
                     self.update_progression_graph(state="Error", running=False, error=str(error))
 

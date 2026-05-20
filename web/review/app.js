@@ -1078,9 +1078,11 @@ async function pollProgressionGraph() {
     generateProgressionGraphButton.disabled = progressionGraphGenerationRunning || romMissing;
     if (status.running) {
       progressionGraphStatusEl.textContent = `Generating ${fmt(current)} / ${fmt(end)} digits, ${fmt(sampleCount)} samples`;
-    } else if (status.state === "Complete") {
+    } else if (status.state === "Complete" || status.state === "Cached") {
       const completionKey = `${status.start_digits}:${status.end_digits}:${status.sample_digits}:${sampleCount}`;
-      progressionGraphStatusEl.textContent = `Generated ${fmt(sampleCount)} samples`;
+      progressionGraphStatusEl.textContent = status.cache_hit
+        ? `Loaded ${fmt(sampleCount)} cached samples`
+        : `Generated ${fmt(sampleCount)} samples`;
       if (completionKey !== lastProgressionGraphCompletion) {
         lastProgressionGraphCompletion = completionKey;
         applyGeneratedProgressionSamples(status.samples || []);
