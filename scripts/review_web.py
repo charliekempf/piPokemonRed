@@ -38,6 +38,7 @@ from run_pi_pyboy import (
     latest_checkpoint,
     load_input_config,
     resolve_configured_run_name,
+    save_checkpoint,
 )
 
 
@@ -645,35 +646,33 @@ class ReviewWebApp:
         if not config_path.exists():
             raise ValueError(f"Run {run_name} does not have {RUN_CONFIG_FILENAME}.")
 
+        input_config = load_input_config(config_path)
+        session = self.session_factory(run_name, config_path, input_config, "penultimate", None)
         old_session: ReviewSession | None = None
         old_thread: threading.Thread | None = None
         with self._lock:
             if run_name == self.run_name:
+                session.stop()
                 return
             old_session = self.session
             old_thread = self.emulator_thread
-            self.session = None
-            self.emulator_thread = None
-
-        if old_session is not None:
-            old_session.stop()
-        if old_thread is not None and old_thread.is_alive():
-            old_thread.join(timeout=2)
-
-        input_config = load_input_config(config_path)
-        session = self.session_factory(run_name, config_path, input_config, "penultimate", None)
-        with self._lock:
             self.run_name = run_name
             self.config_path = config_path
             self.digits_per_input = input_config.digits_per_input
             self.frames_per_input = input_config.on_frames + input_config.off_frames
             self.session = session
+            self.emulator_thread = None
             self.chart_simulation = None
             self.chart_target_digits = 0
             self.video_export_thread = None
             self.video_export_status = {"state": "Ready"}
             self.frame_version = 0
             self._last_frame_digest = ""
+
+        if old_session is not None:
+            old_session.stop()
+        if old_thread is not None and old_thread.is_alive():
+            old_thread.join(timeout=2)
         self.start_emulator_thread()
 
     def start_chart_simulation(self, target_digits: int, checkpoint_interval_digits: int) -> int:
@@ -1146,6 +1145,22 @@ def main() -> None:
         active_config = session_input_config or load_input_config(config_path)
         active_hold_frames = active_config.on_frames if args.hold_frames is None else args.hold_frames
         active_release_frames = active_config.off_frames if args.release_frames is None else args.release_frames
+        checkpoint_dir = Path("saves") / run_name
+        screenshot_dir = Path("results") / run_name / "screenshots"
+        if latest_checkpoint(checkpoint_dir) is None:
+            bootstrap = PyBoy(
+                str(args.rom),
+                window="null",
+                sound_emulated=False,
+                no_input=False,
+                ram_file=io.BytesIO(bytes(32768)),
+                log_level="CRITICAL",
+            )
+            try:
+                bootstrap.set_emulation_speed(0)
+                save_checkpoint(bootstrap, checkpoint_dir, screenshot_dir, 0, save_screenshot=True)
+            finally:
+                bootstrap.stop()
         newest_checkpoint = latest_checkpoint(Path("saves") / run_name)
         newest_checkpoint_digits = newest_checkpoint[0] if newest_checkpoint is not None else 0
         max_digits = min(args.max_digits or len(digits), len(digits))
