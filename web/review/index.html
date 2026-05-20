@@ -60,42 +60,6 @@
             <button id="stop-simulate-button" class="danger-control" disabled>Kill</button>
           </div>
         </div>
-        <div class="video-export-panel">
-          <div class="simulator-header">
-            <span class="simulator-label">Video export</span>
-            <strong id="video-export-status" class="sr-only">Ready</strong>
-          </div>
-          <div class="simulator-stats">
-            <div>
-              <span>State</span>
-              <strong id="video-export-state">Ready</strong>
-            </div>
-            <div>
-              <span>Progress</span>
-              <strong id="video-export-progress">-</strong>
-            </div>
-          </div>
-          <div class="simulator-actions">
-            <label class="simulator-field">
-              <span>Start digit</span>
-              <input id="video-export-start" type="number" min="0" step="1" inputmode="numeric" placeholder="195,000,000" />
-            </label>
-            <label class="simulator-field">
-              <span>End digit</span>
-              <input id="video-export-end" type="number" min="0" step="1" inputmode="numeric" placeholder="195,010,000" />
-            </label>
-            <label class="simulator-field">
-              <span>Format</span>
-              <select id="video-export-preset" aria-label="Video export format">
-                <option value="mp4" selected>MP4</option>
-                <option value="av1">AV1 gray</option>
-                <option value="av1_lossless">AV1 lossless gray</option>
-                <option value="ffv1">FFV1 gray</option>
-              </select>
-            </label>
-            <button id="video-export-button" class="primary-control">Export</button>
-          </div>
-        </div>
       </aside>
       <section class="screen-panel">
         <div class="screen-shell">
@@ -230,6 +194,42 @@
           </div>
           <canvas id="config-spread-chart" class="config-chart" width="220" height="150" aria-label="Button mapping spread"></canvas>
           <ol id="config-ranges" class="config-ranges"></ol>
+        </div>
+      </section>
+      <section class="video-export-panel">
+        <div class="simulator-header">
+          <span class="simulator-label">Video export</span>
+          <strong id="video-export-status" class="sr-only">Ready</strong>
+        </div>
+        <div class="simulator-stats">
+          <div>
+            <span>State</span>
+            <strong id="video-export-state">Ready</strong>
+          </div>
+          <div>
+            <span>Progress</span>
+            <strong id="video-export-progress">-</strong>
+          </div>
+        </div>
+        <div class="simulator-actions">
+          <label class="simulator-field">
+            <span>Start digit</span>
+            <input id="video-export-start" type="number" min="0" step="1" inputmode="numeric" placeholder="195,000,000" />
+          </label>
+          <label class="simulator-field">
+            <span>End digit</span>
+            <input id="video-export-end" type="number" min="0" step="1" inputmode="numeric" placeholder="195,010,000" />
+          </label>
+          <label class="simulator-field">
+            <span>Format</span>
+            <select id="video-export-preset" aria-label="Video export format">
+              <option value="mp4" selected>MP4</option>
+              <option value="av1">AV1 gray</option>
+              <option value="av1_lossless">AV1 lossless gray</option>
+              <option value="ffv1">FFV1 gray</option>
+            </select>
+          </label>
+          <button id="video-export-button" class="primary-control">Export</button>
         </div>
       </section>
     </main>

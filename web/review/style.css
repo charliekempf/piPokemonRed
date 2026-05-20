@@ -59,6 +59,11 @@ body {
   grid-row: 4;
 }
 
+.video-export-panel {
+  grid-column: 1 / -1;
+  grid-row: 5;
+}
+
 .screen-panel,
 .checkpoint-panel,
 .event-panel,
@@ -66,7 +71,8 @@ body {
 .player-panel,
 .next-panel,
 .timeline-panel,
-.config-panel {
+.config-panel,
+.video-export-panel {
   background: #24262d;
   border: 1px solid #3c404a;
   border-radius: 8px;
@@ -552,8 +558,7 @@ input[type="range"] {
   width: 100%;
 }
 
-.simulator-panel,
-.video-export-panel {
+.simulator-panel {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
@@ -632,8 +637,15 @@ input[type="range"] {
   padding: 0 10px;
 }
 
-.checkpoint-panel .simulator-panel,
-.checkpoint-panel .video-export-panel {
+.video-export-panel {
+  display: grid;
+  grid-template-columns: minmax(150px, 180px) minmax(250px, 360px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+
+.checkpoint-panel .simulator-panel {
   grid-template-columns: 1fr;
   gap: 8px;
 }
