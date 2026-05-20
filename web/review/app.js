@@ -1015,9 +1015,12 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
 
 function renderProgressionGraph(progression = {}, currentDigits = 0) {
   const digit = Math.max(0, Number(currentDigits) || 0);
-  const remainingSteps = Number(progression.remaining_steps);
-  const totalSteps = Number(progression.total_steps_from_respawn);
-  const graphMaxSteps = Number(progression.graph_max_steps);
+  const rawRemainingSteps = progression.remaining_steps;
+  const rawTotalSteps = progression.total_steps_from_respawn;
+  const rawGraphMaxSteps = progression.graph_max_steps;
+  const remainingSteps = rawRemainingSteps === null || rawRemainingSteps === undefined ? NaN : Number(rawRemainingSteps);
+  const totalSteps = rawTotalSteps === null || rawTotalSteps === undefined ? NaN : Number(rawTotalSteps);
+  const graphMaxSteps = rawGraphMaxSteps === null || rawGraphMaxSteps === undefined ? NaN : Number(rawGraphMaxSteps);
   const selectableRange = Math.max(1, Number(progressionRangeEl.value) || 10000);
   const startDigit = Math.max(0, digit - selectableRange);
   const hasDistance = Number.isFinite(remainingSteps);

@@ -32,6 +32,8 @@ from run_pi_pyboy import (
     save_checkpoint,
     write_progress,
 )
+from progression_pathfinding import Tile
+from progression_world import progression_state_for_tile
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d+)_digits\.state$")
@@ -1340,15 +1342,8 @@ def map_name(map_id: int) -> str:
 
 
 def progression_state(pyboy: PyBoy) -> dict[str, object]:
-    return {
-        "label": "Progression route data pending",
-        "objective_location": "",
-        "current_tile": current_player_tile(pyboy),
-        "remaining_steps": None,
-        "total_steps_from_respawn": None,
-        "graph_max_steps": None,
-        "reachable": False,
-    }
+    tile = current_player_tile(pyboy)
+    return progression_state_for_tile(pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
 
 
 def move_name(move_id: int) -> str:

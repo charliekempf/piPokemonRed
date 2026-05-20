@@ -66,7 +66,7 @@ def test_play_time_uses_display_bytes() -> None:
 
 
 def test_elapsed_play_time_uses_frames_not_capped_display_clock() -> None:
-    frames = int(((300 * 3600) + (12 * 60) + 34) * GAMEBOY_FPS)
+    frames = int(((300 * 3600) + (12 * 60) + 34) * GAMEBOY_FPS) + 1
 
     assert elapsed_play_time(frames) == {
         "hours": 300,
@@ -85,7 +85,7 @@ def test_current_player_tile_reads_map_and_coordinates() -> None:
     assert current_player_tile(pyboy) == {"map_id": 1, "x": 7, "y": 9}
 
 
-def test_progression_state_exposes_route_data_placeholder() -> None:
+def test_progression_state_exposes_current_tile() -> None:
     pyboy = FakePyBoy()
     pyboy.memory.values[CURRENT_MAP_ADDR] = 0x02
     pyboy.memory.values[PLAYER_X_ADDR] = 4
@@ -93,7 +93,7 @@ def test_progression_state_exposes_route_data_placeholder() -> None:
 
     state = progression_state(pyboy)
 
-    assert state["label"] == "Progression route data pending"
+    assert state["label"]
     assert state["current_tile"] == {"map_id": 2, "x": 4, "y": 6}
-    assert state["remaining_steps"] is None
-    assert state["total_steps_from_respawn"] is None
+    assert "remaining_steps" in state
+    assert "total_steps_from_respawn" in state

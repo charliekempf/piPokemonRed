@@ -33,12 +33,15 @@ Important scripts:
 - `scripts/review_pi_checkpoint.py` is the older Tk-based reviewer kept for reference.
 - `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh web reviewer.
 - `scripts/tally_tas_buttons.py` parses BizHawk `.bk2` TAS files to tally button usage.
+- `scripts/build_progression_world.py` builds the local progression pathfinding database from a local `pret/pokered` checkout in `tools/pokered` and writes `results/progression_world.json`.
+- `scripts/progression_world.py` loads that ignored local database, selects the active required progression point, and feeds step-distance data to the reviewer graph.
 - `src/LibretroBench/` is an optional native libretro benchmark harness kept for comparison; PyBoy is the practical path right now.
 
 Typical commands:
 
 ```powershell
 py scripts\run_pi_pyboy.py --config config\statistical_spread.json --digits data\pi_1b_digits.txt --checkpoint-digits 1000000 --max-digits 50000000
+py scripts\build_progression_world.py
 .\scripts\open_review.ps1
 ```
 
@@ -65,6 +68,7 @@ Current reviewer UI behavior:
 - The Party panel shows Pokemon names, levels, HP bars with in-game health colors, expandable moves, and PP shown as current/max.
 - The Config panel lives below the timeline and shows game/version/region, digits per input, button ranges, and a pie chart of the mapping spread.
 - The timeline shows checkpoint-charted progress in blue and lets users click checkpointed regions to jump to the nearest checkpoint.
+- The Progression Distance graph lives below the timeline. It uses `results/progression_world.json`, which is generated locally and ignored because it derives from Pokemon map data. If the graph says the database is missing, run `py scripts\build_progression_world.py` after cloning/updating `tools/pokered`.
 
 ## Git Workflow
 
