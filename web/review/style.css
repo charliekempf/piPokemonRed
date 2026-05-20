@@ -637,14 +637,6 @@ input[type="range"] {
   padding: 0 10px;
 }
 
-.video-export-panel {
-  display: grid;
-  grid-template-columns: minmax(150px, 180px) minmax(250px, 360px) minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 12px;
-}
-
 .checkpoint-panel .simulator-panel {
   grid-template-columns: 1fr;
   gap: 8px;
@@ -656,6 +648,110 @@ input[type="range"] {
 
 .checkpoint-panel .simulator-actions .primary-control,
 .checkpoint-panel .simulator-actions .danger-control {
+  width: 100%;
+}
+
+.video-export-panel {
+  display: grid;
+  grid-template-columns: minmax(132px, 160px) minmax(260px, 360px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.export-header,
+.export-stats,
+.export-controls {
+  min-width: 0;
+  min-height: 62px;
+  box-sizing: border-box;
+}
+
+.export-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.export-header h1 {
+  margin: 0;
+  color: #f3f1e8;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.export-stats {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1.2fr);
+  gap: 8px;
+}
+
+.export-stat {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 8px 10px;
+  background: #1c1f26;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.export-stat span,
+.export-field span {
+  color: #aeb4c0;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.export-stat strong {
+  min-width: 0;
+  color: #f3f1e8;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.export-progress strong {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+}
+
+.export-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(138px, 1fr)) minmax(140px, 0.8fr) 104px;
+  gap: 8px;
+  padding: 9px;
+  background: #30333c;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.export-field {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.export-field input,
+.export-field select {
+  width: 100%;
+  height: 34px;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #555c6c;
+  border-radius: 6px;
+  background: #1c1f26;
+  color: #f3f1e8;
+  padding: 0 10px;
+}
+
+.export-button {
+  align-self: end;
   width: 100%;
 }
 
@@ -706,7 +802,8 @@ button:disabled {
 .party-panel,
 .player-panel,
 .next-panel,
-.timeline-panel {
+.timeline-panel,
+.video-export-panel {
   padding: 12px;
 }
 

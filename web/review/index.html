@@ -197,30 +197,30 @@
         </div>
       </section>
       <section class="video-export-panel">
-        <div class="simulator-header">
-          <span class="simulator-label">Video export</span>
+        <div class="export-header">
+          <h1>Video Export</h1>
           <strong id="video-export-status" class="sr-only">Ready</strong>
         </div>
-        <div class="simulator-stats">
-          <div>
+        <div class="export-stats">
+          <div class="export-stat">
             <span>State</span>
             <strong id="video-export-state">Ready</strong>
           </div>
-          <div>
+          <div class="export-stat export-progress">
             <span>Progress</span>
             <strong id="video-export-progress">-</strong>
           </div>
         </div>
-        <div class="simulator-actions">
-          <label class="simulator-field">
+        <div class="export-controls">
+          <label class="export-field">
             <span>Start digit</span>
             <input id="video-export-start" type="number" min="0" step="1" inputmode="numeric" placeholder="195,000,000" />
           </label>
-          <label class="simulator-field">
+          <label class="export-field">
             <span>End digit</span>
             <input id="video-export-end" type="number" min="0" step="1" inputmode="numeric" placeholder="195,010,000" />
           </label>
-          <label class="simulator-field">
+          <label class="export-field">
             <span>Format</span>
             <select id="video-export-preset" aria-label="Video export format">
               <option value="mp4" selected>MP4</option>
@@ -229,7 +229,7 @@
               <option value="ffv1">FFV1 gray</option>
             </select>
           </label>
-          <button id="video-export-button" class="primary-control">Export</button>
+          <button id="video-export-button" class="primary-control export-button">Export</button>
         </div>
       </section>
     </main>
