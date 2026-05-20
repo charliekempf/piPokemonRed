@@ -52,6 +52,10 @@ const progressionGraphStatusEl = document.querySelector("#progression-graph-stat
 const progressionPointEl = document.querySelector("#progression-point");
 const progressionDistanceEl = document.querySelector("#progression-distance");
 const progressionGraphEl = document.querySelector("#progression-graph");
+const progressionSigmaEl = document.querySelector("#progression-sigma");
+const progressionProbabilityEl = document.querySelector("#progression-probability");
+const progressionExpectedStepsEl = document.querySelector("#progression-expected-steps");
+const progressionExpectedTimeEl = document.querySelector("#progression-expected-time");
 const partyEl = document.querySelector("#party");
 const bagEl = document.querySelector("#bag");
 const playerPanelEl = document.querySelector("#player-panel");
@@ -523,6 +527,123 @@ function fmtDuration(seconds) {
     return `${minutes}m ${String(secs).padStart(2, "0")}s`;
   }
   return `${secs}s`;
+}
+
+function formatLargeFromLog(logValue, unit = "") {
+  if (!Number.isFinite(logValue)) {
+    return "-";
+  }
+  if (logValue < Math.log(1e15)) {
+    return `${fmt(Math.max(1, Math.round(Math.exp(logValue))))}${unit}`;
+  }
+  const exponent = Math.floor(logValue / Math.LN10);
+  const mantissa = Math.exp(logValue - (exponent * Math.LN10));
+  return `${mantissa.toFixed(2)}e${exponent}${unit}`;
+}
+
+function formatProbabilityFromLog(logProbability) {
+  if (!Number.isFinite(logProbability)) {
+    return "-";
+  }
+  if (logProbability >= Math.log(0.001)) {
+    return `${(Math.exp(logProbability) * 100).toPrecision(3)}%`;
+  }
+  return `1 in ${formatLargeFromLog(-logProbability)}`;
+}
+
+function formatTimeFromLog(logSeconds) {
+  if (!Number.isFinite(logSeconds)) {
+    return "-";
+  }
+  if (logSeconds < Math.log(60 * 60 * 24 * 365 * 1e12)) {
+    const seconds = Math.max(1, Math.exp(logSeconds));
+    const days = seconds / 86400;
+    if (days >= 365) {
+      return `${fmt(Math.round(days / 365))}y`;
+    }
+    if (days >= 1) {
+      return `${fmt(Math.round(days))}d`;
+    }
+    return fmtDuration(seconds);
+  }
+  return `${formatLargeFromLog(logSeconds - Math.log(60 * 60 * 24 * 365))}y`;
+}
+
+function normalLeftTailLog(zScore) {
+  if (!Number.isFinite(zScore)) {
+    return NaN;
+  }
+  if (zScore >= 0) {
+    return Math.log(Math.max(0.5, normalCdf(zScore)));
+  }
+  if (zScore > -8) {
+    return Math.log(Math.max(Number.MIN_VALUE, normalCdf(zScore)));
+  }
+  return (-0.5 * zScore * zScore) - Math.log(-zScore) - (0.5 * Math.log(2 * Math.PI));
+}
+
+function normalCdf(value) {
+  const sign = value < 0 ? -1 : 1;
+  const x = Math.abs(value) / Math.SQRT2;
+  const t = 1 / (1 + (0.3275911 * x));
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+  const erf = sign * (1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x));
+  return 0.5 * (1 + erf);
+}
+
+function renderProgressionProbability(samples, baselineSteps, sampleInterval) {
+  const finiteSamples = samples.filter((sample) => Number.isFinite(sample.steps));
+  if (
+    finiteSamples.length < 2
+    || !Number.isFinite(baselineSteps)
+    || baselineSteps <= 0
+  ) {
+    progressionSigmaEl.textContent = "-";
+    progressionProbabilityEl.textContent = "-";
+    progressionExpectedStepsEl.textContent = "-";
+    progressionExpectedTimeEl.textContent = "-";
+    progressionProbabilityEl.title = "";
+    progressionExpectedStepsEl.title = "";
+    progressionExpectedTimeEl.title = "";
+    return;
+  }
+
+  const varianceAroundCheckpoint = finiteSamples.reduce((sum, sample) => {
+    const delta = sample.steps - baselineSteps;
+    return sum + (delta * delta);
+  }, 0) / finiteSamples.length;
+  const sigma = Math.sqrt(varianceAroundCheckpoint);
+  if (!Number.isFinite(sigma) || sigma <= 0) {
+    progressionSigmaEl.textContent = "0 steps";
+    progressionProbabilityEl.textContent = "No variance";
+    progressionExpectedStepsEl.textContent = "-";
+    progressionExpectedTimeEl.textContent = "-";
+    progressionProbabilityEl.title = "";
+    progressionExpectedStepsEl.title = "";
+    progressionExpectedTimeEl.title = "";
+    return;
+  }
+
+  const zScore = (0 - baselineSteps) / sigma;
+  const logProbability = normalLeftTailLog(zScore);
+  const digitsPerInput = Math.max(1, finiteNumber(lastProgressionState.digits_per_input) || 1);
+  const framesPerInput = Math.max(1, finiteNumber(lastProgressionState.frames_per_input) || 1);
+  const logExpectedSamples = -logProbability;
+  const logExpectedDigits = logExpectedSamples + Math.log(Math.max(1, sampleInterval));
+  const logExpectedInputs = logExpectedDigits - Math.log(digitsPerInput);
+  const logExpectedSeconds = logExpectedInputs + Math.log(framesPerInput / GAMEBOY_FPS);
+
+  progressionSigmaEl.textContent = `${sigma.toFixed(1)} steps`;
+  progressionProbabilityEl.textContent = formatProbabilityFromLog(logProbability);
+  progressionProbabilityEl.title = `Normal estimate: z = ${zScore.toFixed(2)} from ${fmt(finiteSamples.length)} samples.`;
+  progressionExpectedStepsEl.textContent = formatLargeFromLog(logExpectedInputs);
+  progressionExpectedStepsEl.title = `${formatLargeFromLog(logExpectedDigits)} digits at ${fmt(sampleInterval)} digits per sample.`;
+  progressionExpectedTimeEl.textContent = formatTimeFromLog(logExpectedSeconds);
+  progressionExpectedTimeEl.title = "Estimated in-game time at Game Boy frame timing.";
 }
 
 function renderInputs(items, state = {}) {
@@ -1296,6 +1417,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   }
 
   const visibleSamples = progressionSamples.filter((sample) => Number.isFinite(sample.steps));
+  renderProgressionProbability(visibleSamples, globalBaselineSteps, sampleInterval);
   if (visibleSamples.length < 2) {
     context.textAlign = "center";
     context.textBaseline = "middle";
