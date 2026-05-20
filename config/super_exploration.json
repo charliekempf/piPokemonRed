@@ -5,8 +5,8 @@
     "version": "1.0",
     "region": "USA/Europe"
   },
-  "on_frames": 8,
-  "off_frames": 7,
+  "on_frames": 4,
+  "off_frames": 13,
   "digits_per_input": 2,
   "mapping": [
     { "min": 0, "max": 13, "button": "a" },
