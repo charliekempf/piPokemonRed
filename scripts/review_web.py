@@ -19,12 +19,13 @@ from PIL import Image
 from pyboy import PyBoy
 
 from progression_pathfinding import Tile
-from progression_world import progression_state_for_gate
+from progression_world import progression_state_for_gate, progression_state_for_tile
 from review_pi_checkpoint import (
     AudioSink,
     REVIEW_CACHE_DIRNAME,
     ReviewSession,
     checkpoint_digits,
+    current_player_tile,
     render_loaded_state,
     resolve_checkpoint,
 )
@@ -583,6 +584,84 @@ def run_video_export(
         temp_output_path.unlink(missing_ok=True)
 
 
+def generate_progression_graph_samples(
+    app: ReviewWebApp,
+    checkpoint: tuple[int, Path],
+    start_digits: int,
+    end_digits: int,
+    sample_digits: int,
+) -> None:
+    checkpoint_digits_consumed, checkpoint_path = checkpoint
+    input_config = load_input_config(app.config_path)
+    pyboy = PyBoy(
+        str(app.rom_path),
+        window="null",
+        sound_emulated=False,
+        no_input=False,
+        ram_file=io.BytesIO(bytes(32768)),
+        log_level="CRITICAL",
+    )
+    pyboy.set_emulation_speed(0)
+    samples: list[dict[str, object]] = []
+    digits_consumed = checkpoint_digits_consumed
+    try:
+        with checkpoint_path.open("rb") as state_file:
+            pyboy.load_state(state_file)
+
+        if digits_consumed < start_digits:
+            digits_consumed, _, _ = advance_pi_inputs(
+                pyboy,
+                app.digits,
+                digits_consumed,
+                start_digits,
+                input_config.on_frames,
+                input_config.off_frames,
+                input_config=input_config,
+                sound=False,
+            )
+
+        while digits_consumed <= end_digits:
+            tile = current_player_tile(pyboy)
+            progression = progression_state_for_tile(pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
+            samples.append(
+                {
+                    "digit": digits_consumed,
+                    "steps": progression.get("remaining_steps"),
+                    "label": progression.get("label", ""),
+                    "objective_location": progression.get("objective_location", ""),
+                    "reachable": bool(progression.get("reachable", False)),
+                }
+            )
+            app.update_progression_graph(
+                state="Generating",
+                current_digits=digits_consumed,
+                sample_count=len(samples),
+            )
+            if digits_consumed >= end_digits:
+                break
+            next_digits = min(end_digits, digits_consumed + sample_digits)
+            digits_consumed, _, _ = advance_pi_inputs(
+                pyboy,
+                app.digits,
+                digits_consumed,
+                next_digits,
+                input_config.on_frames,
+                input_config.off_frames,
+                input_config=input_config,
+                sound=False,
+            )
+
+        app.update_progression_graph(
+            state="Complete",
+            running=False,
+            current_digits=digits_consumed,
+            sample_count=len(samples),
+            samples=samples,
+        )
+    finally:
+        pyboy.stop()
+
+
 class ReviewWebApp:
     def __init__(
         self,
@@ -614,6 +693,8 @@ class ReviewWebApp:
         self.chart_target_digits = 0
         self.video_export_thread: threading.Thread | None = None
         self.video_export_status: dict[str, object] = {"state": "Ready"}
+        self.progression_graph_thread: threading.Thread | None = None
+        self.progression_graph_status: dict[str, object] = {"state": "Ready", "running": False}
         self.progression_thread: threading.Thread | None = None
         self.progression_state: dict[str, object] = {}
         self.progression_signature = ""
@@ -721,6 +802,8 @@ class ReviewWebApp:
             self.chart_target_digits = 0
             self.video_export_thread = None
             self.video_export_status = {"state": "Ready"}
+            self.progression_graph_thread = None
+            self.progression_graph_status = {"state": "Ready", "running": False}
             self.progression_state = {}
             self.progression_signature = ""
             self.frame_version = 0
@@ -822,6 +905,60 @@ class ReviewWebApp:
         running = thread is not None and thread.is_alive()
         status["running"] = running
         return status
+
+    def update_progression_graph(self, **status: object) -> None:
+        with self._lock:
+            self.progression_graph_status = {**self.progression_graph_status, **status}
+
+    def progression_graph_info(self) -> dict[str, object]:
+        with self._lock:
+            status = dict(self.progression_graph_status)
+            thread = self.progression_graph_thread
+        status["running"] = thread is not None and thread.is_alive()
+        return status
+
+    def start_progression_graph_generation(
+        self,
+        end_digits: int,
+        range_digits: int,
+        sample_digits: int,
+    ) -> dict[str, object]:
+        if self.session is None:
+            raise ValueError("ROM required.")
+        digits_per_input = self.digits_per_input
+        end_digits = normalize_digit(max(0, int(end_digits)), digits_per_input)
+        range_digits = max(digits_per_input, int(range_digits))
+        sample_digits = max(digits_per_input, int(sample_digits))
+        if sample_digits % digits_per_input:
+            sample_digits += digits_per_input - (sample_digits % digits_per_input)
+        start_digits = normalize_digit(max(0, end_digits - range_digits), digits_per_input)
+        checkpoint = checkpoint_at_or_before(self.run_name, start_digits)
+        if checkpoint is None:
+            raise ValueError("No checkpoint before graph range start.")
+
+        with self._lock:
+            if self.progression_graph_thread is not None and self.progression_graph_thread.is_alive():
+                return dict(self.progression_graph_status)
+            self.progression_graph_status = {
+                "state": "Starting",
+                "running": True,
+                "start_digits": start_digits,
+                "end_digits": end_digits,
+                "current_digits": checkpoint[0],
+                "sample_digits": sample_digits,
+                "samples": [],
+                "error": "",
+            }
+
+            def worker() -> None:
+                try:
+                    generate_progression_graph_samples(self, checkpoint, start_digits, end_digits, sample_digits)
+                except Exception as error:
+                    self.update_progression_graph(state="Error", running=False, error=str(error))
+
+            self.progression_graph_thread = threading.Thread(target=worker, name="progression-graph-generator", daemon=True)
+            self.progression_graph_thread.start()
+            return dict(self.progression_graph_status)
 
     def persist_review_position(self, digits_consumed: int) -> None:
         digits_consumed = int(digits_consumed)
@@ -1002,6 +1139,8 @@ def make_handler(app: ReviewWebApp):
                 self._send_json(app.state())
             elif path == "/api/inputs":
                 self._send_json(app.input_state())
+            elif path == "/api/progression-graph":
+                self._send_json(app.progression_graph_info())
             elif path == "/api/frame.png":
                 self._send_bytes(app.frame_png(), "image/png")
             elif path == "/api/frame.rgba":
@@ -1046,6 +1185,18 @@ def make_handler(app: ReviewWebApp):
                         str(body.get("preset", "mp4")),
                     )
                     self._send_json({"ok": True, "export": status})
+                except Exception as error:
+                    self._send_json({"ok": False, "error": str(error)})
+                return
+
+            if path == "/api/generate-progression-graph":
+                try:
+                    status = app.start_progression_graph_generation(
+                        int(body.get("end_digits", 0)),
+                        int(body.get("range_digits", 10000)),
+                        int(body.get("sample_digits", 100)),
+                    )
+                    self._send_json({"ok": True, "graph": status})
                 except Exception as error:
                     self._send_json({"ok": False, "error": str(error)})
                 return

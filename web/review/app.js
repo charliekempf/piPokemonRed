@@ -47,6 +47,8 @@ const timelineEl = document.querySelector("#timeline");
 const progressionRangeEl = document.querySelector("#progression-range");
 const progressionSampleEl = document.querySelector("#progression-sample");
 const progressionSampleValueEl = document.querySelector("#progression-sample-value");
+const generateProgressionGraphButton = document.querySelector("#generate-progression-graph");
+const progressionGraphStatusEl = document.querySelector("#progression-graph-status");
 const progressionPointEl = document.querySelector("#progression-point");
 const progressionDistanceEl = document.querySelector("#progression-distance");
 const progressionGraphEl = document.querySelector("#progression-graph");
@@ -95,6 +97,9 @@ let progressionSamples = [];
 let lastProgressionSampleDigit = null;
 let lastProgressionSampleInterval = null;
 let lastProgressionState = {};
+let progressionGraphPollInFlight = false;
+let progressionGraphGenerationRunning = false;
+let lastProgressionGraphCompletion = "";
 const expandedPartySlots = new Set();
 const BUTTON_COLORS = {
   a: "#6f89af",
@@ -464,6 +469,26 @@ progressionRangeEl.addEventListener("change", () => {
 
 progressionSampleEl.addEventListener("input", () => {
   renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
+});
+
+generateProgressionGraphButton.addEventListener("click", async () => {
+  const currentDigits = Math.max(0, Number(lastProgressionState.digits_consumed) || 0);
+  const rangeDigits = Math.max(1, Number(progressionRangeEl.value) || 10000);
+  const sampleDigits = progressionSampleInterval();
+  generateProgressionGraphButton.disabled = true;
+  progressionGraphStatusEl.textContent = "Starting graph generation";
+  const result = await post("/api/generate-progression-graph", {
+    end_digits: currentDigits,
+    range_digits: rangeDigits,
+    sample_digits: sampleDigits,
+  });
+  if (!result.ok) {
+    generateProgressionGraphButton.disabled = false;
+    progressionGraphStatusEl.textContent = result.error || "Graph generation failed";
+    return;
+  }
+  progressionGraphGenerationRunning = true;
+  pollProgressionGraph();
 });
 
 function fmt(value) {
@@ -1025,7 +1050,59 @@ function progressionSampleInterval() {
   return Math.max(1, Math.min(10000, Math.round(10 ** Number(progressionSampleEl.value || 0))));
 }
 
-function renderProgressionGraph(progression = {}, currentDigits = 0) {
+function applyGeneratedProgressionSamples(samples = []) {
+  const mapped = samples
+    .map((sample) => ({
+      digit: Number(sample.digit),
+      steps: sample.steps === null || sample.steps === undefined ? NaN : Number(sample.steps),
+    }))
+    .filter((sample) => Number.isFinite(sample.digit));
+  progressionSamples = mapped;
+  lastProgressionSampleDigit = mapped.length ? mapped[mapped.length - 1].digit : null;
+  lastProgressionSampleInterval = progressionSampleInterval();
+  renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0, { preserveSamples: true });
+}
+
+async function pollProgressionGraph() {
+  if (progressionGraphPollInFlight) {
+    return;
+  }
+  progressionGraphPollInFlight = true;
+  try {
+    const response = await fetch("/api/progression-graph", { cache: "no-store" });
+    const status = await response.json();
+    const current = Number(status.current_digits) || Number(status.start_digits) || 0;
+    const end = Number(status.end_digits) || 0;
+    const sampleCount = Number(status.sample_count) || (status.samples || []).length || 0;
+    progressionGraphGenerationRunning = Boolean(status.running);
+    generateProgressionGraphButton.disabled = progressionGraphGenerationRunning || romMissing;
+    if (status.running) {
+      progressionGraphStatusEl.textContent = `Generating ${fmt(current)} / ${fmt(end)} digits, ${fmt(sampleCount)} samples`;
+    } else if (status.state === "Complete") {
+      const completionKey = `${status.start_digits}:${status.end_digits}:${status.sample_digits}:${sampleCount}`;
+      progressionGraphStatusEl.textContent = `Generated ${fmt(sampleCount)} samples`;
+      if (completionKey !== lastProgressionGraphCompletion) {
+        lastProgressionGraphCompletion = completionKey;
+        applyGeneratedProgressionSamples(status.samples || []);
+      }
+    } else if (status.state === "Error") {
+      progressionGraphStatusEl.textContent = status.error || "Graph generation failed";
+    } else {
+      progressionGraphStatusEl.textContent = "Live sampling";
+    }
+  } catch (error) {
+    progressionGraphStatusEl.textContent = "Graph generation disconnected";
+    progressionGraphGenerationRunning = false;
+    generateProgressionGraphButton.disabled = romMissing;
+  } finally {
+    progressionGraphPollInFlight = false;
+  }
+  if (progressionGraphGenerationRunning) {
+    setTimeout(pollProgressionGraph, 500);
+  }
+}
+
+function renderProgressionGraph(progression = {}, currentDigits = 0, options = {}) {
   const digit = Math.max(0, Number(currentDigits) || 0);
   const rawRemainingSteps = progression.remaining_steps;
   const rawTotalSteps = progression.total_steps_from_respawn;
@@ -1043,13 +1120,15 @@ function renderProgressionGraph(progression = {}, currentDigits = 0) {
   progressionPointEl.textContent = `${pointLabel}${locationLabel}`;
   progressionDistanceEl.textContent = hasDistance ? `${fmt(Math.round(remainingSteps))} steps` : "Awaiting route data";
   progressionSampleValueEl.textContent = `${fmt(sampleInterval)} digit${sampleInterval === 1 ? "" : "s"}`;
-  if (lastProgressionSampleInterval !== sampleInterval) {
+  if (!options.preserveSamples && lastProgressionSampleInterval !== sampleInterval) {
     progressionSamples = [];
     lastProgressionSampleDigit = null;
     lastProgressionSampleInterval = sampleInterval;
   }
 
   if (
+    !options.preserveSamples
+    &&
     hasDistance
     && (
       lastProgressionSampleDigit === null
@@ -1238,6 +1317,7 @@ function renderStats(state) {
   warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
   videoExportButton.disabled = backendBusy;
+  generateProgressionGraphButton.disabled = progressionGraphGenerationRunning;
   stopSimulateButton.disabled = true;
   runSelectEl.disabled = backendBusy || !(state.runs || []).length;
   if (romMissing) {
@@ -1245,6 +1325,7 @@ function renderStats(state) {
     warpStateButton.disabled = true;
     simulateButton.disabled = true;
     videoExportButton.disabled = true;
+    generateProgressionGraphButton.disabled = true;
   }
   if (state.chart_simulation && state.chart_simulation.running) {
     const chart = state.chart_simulation;

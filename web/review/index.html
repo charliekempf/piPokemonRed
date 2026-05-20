@@ -198,12 +198,14 @@
               <input id="progression-sample" type="range" min="0" max="4" step="0.001" value="2" aria-label="Progression graph sample interval" />
               <strong id="progression-sample-value">100 digits</strong>
             </label>
+            <button id="generate-progression-graph" class="primary-control progression-generate-button" type="button">Generate graph</button>
           </div>
         </div>
         <div class="progression-graph-meta">
           <span id="progression-point">Progression route data pending</span>
           <strong id="progression-distance">-</strong>
         </div>
+        <div id="progression-graph-status" class="progression-graph-status">Live sampling</div>
         <canvas id="progression-graph" class="progression-graph" width="1240" height="260" aria-label="Player step distance from current progression point"></canvas>
       </section>
       <section class="config-panel">
