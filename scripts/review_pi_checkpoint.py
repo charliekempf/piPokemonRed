@@ -1916,7 +1916,8 @@ class ReviewSession:
         simulator = PyBoy(
             str(self.rom_path or ROM),
             window="null",
-            sound_emulated=False,
+            sound_emulated=True,
+            sound_sample_rate=getattr(self.pyboy.sound, "sample_rate", 48000),
             no_input=False,
             ram_file=io.BytesIO(bytes(32768)),
             log_level="CRITICAL",
@@ -1972,7 +1973,8 @@ class ReviewSession:
         simulator = PyBoy(
             str(self.rom_path or ROM),
             window="null",
-            sound_emulated=False,
+            sound_emulated=True,
+            sound_sample_rate=getattr(self.pyboy.sound, "sample_rate", 48000),
             no_input=False,
             ram_file=io.BytesIO(bytes(32768)),
             log_level="CRITICAL",
@@ -2157,7 +2159,8 @@ class ReviewSession:
             simulator = PyBoy(
                 str(self.rom_path or ROM),
                 window="null",
-                sound_emulated=False,
+                sound_emulated=True,
+                sound_sample_rate=getattr(self.pyboy.sound, "sample_rate", 48000),
                 no_input=False,
                 ram_file=io.BytesIO(bytes(32768)),
                 log_level="CRITICAL",
@@ -2221,7 +2224,8 @@ class ReviewSession:
         simulator = PyBoy(
             str(self.rom_path or ROM),
             window="null",
-            sound_emulated=False,
+            sound_emulated=True,
+            sound_sample_rate=getattr(self.pyboy.sound, "sample_rate", 48000),
             no_input=False,
             ram_file=io.BytesIO(bytes(32768)),
             log_level="CRITICAL",
@@ -2274,7 +2278,8 @@ class ReviewSession:
         simulator = PyBoy(
             str(self.rom_path or ROM),
             window="null",
-            sound_emulated=False,
+            sound_emulated=True,
+            sound_sample_rate=getattr(self.pyboy.sound, "sample_rate", 48000),
             no_input=False,
             ram_file=io.BytesIO(bytes(32768)),
             log_level="CRITICAL",

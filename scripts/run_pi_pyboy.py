@@ -282,6 +282,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hold-frames", type=int, default=None)
     parser.add_argument("--release-frames", type=int, default=None)
     parser.add_argument("--max-digits", type=int, default=None)
+    parser.add_argument("--sound-sample-rate", type=int, default=48000)
     parser.add_argument("--fresh", action="store_true", help="Ignore existing checkpoints and start from reset.")
     parser.add_argument("--no-screenshots", action="store_true")
     return parser.parse_args()
@@ -322,7 +323,8 @@ def main() -> None:
     pyboy = PyBoy(
         str(args.rom),
         window="null",
-        sound_emulated=False,
+        sound_emulated=True,
+        sound_sample_rate=args.sound_sample_rate,
         no_input=False,
         ram_file=io.BytesIO(bytes(32768)),
         log_level="CRITICAL",
