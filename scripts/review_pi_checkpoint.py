@@ -33,7 +33,7 @@ from run_pi_pyboy import (
     write_progress,
 )
 from progression_pathfinding import Tile
-from progression_world import progression_state_for_tile
+from progression_world import active_progression_gate, progression_state_for_tile
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d+)_digits\.state$")
@@ -1682,7 +1682,17 @@ class ReviewSession:
         with self._lock:
             self.running = False
 
-    def info(self) -> dict[str, int | float | str]:
+    def progression_snapshot(self) -> dict[str, object]:
+        with self._lock:
+            tile = current_player_tile(self.pyboy)
+            gate = active_progression_gate(self.pyboy)
+            return {
+                "digits_consumed": self.digits_consumed,
+                "gate": gate,
+                "current_tile": tile,
+            }
+
+    def info(self) -> dict[str, object]:
         with self._lock:
             map_id = current_map_id(self.pyboy)
             return {
@@ -1693,7 +1703,7 @@ class ReviewSession:
                 "current_input_frame": self.current_input_frame,
                 "map_id": map_id,
                 "location": map_name(map_id),
-                "progression": progression_state(self.pyboy),
+                "current_tile": current_player_tile(self.pyboy),
                 "speed": self.speed,
                 "actual_speed_x": round(self._actual_speed_x, 1),
                 "actual_digits_per_second": self._actual_speed_x

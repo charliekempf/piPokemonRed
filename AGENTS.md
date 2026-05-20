@@ -69,6 +69,7 @@ Current reviewer UI behavior:
 - The Config panel lives below the timeline and shows game/version/region, digits per input, button ranges, and a pie chart of the mapping spread.
 - The timeline shows checkpoint-charted progress in blue and lets users click checkpointed regions to jump to the nearest checkpoint.
 - The Progression Distance graph lives below the timeline. It uses `results/progression_world.json`, which is generated locally and ignored because it derives from Pokemon map data. If the graph says the database is missing, run `py scripts\build_progression_world.py` after cloning/updating `tools/pokered`.
+- Progression distance is computed by a detached background worker in `scripts/review_web.py`; do not move Dijkstra/pathfinding back into `ReviewSession.info()` or `/api/state`, because that can slow emulator playback while the UI polls.
 
 ## Git Workflow
 

@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +18,8 @@ from urllib.parse import urlparse
 from PIL import Image
 from pyboy import PyBoy
 
+from progression_pathfinding import Tile
+from progression_world import progression_state_for_gate
 from review_pi_checkpoint import (
     AudioSink,
     REVIEW_CACHE_DIRNAME,
@@ -44,6 +47,7 @@ from run_pi_pyboy import (
 
 WEB_ROOT = Path("web/review")
 REVIEW_SESSION_STATE = Path("results") / "review_session_state.json"
+PROGRESSION_REFRESH_SECONDS = 0.5
 RUN_PI_RE = re.compile(r"run_pi_pyboy\.py")
 MAX_DIGITS_RE = re.compile(r"--max-digits\s+(\d+)")
 RUN_NAME_RE = re.compile(r"--run-name\s+([^\s]+)")
@@ -610,6 +614,9 @@ class ReviewWebApp:
         self.chart_target_digits = 0
         self.video_export_thread: threading.Thread | None = None
         self.video_export_status: dict[str, object] = {"state": "Ready"}
+        self.progression_thread: threading.Thread | None = None
+        self.progression_state: dict[str, object] = {}
+        self.progression_signature = ""
         self._last_saved_run_name = ""
         self._last_saved_digits = -1
         self.frame_version = 0
@@ -627,6 +634,54 @@ class ReviewWebApp:
             return
         self.emulator_thread = threading.Thread(target=self.session.run, name="pyboy-web-review", daemon=True)
         self.emulator_thread.start()
+        self.start_progression_thread()
+
+    def start_progression_thread(self) -> None:
+        if self.progression_thread is not None and self.progression_thread.is_alive():
+            return
+        self.progression_thread = threading.Thread(target=self._progression_worker, name="progression-distance", daemon=True)
+        self.progression_thread.start()
+
+    def _progression_worker(self) -> None:
+        while True:
+            session = self.session
+            if session is None:
+                time.sleep(PROGRESSION_REFRESH_SECONDS)
+                continue
+            try:
+                snapshot = session.progression_snapshot()
+                gate = snapshot["gate"]
+                tile_info = snapshot["current_tile"]
+                tile = Tile(int(tile_info["map_id"]), int(tile_info["x"]), int(tile_info["y"]))
+                signature = f"{snapshot['digits_consumed']}:{gate['id']}:{tile.map_id}:{tile.x}:{tile.y}"
+                with self._lock:
+                    if signature == self.progression_signature:
+                        state = None
+                    else:
+                        self.progression_signature = signature
+                        state = "compute"
+                if state:
+                    progression = progression_state_for_gate(gate, tile)
+                    progression["computed_digits"] = int(snapshot["digits_consumed"])
+                    with self._lock:
+                        if self.progression_signature == signature:
+                            self.progression_state = progression
+            except Exception as error:
+                with self._lock:
+                    self.progression_state = {
+                        "label": "Progression distance unavailable",
+                        "objective_location": "",
+                        "remaining_steps": None,
+                        "total_steps_from_respawn": None,
+                        "graph_max_steps": None,
+                        "reachable": False,
+                        "error": str(error),
+                    }
+            time.sleep(PROGRESSION_REFRESH_SECONDS)
+
+    def progression_info(self) -> dict[str, object]:
+        with self._lock:
+            return dict(self.progression_state)
 
     def install_rom(self, rom_bytes: bytes) -> None:
         self.rom_path.parent.mkdir(parents=True, exist_ok=True)
@@ -666,6 +721,8 @@ class ReviewWebApp:
             self.chart_target_digits = 0
             self.video_export_thread = None
             self.video_export_status = {"state": "Ready"}
+            self.progression_state = {}
+            self.progression_signature = ""
             self.frame_version = 0
             self._last_frame_digest = ""
 
@@ -889,6 +946,7 @@ class ReviewWebApp:
             **info,
             "rom_missing": False,
             "rom_path": str(self.rom_path),
+            "progression": self.progression_info(),
             "frame_version": self.frame_version,
             "inputs": self.session.input_window(previous_count=3, next_count=11),
             "party": self.session.party(),

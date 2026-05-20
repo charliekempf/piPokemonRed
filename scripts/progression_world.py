@@ -156,8 +156,16 @@ def progression_state_for_tile(
     current_tile: Tile,
     respawn_tile: Tile | None = None,
 ) -> dict[str, object]:
-    world = load_world()
     gate = active_progression_gate(pyboy)
+    return progression_state_for_gate(gate, current_tile, respawn_tile)
+
+
+def progression_state_for_gate(
+    gate: dict[str, Any],
+    current_tile: Tile,
+    respawn_tile: Tile | None = None,
+) -> dict[str, object]:
+    world = load_world()
     target_tiles = [Tile(map_id, x, y) for map_id, x, y in gate["targets"]]
     target_map_id = int(gate["targets"][0][0])
 
