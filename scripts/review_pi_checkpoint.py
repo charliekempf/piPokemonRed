@@ -1164,27 +1164,75 @@ class AudioSink:
             self.device = 0
 
 
+POKEMON_TEXT_CHARS = {
+    0x4A: "ᴾᴷᴹᴺ",
+    0x54: "POKé",
+    0x56: "……",
+    0x5B: "PC",
+    0x5C: "TM",
+    0x5D: "TRAINER",
+    0x5E: "ROCKET",
+    0x5F: ".",
+    0x6D: ":",
+    0x70: "‘",
+    0x71: "’",
+    0x72: "“",
+    0x73: "”",
+    0x74: "・",
+    0x75: "…",
+    0x79: "╔",
+    0x7A: "═",
+    0x7B: "╗",
+    0x7C: "║",
+    0x7D: "╚",
+    0x7E: "╝",
+    0x7F: " ",
+    0x9A: "(",
+    0x9B: ")",
+    0x9C: ":",
+    0x9D: ";",
+    0x9E: "[",
+    0x9F: "]",
+    0xBA: "é",
+    0xBB: "'d",
+    0xBC: "'l",
+    0xBD: "'s",
+    0xBE: "'t",
+    0xBF: "'v",
+    0xE0: "'",
+    0xE1: "ᴾᴷ",
+    0xE2: "ᴹᴺ",
+    0xE3: "-",
+    0xE4: "'r",
+    0xE5: "'m",
+    0xE6: "?",
+    0xE7: "!",
+    0xE8: ".",
+    0xEC: "▷",
+    0xED: "▶",
+    0xEE: "▼",
+    0xEF: "♂",
+    0xF1: "×",
+    0xF2: ".",
+    0xF3: "/",
+    0xF4: ",",
+    0xF5: "♀",
+}
+
+
 def decode_pokemon_text(values: list[int]) -> str:
     chars: list[str] = []
     for value in values:
         if value == 0x50:
             break
-        if value == 0x7F:
-            chars.append(" ")
-        elif 0x80 <= value <= 0x99:
+        if 0x80 <= value <= 0x99:
             chars.append(chr(ord("A") + value - 0x80))
         elif 0xA0 <= value <= 0xB9:
             chars.append(chr(ord("a") + value - 0xA0))
         elif 0xF6 <= value <= 0xFF:
             chars.append(chr(ord("0") + value - 0xF6))
-        elif value == 0xE0:
-            chars.append("'")
-        elif value == 0xE3:
-            chars.append("-")
-        elif value == 0xE6:
-            chars.append("?")
-        elif value == 0xE7:
-            chars.append("!")
+        elif value in POKEMON_TEXT_CHARS:
+            chars.append(POKEMON_TEXT_CHARS[value])
     return "".join(chars).strip()
 
 
