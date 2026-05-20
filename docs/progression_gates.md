@@ -90,12 +90,16 @@ This keeps the UI useful while we gradually replace coarse checks with exact eve
 
 The progress bar should not be based on raw map ID order. It should be based on shortest walkable player steps through the current accessible world.
 
+The initial pathfinding core lives in `scripts/progression_pathfinding.py`. It uses Dijkstra shortest path over map tiles and can already sum distance across multiple maps through warp edges.
+
 Represent the world as a graph:
 
 - Node: `(map_id, x, y)`.
 - Cost: one tile step.
 - Edge types:
   - cardinal walking edges on passable tiles;
+  - blocked directed edges for walls, ledge lips, and other one-way tile boundaries;
+  - directed ledge edges that permit jumping only in the legal direction;
   - warp edges for doors, caves, stairs, ladders, and elevators;
   - scripted transition edges such as S.S. Anne boarding, Safari Zone entry, and elevator floor selection;
   - conditional edges for Cut, Surf, Strength, Snorlax, locked doors, card-key doors, guards, badge gates, and gym locks.
