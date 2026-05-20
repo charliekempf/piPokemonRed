@@ -33,6 +33,13 @@ const simulateStateEl = document.querySelector("#simulate-state");
 const simulateProgressEl = document.querySelector("#simulate-progress");
 const simulateRateEl = document.querySelector("#simulate-rate");
 const simulateEtaEl = document.querySelector("#simulate-eta");
+const videoExportStartEl = document.querySelector("#video-export-start");
+const videoExportEndEl = document.querySelector("#video-export-end");
+const videoExportPresetEl = document.querySelector("#video-export-preset");
+const videoExportButton = document.querySelector("#video-export-button");
+const videoExportStatusEl = document.querySelector("#video-export-status");
+const videoExportStateEl = document.querySelector("#video-export-state");
+const videoExportProgressEl = document.querySelector("#video-export-progress");
 const runSelectEl = document.querySelector("#run-select");
 const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
@@ -389,6 +396,22 @@ stopSimulateButton.addEventListener("click", () => {
   stopSimulateButton.disabled = true;
   setSimulatorStats({ state: "Stopping" });
   post("/api/stop-simulate");
+});
+
+videoExportButton.addEventListener("click", async () => {
+  const startDigits = Math.max(0, Number(String(videoExportStartEl.value).replaceAll(",", "")) || 0);
+  const endDigits = Math.max(0, Number(String(videoExportEndEl.value).replaceAll(",", "")) || 0);
+  videoExportButton.disabled = true;
+  setVideoExportStats({ state: "Starting", progress: `${fmt(startDigits)} / ${fmt(endDigits)}` });
+  const result = await post("/api/export-video", {
+    start_digits: startDigits,
+    end_digits: endDigits,
+    preset: videoExportPresetEl.value,
+  });
+  if (!result.ok) {
+    setVideoExportStats({ state: "Error", progress: result.error || "Export failed" });
+    videoExportButton.disabled = false;
+  }
 });
 
 badgesToggleEl.addEventListener("click", () => {
@@ -805,6 +828,13 @@ function setSimulatorStats({ state = "Ready", progress = "-", rate = "-", eta = 
   simulateStatusEl.title = title;
 }
 
+function setVideoExportStats({ state = "Ready", progress = "-", title = "" } = {}) {
+  videoExportStateEl.textContent = state;
+  videoExportProgressEl.textContent = progress;
+  videoExportStatusEl.textContent = [state, progress].filter((value) => value && value !== "-").join(", ") || "Ready";
+  videoExportStatusEl.title = title;
+}
+
 function renderRuns(runs = [], activeRun = "") {
   const signature = JSON.stringify({ runs, activeRun });
   if (signature === runListSignature) {
@@ -960,6 +990,9 @@ function setInitialControls(state) {
     ? speedEl.max
     : Math.log10(Math.max(0.1, Math.min(1000, Number(state.speed))));
   simulateTargetDigitsEl.value = String(Math.max(0, Number(state.max_digits) || 0));
+  const currentDigits = Math.max(0, Number(state.digits_consumed) || 0);
+  videoExportStartEl.value = String(currentDigits);
+  videoExportEndEl.value = String(Math.min(Math.max(currentDigits + 10000, currentDigits), Number(state.max_digits) || currentDigits + 10000));
   controlsInitialized = true;
 }
 
@@ -1016,12 +1049,14 @@ function renderStats(state) {
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
+  videoExportButton.disabled = backendBusy;
   stopSimulateButton.disabled = true;
   runSelectEl.disabled = backendBusy || !(state.runs || []).length;
   if (romMissing) {
     jumpButton.disabled = true;
     warpStateButton.disabled = true;
     simulateButton.disabled = true;
+    videoExportButton.disabled = true;
   }
   if (state.chart_simulation && state.chart_simulation.running) {
     const chart = state.chart_simulation;
@@ -1054,6 +1089,32 @@ function renderStats(state) {
     });
   } else {
     setSimulatorStats();
+  }
+
+  if (state.video_export && state.video_export.running) {
+    const video = state.video_export;
+    const current = Number(video.current_digits) || Number(video.start_digits) || 0;
+    const end = Number(video.end_digits) || 0;
+    videoExportButton.disabled = true;
+    setVideoExportStats({
+      state: video.state || "Exporting",
+      progress: `${fmt(current)} / ${fmt(end)}`,
+      title: video.output_path || "",
+    });
+  } else if (state.video_export && state.video_export.state && state.video_export.state !== "Ready") {
+    const video = state.video_export;
+    const progressText = video.error
+      ? String(video.error)
+      : `${fmt(Number(video.current_digits) || 0)} / ${fmt(Number(video.end_digits) || 0)}`;
+    videoExportButton.disabled = backendBusy || romMissing;
+    setVideoExportStats({
+      state: video.state,
+      progress: progressText,
+      title: video.output_path || "",
+    });
+  } else {
+    videoExportButton.disabled = backendBusy || romMissing;
+    setVideoExportStats();
   }
 }
 
@@ -1090,6 +1151,7 @@ async function refresh() {
     muteEl.title = "Mute";
     renderRuns([], "");
     renderConfigInfo({});
+    setVideoExportStats({ state: "Disconnected" });
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     renderParty([]);

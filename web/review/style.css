@@ -552,7 +552,8 @@ input[type="range"] {
   width: 100%;
 }
 
-.simulator-panel {
+.simulator-panel,
+.video-export-panel {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
@@ -631,7 +632,8 @@ input[type="range"] {
   padding: 0 10px;
 }
 
-.checkpoint-panel .simulator-panel {
+.checkpoint-panel .simulator-panel,
+.checkpoint-panel .video-export-panel {
   grid-template-columns: 1fr;
   gap: 8px;
 }

@@ -19,17 +19,21 @@ from pyboy import PyBoy
 
 from review_pi_checkpoint import (
     AudioSink,
+    REVIEW_CACHE_DIRNAME,
     ReviewSession,
     checkpoint_digits,
     render_loaded_state,
     resolve_checkpoint,
 )
 from run_pi_pyboy import (
+    GAMEBOY_FPS,
     INPUT_CONFIG,
     PI_DIGITS,
     ROM,
     RUN_NAME,
     RUN_CONFIG_FILENAME,
+    advance_pi_inputs,
+    button_for_value,
     config_display_name,
     latest_checkpoint,
     load_input_config,
@@ -41,6 +45,32 @@ WEB_ROOT = Path("web/review")
 RUN_PI_RE = re.compile(r"run_pi_pyboy\.py")
 MAX_DIGITS_RE = re.compile(r"--max-digits\s+(\d+)")
 RUN_NAME_RE = re.compile(r"--run-name\s+([^\s]+)")
+VIDEO_EXPORT_PRESETS = {
+    "mp4": {
+        "label": "MP4",
+        "extension": ".mp4",
+        "input_pix_fmt": "rgb24",
+        "ffmpeg_args": [],
+    },
+    "av1": {
+        "label": "AV1",
+        "extension": ".mkv",
+        "input_pix_fmt": "gray",
+        "ffmpeg_args": ["-c:v", "libaom-av1", "-pix_fmt", "gray"],
+    },
+    "av1_lossless": {
+        "label": "AV1 lossless",
+        "extension": ".mkv",
+        "input_pix_fmt": "gray",
+        "ffmpeg_args": ["-c:v", "libaom-av1", "-crf", "0", "-b:v", "0", "-pix_fmt", "gray"],
+    },
+    "ffv1": {
+        "label": "FFV1",
+        "extension": ".mkv",
+        "input_pix_fmt": "gray",
+        "ffmpeg_args": ["-c:v", "ffv1", "-level", "3", "-pix_fmt", "gray"],
+    },
+}
 
 
 class RomMissingError(RuntimeError):
@@ -57,6 +87,23 @@ def list_checkpoints(run_name: str) -> list[dict[str, int | str]]:
             continue
         checkpoints.append({"digits": digits, "filename": checkpoint_path.name})
     return sorted(checkpoints, key=lambda checkpoint: int(checkpoint["digits"]))
+
+
+def seek_checkpoints(run_name: str) -> list[tuple[int, Path]]:
+    checkpoint_dir = Path("saves") / run_name
+    candidates: list[tuple[int, Path]] = []
+    for source_dir in (checkpoint_dir, checkpoint_dir / REVIEW_CACHE_DIRNAME):
+        for checkpoint_path in source_dir.glob("checkpoint_*_digits.state"):
+            try:
+                candidates.append((checkpoint_digits(checkpoint_path, None), checkpoint_path))
+            except ValueError:
+                continue
+    return sorted(candidates, key=lambda candidate: candidate[0])
+
+
+def checkpoint_at_or_before(run_name: str, target_digits: int) -> tuple[int, Path] | None:
+    candidates = [candidate for candidate in seek_checkpoints(run_name) if candidate[0] <= target_digits]
+    return max(candidates, key=lambda candidate: candidate[0]) if candidates else None
 
 
 def list_runs(active_run_name: str) -> list[dict[str, object]]:
@@ -226,6 +273,155 @@ def stop_running_chart_processes(run_name: str) -> int:
         return 0
 
 
+def safe_filename_part(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("_")
+    return cleaned or "export"
+
+
+def normalize_digit(value: int, digits_per_input: int) -> int:
+    value = max(0, int(value))
+    if value % digits_per_input:
+        value -= value % digits_per_input
+    return value
+
+
+def image_bytes_for_pix_fmt(pyboy: PyBoy, pix_fmt: str) -> bytes:
+    image = pyboy.screen.image
+    if pix_fmt == "gray":
+        return image.convert("L").tobytes()
+    return image.convert("RGB").tobytes()
+
+
+def run_video_export(
+    app: "ReviewWebApp",
+    start_digits: int,
+    end_digits: int,
+    preset_name: str,
+    output_path: Path,
+) -> None:
+    preset = VIDEO_EXPORT_PRESETS[preset_name]
+    input_config = load_input_config(app.config_path)
+    checkpoint = checkpoint_at_or_before(app.run_name, start_digits)
+    if checkpoint is None:
+        raise RuntimeError("No checkpoint before export start.")
+
+    checkpoint_digits_consumed, checkpoint_path = checkpoint
+    frame_count = ((end_digits - start_digits) // input_config.digits_per_input) * (
+        input_config.on_frames + input_config.off_frames
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_output_path = output_path.with_suffix(".tmp" + output_path.suffix)
+    temp_output_path.unlink(missing_ok=True)
+
+    command = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        str(preset["input_pix_fmt"]),
+        "-s",
+        "160x144",
+        "-r",
+        f"{GAMEBOY_FPS:.6f}",
+        "-i",
+        "pipe:0",
+        "-an",
+        *list(preset["ffmpeg_args"]),
+        str(temp_output_path),
+    ]
+
+    pyboy = PyBoy(
+        str(app.rom_path),
+        window="null",
+        sound_emulated=True,
+        sound_sample_rate=48000,
+        no_input=False,
+        ram_file=io.BytesIO(bytes(32768)),
+        log_level="CRITICAL",
+    )
+    pyboy.set_emulation_speed(0)
+    process: subprocess.Popen[bytes] | None = None
+    frames_written = 0
+    digits_consumed = checkpoint_digits_consumed
+    try:
+        with checkpoint_path.open("rb") as state_file:
+            pyboy.load_state(state_file)
+
+        if digits_consumed < start_digits:
+            digits_consumed, _, _ = advance_pi_inputs(
+                pyboy,
+                app.digits,
+                digits_consumed,
+                start_digits,
+                input_config.on_frames,
+                input_config.off_frames,
+                input_config=input_config,
+            )
+
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=Path.cwd(),
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        if process.stdin is None:
+            raise RuntimeError("Could not open ffmpeg stdin.")
+
+        while digits_consumed < end_digits:
+            value = int(app.digits[digits_consumed : digits_consumed + input_config.digits_per_input])
+            button = button_for_value(value, input_config)
+            pyboy.button_press(button)
+            for _ in range(input_config.on_frames):
+                pyboy.tick(1, True, True)
+                process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                frames_written += 1
+            pyboy.button_release(button)
+            for _ in range(input_config.off_frames):
+                pyboy.tick(1, True, True)
+                process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                frames_written += 1
+            digits_consumed += input_config.digits_per_input
+            if frames_written % 600 == 0:
+                app.update_video_export(
+                    state="Exporting",
+                    start_digits=start_digits,
+                    end_digits=end_digits,
+                    current_digits=digits_consumed,
+                    frames_written=frames_written,
+                    total_frames=frame_count,
+                    output_path=str(output_path),
+                    preset=preset_name,
+                )
+
+        process.stdin.close()
+        return_code = process.wait(timeout=30)
+        if return_code != 0:
+            raise RuntimeError(f"ffmpeg failed with exit code {return_code}")
+        temp_output_path.replace(output_path)
+        app.update_video_export(
+            state="Complete",
+            start_digits=start_digits,
+            end_digits=end_digits,
+            current_digits=end_digits,
+            frames_written=frames_written,
+            total_frames=frame_count,
+            output_path=str(output_path),
+            preset=preset_name,
+        )
+    finally:
+        if process is not None and process.poll() is None:
+            if process.stdin:
+                try:
+                    process.stdin.close()
+                except OSError:
+                    pass
+            process.terminate()
+        pyboy.stop()
+
+
 class ReviewWebApp:
     def __init__(
         self,
@@ -237,6 +433,7 @@ class ReviewWebApp:
         hard_max_digits: int | None,
         rom_path: Path,
         digits_path: Path,
+        digits: str,
         config_path: Path,
         session_factory,
     ) -> None:
@@ -248,11 +445,14 @@ class ReviewWebApp:
         self.hard_max_digits = hard_max_digits
         self.rom_path = rom_path
         self.digits_path = digits_path
+        self.digits = digits
         self.config_path = config_path
         self.session_factory = session_factory
         self.emulator_thread: threading.Thread | None = None
         self.chart_simulation: subprocess.Popen[bytes] | None = None
         self.chart_target_digits = 0
+        self.video_export_thread: threading.Thread | None = None
+        self.video_export_status: dict[str, object] = {"state": "Ready"}
         self.frame_version = 0
         self._last_frame_digest = ""
         self._lock = threading.Lock()
@@ -312,6 +512,8 @@ class ReviewWebApp:
             self.session = session
             self.chart_simulation = None
             self.chart_target_digits = 0
+            self.video_export_thread = None
+            self.video_export_status = {"state": "Ready"}
             self.frame_version = 0
             self._last_frame_digest = ""
         self.start_emulator_thread()
@@ -395,6 +597,65 @@ class ReviewWebApp:
             "last_state": progress.get("last_state", ""),
         }
 
+    def update_video_export(self, **status: object) -> None:
+        with self._lock:
+            self.video_export_status = {**self.video_export_status, **status}
+
+    def video_export_info(self) -> dict[str, object]:
+        with self._lock:
+            status = dict(self.video_export_status)
+            thread = self.video_export_thread
+        running = thread is not None and thread.is_alive()
+        status["running"] = running
+        return status
+
+    def start_video_export(self, start_digits: int, end_digits: int, preset_name: str) -> dict[str, object]:
+        if preset_name not in VIDEO_EXPORT_PRESETS:
+            raise ValueError(f"Unsupported video preset: {preset_name}")
+        digits_per_input = self.digits_per_input
+        start_digits = normalize_digit(start_digits, digits_per_input)
+        end_digits = normalize_digit(end_digits, digits_per_input)
+        max_digits = min(len(self.digits), self.hard_max_digits or len(self.digits))
+        end_digits = min(end_digits, max_digits)
+        if end_digits <= start_digits:
+            raise ValueError("End digit must be greater than start digit.")
+        if checkpoint_at_or_before(self.run_name, start_digits) is None:
+            raise ValueError("No checkpoint before export start.")
+
+        with self._lock:
+            if self.video_export_thread is not None and self.video_export_thread.is_alive():
+                return dict(self.video_export_status)
+
+            preset = VIDEO_EXPORT_PRESETS[preset_name]
+            output_dir = Path("results") / self.run_name / "videos"
+            filename = (
+                f"{safe_filename_part(self.run_name)}_{start_digits}_{end_digits}_{preset_name}"
+                f"{preset['extension']}"
+            )
+            output_path = output_dir / filename
+            self.video_export_status = {
+                "state": "Starting",
+                "running": True,
+                "start_digits": start_digits,
+                "end_digits": end_digits,
+                "current_digits": start_digits,
+                "frames_written": 0,
+                "total_frames": ((end_digits - start_digits) // digits_per_input) * self.frames_per_input,
+                "output_path": str(output_path),
+                "preset": preset_name,
+                "error": "",
+            }
+
+            def worker() -> None:
+                try:
+                    run_video_export(self, start_digits, end_digits, preset_name, output_path)
+                except Exception as error:
+                    self.update_video_export(state="Error", running=False, error=str(error))
+
+            self.video_export_thread = threading.Thread(target=worker, name="pi-video-export", daemon=True)
+            self.video_export_thread.start()
+            return dict(self.video_export_status)
+
     def refresh_available_digits(self) -> None:
         if self.session is None:
             return
@@ -440,6 +701,7 @@ class ReviewWebApp:
                 "frames_per_input": self.frames_per_input,
                 "config": config_info(self.config_path) if self.config_path.exists() else {},
                 "chart_simulation": self.chart_simulation_info(),
+                "video_export": self.video_export_info(),
             }
         self.refresh_available_digits()
         info = self.session.info()
@@ -473,6 +735,7 @@ class ReviewWebApp:
             "frames_per_input": int(info.get("frames_per_input", self.frames_per_input)),
             "config": config_info(self.config_path) if self.config_path.exists() else {},
             "chart_simulation": self.chart_simulation_info(),
+            "video_export": self.video_export_info(),
         }
 
     def input_state(self) -> dict[str, object]:
@@ -548,6 +811,18 @@ def make_handler(app: ReviewWebApp):
             if path == "/api/stop-simulate":
                 stopped = app.stop_chart_simulation()
                 self._send_json({"ok": True, "stopped": stopped})
+                return
+
+            if path == "/api/export-video":
+                try:
+                    status = app.start_video_export(
+                        int(body.get("start_digits", 0)),
+                        int(body.get("end_digits", 0)),
+                        str(body.get("preset", "mp4")),
+                    )
+                    self._send_json({"ok": True, "export": status})
+                except Exception as error:
+                    self._send_json({"ok": False, "error": str(error)})
                 return
 
             if app.session is None:
@@ -751,6 +1026,7 @@ def main() -> None:
         args.max_digits,
         args.rom,
         args.digits,
+        digits,
         args.config,
         create_session,
     )
