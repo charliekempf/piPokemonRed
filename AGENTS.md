@@ -9,7 +9,7 @@ Current core approach:
 - Use PyBoy for the main simulator and checkpoint reviewer.
 - Use a legally obtained local Pokemon Red ROM in `roms/`; the ROM is ignored and must never be committed.
 - Use local pi digit text files in `data/`; these are ignored and must not be committed.
-- The active public/review run is `pi_50m_two_digit`; older `pi_1m_hold2_release1` and `smoke_hold2_release1` generated runs were removed locally.
+- The active public/review run is `statistical_spread`; older `pi_1m_hold2_release1` and `smoke_hold2_release1` generated runs were removed locally.
 - Current input mapping consumes two decimal digits at a time:
   - `00-53` -> A
   - `54-63` -> Up
@@ -19,11 +19,11 @@ Current core approach:
   - `94-98` -> B
   - `99` -> Start
 - Current verified timing is hold button for 2 frames, then release for 1 frame. One-frame taps were tested and often did not affect Pokemon Red gameplay.
-- Input timing, digit-to-button ranges, config display name, and Pokemon game metadata are configured in `config/pi_input.json`. The current config is named `Statistical Spread` and targets `Pokemon Red` version `1.0`, region `USA/Europe`.
+- Input timing, digit-to-button ranges, config display name, and Pokemon game metadata are configured in `config/statistical_spread.json`. The current config is named `Statistical Spread` and targets `Pokemon Red` version `1.0`, region `USA/Europe`.
 - Current config values are `on_frames: 2`, `off_frames: 1`, `digits_per_input: 2`, with the two-digit mapping below.
-- Runs are config-scoped. `scripts/run_pi_pyboy.py`, `scripts/review_web.py`, and `scripts/review_pi_checkpoint.py` write a canonical `input_config.json` into the run's checkpoint folder. If the same `--run-name` is used with an incompatible config, the scripts automatically use a separate run/checkpoint folder named with the config stem and hash, preventing incompatible button mappings or game versions from sharing savestates. Adding new game metadata remains backward-compatible with older runs that did not yet record it.
-- Current verified run is `pi_50m_two_digit`, using `data/pi_1b_digits.txt`, with checkpoints/screenshots every 1,000,000 digits.
-- Highest digit reached for README/status purposes is 196,000,000 digits consumed in `pi_50m_two_digit`.
+- Runs are config-scoped. `scripts/run_pi_pyboy.py`, `scripts/review_web.py`, and `scripts/review_pi_checkpoint.py` write a canonical `input_config.json` into the run's checkpoint folder. Folder names are derived from the config display name, for example `Statistical Spread` uses `statistical_spread`, so new folders and exported filenames stick to the config name. If a slug already exists with an incompatible config, the scripts use the config stem plus hash as a fallback.
+- Current verified run is `statistical_spread`, using `data/pi_1b_digits.txt`, with checkpoints/screenshots every 1,000,000 digits.
+- Highest digit reached for README/status purposes is 196,000,000 digits consumed in `statistical_spread`.
 - The current web reviewer normally starts from the penultimate playable checkpoint, so it opens one checkpoint behind the newest available state while the digit limit follows the newest checkpoint.
 
 Important scripts:
@@ -38,7 +38,7 @@ Important scripts:
 Typical commands:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_50m_two_digit --digits data\pi_1b_digits.txt --checkpoint-digits 1000000 --max-digits 50000000
+py scripts\run_pi_pyboy.py --config config\statistical_spread.json --digits data\pi_1b_digits.txt --checkpoint-digits 1000000 --max-digits 50000000
 .\scripts\open_review.ps1
 ```
 
@@ -96,6 +96,6 @@ Current reviewer UI behavior:
 - The launcher uses the full local pi digit file by default; pass `-MaxDigits <n>` only when a capped review is wanted.
 - The launcher and web reviewer default to `penultimate` checkpoint selection so review opens one checkpoint behind the newest available checkpoint while the digit limit follows the newest checkpoint.
 - The reviewer default speed is `10x`; pass `-Speed 1` or `--speed 1` when audio fidelity matters.
-- The launcher default run should be `pi_50m_two_digit`; do not switch it back to removed old runs.
+- The launcher default run should be `statistical_spread`; do not switch it back to removed old runs.
 - Before opening a reviewer, close any older running reviewer process.
 - Only target processes whose command line includes `review_web.py` or `review_pi_checkpoint.py`; do not stop unrelated Python processes.

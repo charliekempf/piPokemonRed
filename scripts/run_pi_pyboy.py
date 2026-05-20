@@ -14,9 +14,9 @@ from pyboy import PyBoy
 
 ROM = Path("roms/Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb")
 PI_DIGITS = Path("data/pi_10m_digits.txt")
-RUN_NAME = "pi_10m_two_digit"
+RUN_NAME = "statistical_spread"
 GAMEBOY_FPS = 4194304 / 70224
-INPUT_CONFIG = Path("config/pi_input.json")
+INPUT_CONFIG = Path("config/statistical_spread.json")
 VALID_BUTTONS = {"a", "b", "start", "select", "up", "down", "left", "right"}
 RUN_CONFIG_FILENAME = "input_config.json"
 
@@ -129,6 +129,10 @@ def config_display_name(config_path: Path) -> str:
     return name or config_path.parent.name or config_path.stem
 
 
+def slug_for_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", value.lower()).strip("_") or "config"
+
+
 def config_run_suffix(config_path: Path) -> str:
     digest = hashlib.sha1(compatibility_config_text(config_path).encode("utf-8")).hexdigest()[:10]
     stem = re.sub(r"[^A-Za-z0-9_-]+", "_", config_path.stem).strip("_") or "config"
@@ -142,10 +146,10 @@ def resolve_configured_run_name(
     results_root: Path = Path("results"),
 ) -> str:
     config_text = canonical_config_text(config_path)
-    configured_run_name = run_name
+    configured_run_name = slug_for_name(config_display_name(config_path) or run_name)
     run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
     if run_config_path.exists() and not configs_are_compatible(run_config_path, config_path):
-        configured_run_name = f"{run_name}_{config_run_suffix(config_path)}"
+        configured_run_name = config_run_suffix(config_path)
         run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
 
     run_config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -8,7 +8,7 @@ Experiments for mapping digits of pi to Game Boy inputs and testing whether the 
 
 The project is designed so the public repository contains only source code and documentation. You bring your own legally obtained ROM and local data files.
 
-**Highest digit reached:** 196,000,000 digits consumed in the `pi_50m_two_digit` run.
+**Highest digit reached:** 196,000,000 digits consumed in the `statistical_spread` run.
 
 ![piPokemon web review player with local ROM preview hidden](docs/review-player.png)
 
@@ -74,7 +74,7 @@ The active input scheme consumes two decimal digits at a time and presses the ma
 - `94-98` -> B
 - `99` -> Start
 
-The input timing and mapping live in `config/pi_input.json`:
+The input timing and mapping live in `config/statistical_spread.json`:
 
 - `name` is the friendly label shown in the config dropdown.
 - `game` records the target game title, version, and region. The current config targets `Pokemon Red` version `1.0`, region `USA/Europe`.
@@ -86,13 +86,13 @@ The input timing and mapping live in `config/pi_input.json`:
 Run or resume a headless PyBoy test with:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_10m_two_digit --digits data\pi_10m_digits.txt --checkpoint-digits 1000000
+py scripts\run_pi_pyboy.py --config config\statistical_spread.json --digits data\pi_10m_digits.txt --checkpoint-digits 1000000
 ```
 
 For the current 50M run:
 
 ```powershell
-py scripts\run_pi_pyboy.py --run-name pi_50m_two_digit --digits data\pi_1b_digits.txt --checkpoint-digits 1000000 --max-digits 50000000
+py scripts\run_pi_pyboy.py --config config\statistical_spread.json --digits data\pi_1b_digits.txt --checkpoint-digits 1000000 --max-digits 50000000
 ```
 
 Add `--fresh` to ignore existing checkpoints and restart from reset. Pass `--hold-frames` or `--release-frames` only when intentionally overriding the config for an experiment.
@@ -105,10 +105,10 @@ Review a checkpoint in the local web UI:
 .\scripts\open_review.ps1
 ```
 
-Open the current 50M run explicitly:
+Open the current Statistical Spread run explicitly:
 
 ```powershell
-.\scripts\open_review.ps1 -RunName pi_50m_two_digit -Digits data\pi_1b_digits.txt
+.\scripts\open_review.ps1 -RunName statistical_spread -Config config\statistical_spread.json -Digits data\pi_1b_digits.txt
 ```
 
 The launcher closes older web or Tk reviewer instances before opening a new browser tab. By default, it opens the penultimate checkpoint so there is room to play forward into the newest available checkpoint.

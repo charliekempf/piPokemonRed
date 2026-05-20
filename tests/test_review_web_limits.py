@@ -25,7 +25,7 @@ def test_refresh_available_digits_uses_digit_file_length() -> None:
         hard_max_digits=None,
         rom_path=Path("roms/test.gb"),
         digits_path=Path("data/test.txt"),
-        config_path=Path("config/pi_input.json"),
+        config_path=Path("config/statistical_spread.json"),
         session_factory=lambda: session,
     )
 
@@ -44,7 +44,7 @@ def test_refresh_available_digits_honors_hard_limit() -> None:
         hard_max_digits=11,
         rom_path=Path("roms/test.gb"),
         digits_path=Path("data/test.txt"),
-        config_path=Path("config/pi_input.json"),
+        config_path=Path("config/statistical_spread.json"),
         session_factory=lambda: session,
     )
 

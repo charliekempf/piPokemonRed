@@ -1,7 +1,7 @@
 param(
-    [string]$RunName = "pi_10m_two_digit",
-    [string]$Digits = "data\pi_10m_digits.txt",
-    [string]$Config = "config\pi_input.json",
+    [string]$RunName = "statistical_spread",
+    [string]$Digits = "data\pi_1b_digits.txt",
+    [string]$Config = "config\statistical_spread.json",
     [int]$MaxDigits = 0,
     [string]$Checkpoint = "penultimate",
     [int]$Speed = 10,
