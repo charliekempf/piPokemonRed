@@ -45,6 +45,8 @@ const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
 const progressionRangeEl = document.querySelector("#progression-range");
+const progressionSampleEl = document.querySelector("#progression-sample");
+const progressionSampleValueEl = document.querySelector("#progression-sample-value");
 const progressionPointEl = document.querySelector("#progression-point");
 const progressionDistanceEl = document.querySelector("#progression-distance");
 const progressionGraphEl = document.querySelector("#progression-graph");
@@ -91,6 +93,7 @@ let lastPartyMembers = [];
 let badgesExpanded = false;
 let progressionSamples = [];
 let lastProgressionSampleDigit = null;
+let lastProgressionSampleInterval = null;
 let lastProgressionState = {};
 const expandedPartySlots = new Set();
 const BUTTON_COLORS = {
@@ -382,6 +385,7 @@ runSelectEl.addEventListener("change", async () => {
   configRenderSignature = "";
   progressionSamples = [];
   lastProgressionSampleDigit = null;
+  lastProgressionSampleInterval = null;
   runSelectEl.disabled = false;
   refresh();
 });
@@ -455,6 +459,10 @@ loadCheckpointButton.addEventListener("click", () => {
 });
 
 progressionRangeEl.addEventListener("change", () => {
+  renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
+});
+
+progressionSampleEl.addEventListener("input", () => {
   renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
 });
 
@@ -1013,6 +1021,10 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
   timelineEl.replaceChildren(track);
 }
 
+function progressionSampleInterval() {
+  return Math.max(1, Math.min(10000, Math.round(10 ** Number(progressionSampleEl.value || 0))));
+}
+
 function renderProgressionGraph(progression = {}, currentDigits = 0) {
   const digit = Math.max(0, Number(currentDigits) || 0);
   const rawRemainingSteps = progression.remaining_steps;
@@ -1022,6 +1034,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0) {
   const totalSteps = rawTotalSteps === null || rawTotalSteps === undefined ? NaN : Number(rawTotalSteps);
   const graphMaxSteps = rawGraphMaxSteps === null || rawGraphMaxSteps === undefined ? NaN : Number(rawGraphMaxSteps);
   const selectableRange = Math.max(1, Number(progressionRangeEl.value) || 10000);
+  const sampleInterval = progressionSampleInterval();
   const startDigit = Math.max(0, digit - selectableRange);
   const hasDistance = Number.isFinite(remainingSteps);
   const pointLabel = progression.label || "Progression route data pending";
@@ -1029,8 +1042,21 @@ function renderProgressionGraph(progression = {}, currentDigits = 0) {
 
   progressionPointEl.textContent = `${pointLabel}${locationLabel}`;
   progressionDistanceEl.textContent = hasDistance ? `${fmt(Math.round(remainingSteps))} steps` : "Awaiting route data";
+  progressionSampleValueEl.textContent = `${fmt(sampleInterval)} digit${sampleInterval === 1 ? "" : "s"}`;
+  if (lastProgressionSampleInterval !== sampleInterval) {
+    progressionSamples = [];
+    lastProgressionSampleDigit = null;
+    lastProgressionSampleInterval = sampleInterval;
+  }
 
-  if (hasDistance && lastProgressionSampleDigit !== digit) {
+  if (
+    hasDistance
+    && (
+      lastProgressionSampleDigit === null
+      || digit < lastProgressionSampleDigit
+      || digit - lastProgressionSampleDigit >= sampleInterval
+    )
+  ) {
     progressionSamples.push({ digit, steps: Math.max(0, remainingSteps) });
     lastProgressionSampleDigit = digit;
   }

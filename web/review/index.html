@@ -182,16 +182,23 @@
       <section class="progression-graph-panel">
         <div class="progression-graph-header">
           <h1>Progression Distance</h1>
-          <label class="progression-range-field">
-            <span>Range</span>
-            <select id="progression-range" aria-label="Progression graph digit range">
-              <option value="1000">1,000 digits</option>
-              <option value="10000" selected>10,000 digits</option>
-              <option value="100000">100,000 digits</option>
-              <option value="1000000">1,000,000 digits</option>
-              <option value="10000000">10,000,000 digits</option>
-            </select>
-          </label>
+          <div class="progression-graph-controls">
+            <label class="progression-range-field">
+              <span>Range</span>
+              <select id="progression-range" aria-label="Progression graph digit range">
+                <option value="1000">1,000 digits</option>
+                <option value="10000" selected>10,000 digits</option>
+                <option value="100000">100,000 digits</option>
+                <option value="1000000">1,000,000 digits</option>
+                <option value="10000000">10,000,000 digits</option>
+              </select>
+            </label>
+            <label class="progression-sample-field">
+              <span>Sample every</span>
+              <input id="progression-sample" type="range" min="0" max="4" step="0.001" value="2" aria-label="Progression graph sample interval" />
+              <strong id="progression-sample-value">100 digits</strong>
+            </label>
+          </div>
         </div>
         <div class="progression-graph-meta">
           <span id="progression-point">Progression route data pending</span>
