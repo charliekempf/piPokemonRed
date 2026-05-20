@@ -2305,10 +2305,10 @@ class ReviewSession:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 button = button_for_value(value, self.input_config)
                 simulator.button_press(button)
-                simulator.tick(self.hold_frames, False, False)
+                simulator.tick(self.hold_frames, False, True)
                 simulator.button_release(button)
                 if self.release_frames:
-                    simulator.tick(self.release_frames, False, False)
+                    simulator.tick(self.release_frames, False, True)
                 digits_consumed += self.input_config.digits_per_input
                 inputs_sent += 1
                 last_button = button

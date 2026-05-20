@@ -180,6 +180,7 @@ def advance_pi_inputs(
     release_frames: int,
     render_final: bool = False,
     input_config: PiInputConfig | None = None,
+    sound: bool = True,
 ) -> tuple[int, int, str]:
     config = input_config or load_input_config()
     digits_per_input = config.digits_per_input
@@ -191,10 +192,10 @@ def advance_pi_inputs(
         button = button_for_value(value, config)
         finishing = digits_consumed + digits_per_input >= target_digits
         pyboy.button_press(button)
-        pyboy.tick(hold_frames, False, False)
+        pyboy.tick(hold_frames, False, sound)
         pyboy.button_release(button)
         if release_frames:
-            pyboy.tick(release_frames, render_final and finishing, False)
+            pyboy.tick(release_frames, render_final and finishing, sound)
         digits_consumed += digits_per_input
         inputs_sent += 1
         last_button = button
