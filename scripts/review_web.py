@@ -488,6 +488,8 @@ class ReviewWebApp:
             "rom_missing": False,
             "status": info["status"],
             "digits_consumed": info["digits_consumed"],
+            "frames_per_input": info.get("frames_per_input", self.frames_per_input),
+            "current_input_frame": info.get("current_input_frame", 0),
             "inputs": self.session.input_window(previous_count=3, next_count=11),
         }
 

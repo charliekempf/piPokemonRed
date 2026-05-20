@@ -60,6 +60,7 @@ const INPUT_ROW_HEIGHT = 38;
 const INPUT_ROW_GAP = 6;
 const INPUT_CANVAS_PADDING = 0;
 const STATE_REFRESH_MS = 150;
+const INPUT_REFRESH_MS = 33;
 
 let frameFetchInFlight = false;
 let inputFetchInFlight = false;
@@ -74,6 +75,7 @@ let partyRenderSignature = "";
 let bagRenderSignature = "";
 let inputRenderSignature = "";
 let configRenderSignature = "";
+let lastInputFetchAt = 0;
 let lastPartyMembers = [];
 let badgesExpanded = false;
 const expandedPartySlots = new Set();
@@ -428,12 +430,16 @@ function fmtDuration(seconds) {
   return `${secs}s`;
 }
 
-function renderInputs(items) {
+function renderInputs(items, state = {}) {
   const width = Math.max(220, Math.floor(inputsEl.getBoundingClientRect().width || inputsEl.clientWidth || 220));
   const height = items.length
     ? Math.max(1, (items.length * INPUT_ROW_HEIGHT) + ((items.length - 1) * INPUT_ROW_GAP) + (INPUT_CANVAS_PADDING * 2))
     : 72;
-  const signature = JSON.stringify({ items, width, height, pixelRatio: window.devicePixelRatio || 1 });
+  const inputPhase = {
+    currentInputFrame: Math.max(0, Number(state.current_input_frame) || 0),
+    framesPerInput: Math.max(1, Number(state.frames_per_input) || 1),
+  };
+  const signature = JSON.stringify({ items, inputPhase, width, height, pixelRatio: window.devicePixelRatio || 1 });
   if (signature === inputRenderSignature) {
     return;
   }
@@ -471,7 +477,7 @@ function renderInputs(items) {
   items.forEach((item, index) => {
     const role = item.role || "future";
     const y = INPUT_CANVAS_PADDING + (index * (INPUT_ROW_HEIGHT + INPUT_ROW_GAP));
-    drawInputRow(context, item, role, 0.5, y + 0.5, width - 1, INPUT_ROW_HEIGHT);
+    drawInputRow(context, item, role, 0.5, y + 0.5, width - 1, INPUT_ROW_HEIGHT, inputPhase);
   });
 }
 
@@ -551,12 +557,27 @@ function drawConfigPie(mapping) {
   context.stroke();
 }
 
-function drawInputRow(context, item, role, x, y, width, height) {
+function drawInputRow(context, item, role, x, y, width, height, inputPhase = {}) {
   const isCurrent = role === "current";
   const isPast = role === "past";
   roundRect(context, x, y, width, height, 6);
   context.fillStyle = isCurrent ? "#3b4a61" : isPast ? "#292c34" : "#30333c";
   context.fill();
+  if (isCurrent) {
+    const progress = Math.max(
+      0,
+      Math.min(1, Number(inputPhase.currentInputFrame || 0) / Math.max(1, Number(inputPhase.framesPerInput || 1))),
+    );
+    if (progress > 0) {
+      context.save();
+      roundRect(context, x, y, width * progress, height, 6);
+      context.clip();
+      roundRect(context, x, y, width, height, 6);
+      context.fillStyle = "rgba(111, 137, 175, 0.28)";
+      context.fill();
+      context.restore();
+    }
+  }
   context.strokeStyle = isCurrent ? "#6f89af" : isPast ? "#3a3f4a" : "#454b58";
   context.stroke();
 
@@ -1069,7 +1090,6 @@ async function refresh() {
     renderBag(state.bag || []);
     renderPlayerInfo(state.player_info || {});
     renderBadges(state.badges || []);
-    renderInputs(state.inputs || []);
   } catch (error) {
     setStateClass("disconnected");
     statDigitsEl.textContent = "-";
@@ -1102,12 +1122,14 @@ async function refresh() {
 }
 
 async function refreshInputs() {
-  if (!inputFetchInFlight) {
+  const now = performance.now();
+  if (!inputFetchInFlight && now - lastInputFetchAt >= INPUT_REFRESH_MS) {
+    lastInputFetchAt = now;
     inputFetchInFlight = true;
     try {
       const response = await fetch("/api/inputs", { cache: "no-store" });
       const state = await response.json();
-      renderInputs(state.inputs || []);
+      renderInputs(state.inputs || [], state);
     } catch (error) {
       renderInputs([]);
     } finally {

@@ -1407,6 +1407,7 @@ class ReviewSession:
         self.release_frames = release_frames
         self.frames_per_input = hold_frames + release_frames
         self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
+        self.current_input_frame = 0
         self.rewind_interval_digits = rewind_interval_digits
         self.max_snapshots = max(2, rewind_history_digits // rewind_interval_digits)
         self.snapshots: deque[Snapshot] = deque(maxlen=self.max_snapshots)
@@ -1607,6 +1608,7 @@ class ReviewSession:
                 "max_digits": self.max_digits,
                 "frames_elapsed": self.frames_elapsed,
                 "frames_per_input": self.frames_per_input,
+                "current_input_frame": self.current_input_frame,
                 "map_id": map_id,
                 "location": map_name(map_id),
                 "speed": self.speed,
@@ -1812,6 +1814,8 @@ class ReviewSession:
                 )
                 value = int(self.digits[self.digits_consumed : self.digits_consumed + self.input_config.digits_per_input])
                 button = button_for_value(value, self.input_config)
+                with self._lock:
+                    self.current_input_frame = 0
                 self.pyboy.button_press(button)
                 self._tick_frames(self.hold_frames)
                 self.pyboy.button_release(button)
@@ -1819,6 +1823,7 @@ class ReviewSession:
                 with self._lock:
                     self.digits_consumed += self.input_config.digits_per_input
                     self.frames_elapsed += self.frames_per_input
+                    self.current_input_frame = 0
                     self.inputs_sent += 1
                     self.last_button = button
                     if fast_forward_target is not None and self.digits_consumed >= fast_forward_target:
@@ -1852,6 +1857,8 @@ class ReviewSession:
                 self.audio_sink.queue(self.pyboy, self.sound_volume, playback_speed)
             if render_frame:
                 self._capture_frame()
+            with self._lock:
+                self.current_input_frame = min(self.frames_per_input, self.current_input_frame + 1)
             self._record_playback_frame()
 
     def _record_playback_frame(self) -> None:
@@ -1946,6 +1953,7 @@ class ReviewSession:
         image = render_loaded_state(self.pyboy)
         with self._lock:
             self.digits_consumed = digits_consumed
+            self.current_input_frame = 0
             self.frames_elapsed += inputs_sent * self.frames_per_input
             self.inputs_sent += inputs_sent
             self.last_button = last_button
@@ -2056,6 +2064,7 @@ class ReviewSession:
         image = render_loaded_state(self.pyboy)
         with self._lock:
             self.digits_consumed = digits_consumed
+            self.current_input_frame = 0
             self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
             self.inputs_sent += max(0, total_digits_advanced // self.input_config.digits_per_input)
             self.last_button = last_button
@@ -2184,6 +2193,7 @@ class ReviewSession:
             state_buffer.seek(0)
         with self._lock:
             self.digits_consumed = digits_consumed
+            self.current_input_frame = 0
             self.frames_elapsed = source_frames + inputs_sent * self.frames_per_input
             if inputs_sent:
                 self.last_button = last_button
@@ -2249,6 +2259,7 @@ class ReviewSession:
         image = render_loaded_state(self.pyboy)
         with self._lock:
             self.digits_consumed = digits_consumed
+            self.current_input_frame = 0
             self.max_digits = max(self.max_digits, digits_consumed)
             self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
             self.inputs_sent = inputs_sent
@@ -2387,6 +2398,7 @@ class ReviewSession:
         image = render_loaded_state(self.pyboy)
         with self._lock:
             self.digits_consumed = digits_consumed
+            self.current_input_frame = 0
             self.frames_elapsed += inputs_sent * self.frames_per_input
             self.inputs_sent += inputs_sent
             self.last_button = last_button
