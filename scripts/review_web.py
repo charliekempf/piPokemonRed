@@ -611,6 +611,13 @@ def generate_progression_graph_samples(
         with checkpoint_path.open("rb") as state_file:
             pyboy.load_state(state_file)
 
+        checkpoint_tile = current_player_tile(pyboy)
+        checkpoint_progression = progression_state_for_tile(
+            pyboy,
+            Tile(checkpoint_tile["map_id"], checkpoint_tile["x"], checkpoint_tile["y"]),
+        )
+        checkpoint_steps = checkpoint_progression.get("remaining_steps")
+
         if digits_consumed < start_digits:
             digits_consumed, _, _ = advance_pi_inputs(
                 pyboy,
@@ -633,6 +640,8 @@ def generate_progression_graph_samples(
                     "label": progression.get("label", ""),
                     "objective_location": progression.get("objective_location", ""),
                     "reachable": bool(progression.get("reachable", False)),
+                    "baseline_steps": checkpoint_steps,
+                    "total_steps_from_respawn": progression.get("total_steps_from_respawn"),
                 }
             )
             app.update_progression_graph(

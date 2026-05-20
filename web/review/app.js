@@ -1052,10 +1052,14 @@ function progressionSampleInterval() {
 
 function applyGeneratedProgressionSamples(samples = []) {
   const mapped = samples
-    .map((sample) => ({
-      digit: Number(sample.digit),
-      steps: sample.steps === null || sample.steps === undefined ? NaN : Number(sample.steps),
-    }))
+    .map((sample) => {
+      const baselineValue = sample.baseline_steps ?? sample.total_steps_from_respawn;
+      return {
+        digit: Number(sample.digit),
+        steps: sample.steps === null || sample.steps === undefined ? NaN : Number(sample.steps),
+        baselineSteps: baselineValue === null || baselineValue === undefined ? NaN : Number(baselineValue),
+      };
+    })
     .filter((sample) => Number.isFinite(sample.digit));
   progressionSamples = mapped;
   lastProgressionSampleDigit = mapped.length ? mapped[mapped.length - 1].digit : null;
@@ -1138,7 +1142,11 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
       || digit - lastProgressionSampleDigit >= sampleInterval
     )
   ) {
-    progressionSamples.push({ digit, steps: Math.max(0, remainingSteps) });
+    progressionSamples.push({
+      digit,
+      steps: Math.max(0, remainingSteps),
+      baselineSteps: Number.isFinite(totalSteps) ? Math.max(0, totalSteps) : NaN,
+    });
     lastProgressionSampleDigit = digit;
   }
   progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= digit);
@@ -1167,11 +1175,25 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   };
   const plotWidth = Math.max(1, plot.right - plot.left);
   const plotHeight = Math.max(1, plot.bottom - plot.top);
+  const globalBaselineSteps = Number.isFinite(totalSteps)
+    ? totalSteps
+    : (progressionSamples.find((sample) => Number.isFinite(sample.baselineSteps))?.baselineSteps ?? NaN);
+  const finiteStepValues = progressionSamples.flatMap((sample) => {
+    const values = [];
+    if (Number.isFinite(sample.steps)) {
+      values.push(sample.steps);
+    }
+    if (Number.isFinite(sample.baselineSteps)) {
+      values.push(sample.baselineSteps);
+    }
+    return values;
+  });
   const yMax = Math.max(
     1,
     Number.isFinite(graphMaxSteps) ? graphMaxSteps : 0,
     Number.isFinite(totalSteps) ? totalSteps * 2 : 0,
-    ...progressionSamples.map((sample) => sample.steps),
+    Number.isFinite(globalBaselineSteps) ? globalBaselineSteps : 0,
+    ...finiteStepValues,
   );
 
   context.fillStyle = "#1c1f26";
@@ -1218,6 +1240,47 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   context.fillText("steps from progression tile", 0, 0);
   context.restore();
 
+  const xForDigit = (sampleDigit) => plot.left + (((sampleDigit - startDigit) / selectableRange) * plotWidth);
+  const yForSteps = (steps) => plot.top + ((Math.max(0, Math.min(yMax, steps)) / yMax) * plotHeight);
+  const baselineForSample = (sample) => Number.isFinite(sample.baselineSteps) ? sample.baselineSteps : globalBaselineSteps;
+  const segmentColor = (sampleA, sampleB) => {
+    const baselineA = baselineForSample(sampleA);
+    const baselineB = baselineForSample(sampleB);
+    if (!Number.isFinite(baselineA) && !Number.isFinite(baselineB)) {
+      return "#8fb4e0";
+    }
+    const baseline = Number.isFinite(baselineA) && Number.isFinite(baselineB)
+      ? (baselineA + baselineB) / 2
+      : Number.isFinite(baselineA) ? baselineA : baselineB;
+    const steps = (sampleA.steps + sampleB.steps) / 2;
+    if (steps < baseline) {
+      return "#6fcf97";
+    }
+    if (steps > baseline) {
+      return "#e06b6b";
+    }
+    return "#aeb4c0";
+  };
+
+  if (Number.isFinite(globalBaselineSteps)) {
+    const baselineY = yForSteps(globalBaselineSteps);
+    context.save();
+    context.strokeStyle = "#8b909d";
+    context.lineWidth = 1.5;
+    context.setLineDash([7, 5]);
+    context.beginPath();
+    context.moveTo(plot.left, baselineY);
+    context.lineTo(plot.right, baselineY);
+    context.stroke();
+    context.setLineDash([]);
+    context.font = "12px Segoe UI, system-ui, sans-serif";
+    context.fillStyle = "#bec3ce";
+    context.textAlign = "right";
+    context.textBaseline = "bottom";
+    context.fillText("checkpoint tile", plot.right, Math.max(plot.top + 14, baselineY - 6));
+    context.restore();
+  }
+
   const visibleSamples = progressionSamples.filter((sample) => Number.isFinite(sample.steps));
   if (visibleSamples.length < 2) {
     context.textAlign = "center";
@@ -1234,21 +1297,22 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     return;
   }
 
-  context.strokeStyle = "#8fb4e0";
-  context.lineWidth = 2;
-  context.beginPath();
-  visibleSamples.forEach((sample, index) => {
-    const x = plot.left + (((sample.digit - startDigit) / selectableRange) * plotWidth);
-    const y = plot.top + ((Math.max(0, Math.min(yMax, sample.steps)) / yMax) * plotHeight);
-    if (index === 0) {
-      context.moveTo(x, y);
-    } else {
-      context.lineTo(x, y);
-    }
-  });
-  context.stroke();
+  context.lineWidth = 2.25;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  for (let index = 1; index < visibleSamples.length; index += 1) {
+    const previous = visibleSamples[index - 1];
+    const sample = visibleSamples[index];
+    context.strokeStyle = segmentColor(previous, sample);
+    context.beginPath();
+    context.moveTo(xForDigit(previous.digit), yForSteps(previous.steps));
+    context.lineTo(xForDigit(sample.digit), yForSteps(sample.steps));
+    context.stroke();
+  }
 
-  progressionGraphEl.title = `${fmt(visibleSamples.length)} samples over the last ${fmt(selectableRange)} digits.`;
+  progressionGraphEl.title = Number.isFinite(globalBaselineSteps)
+    ? `${fmt(visibleSamples.length)} samples over the last ${fmt(selectableRange)} digits. Gray line: ${fmt(Math.round(globalBaselineSteps))} checkpoint-tile steps.`
+    : `${fmt(visibleSamples.length)} samples over the last ${fmt(selectableRange)} digits.`;
 }
 
 function setInitialControls(state) {
