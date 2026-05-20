@@ -42,6 +42,7 @@ from run_pi_pyboy import (
 
 
 WEB_ROOT = Path("web/review")
+REVIEW_SESSION_STATE = Path("results") / "review_session_state.json"
 RUN_PI_RE = re.compile(r"run_pi_pyboy\.py")
 MAX_DIGITS_RE = re.compile(r"--max-digits\s+(\d+)")
 RUN_NAME_RE = re.compile(r"--run-name\s+([^\s]+)")
@@ -75,6 +76,23 @@ VIDEO_EXPORT_PRESETS = {
 
 class RomMissingError(RuntimeError):
     pass
+
+
+def read_review_session_state() -> dict[str, object]:
+    if not REVIEW_SESSION_STATE.exists():
+        return {}
+    try:
+        return json.loads(REVIEW_SESSION_STATE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def write_review_session_state(run_name: str, digits_consumed: int) -> None:
+    REVIEW_SESSION_STATE.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"run_name": run_name, "digits_consumed": int(digits_consumed)}
+    temp_path = REVIEW_SESSION_STATE.with_suffix(REVIEW_SESSION_STATE.suffix + ".tmp")
+    temp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temp_path.replace(REVIEW_SESSION_STATE)
 
 
 def list_checkpoints(run_name: str) -> list[dict[str, int | str]]:
@@ -453,6 +471,8 @@ class ReviewWebApp:
         self.chart_target_digits = 0
         self.video_export_thread: threading.Thread | None = None
         self.video_export_status: dict[str, object] = {"state": "Ready"}
+        self._last_saved_run_name = ""
+        self._last_saved_digits = -1
         self.frame_version = 0
         self._last_frame_digest = ""
         self._lock = threading.Lock()
@@ -609,6 +629,14 @@ class ReviewWebApp:
         status["running"] = running
         return status
 
+    def persist_review_position(self, digits_consumed: int) -> None:
+        digits_consumed = int(digits_consumed)
+        if self.run_name == self._last_saved_run_name and digits_consumed == self._last_saved_digits:
+            return
+        write_review_session_state(self.run_name, digits_consumed)
+        self._last_saved_run_name = self.run_name
+        self._last_saved_digits = digits_consumed
+
     def start_video_export(self, start_digits: int, end_digits: int, preset_name: str) -> dict[str, object]:
         if preset_name not in VIDEO_EXPORT_PRESETS:
             raise ValueError(f"Unsupported video preset: {preset_name}")
@@ -705,6 +733,7 @@ class ReviewWebApp:
             }
         self.refresh_available_digits()
         info = self.session.info()
+        self.persist_review_position(int(info["digits_consumed"]))
         status = str(info["status"])
         if not (
             status.startswith("fast forwarding")
@@ -942,8 +971,22 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    input_config = load_input_config(args.config)
     args.run_name = resolve_configured_run_name(args.run_name, args.config)
+    remembered_state = read_review_session_state()
+    restore_requested = args.checkpoint == "penultimate" and args.digits_consumed is None
+    remembered_digits: int | None = None
+    if restore_requested:
+        remembered_run_name = str(remembered_state.get("run_name", "")).strip()
+        remembered_config_path = Path("saves") / remembered_run_name / RUN_CONFIG_FILENAME
+        if remembered_run_name and remembered_config_path.exists():
+            try:
+                remembered_digits = int(remembered_state["digits_consumed"])
+            except (KeyError, TypeError, ValueError):
+                remembered_digits = None
+            if remembered_digits is not None:
+                args.run_name = remembered_run_name
+                args.config = remembered_config_path
+    input_config = load_input_config(args.config)
     hold_frames = input_config.on_frames if args.hold_frames is None else args.hold_frames
     release_frames = input_config.off_frames if args.release_frames is None else args.release_frames
     if hold_frames < 1:
@@ -958,7 +1001,7 @@ def main() -> None:
         config_path: Path = args.config,
         session_input_config=None,
         checkpoint_name: str = args.checkpoint,
-        explicit_digits_consumed: int | None = args.digits_consumed,
+        explicit_digits_consumed: int | None = args.digits_consumed if args.digits_consumed is not None else remembered_digits,
     ) -> ReviewSession:
         if not args.rom.exists():
             raise RomMissingError(f"ROM not found: {args.rom}")
@@ -971,8 +1014,21 @@ def main() -> None:
         if max_digits % active_config.digits_per_input:
             max_digits -= max_digits % active_config.digits_per_input
 
-        checkpoint = resolve_checkpoint(run_name, checkpoint_name, max_digits=max_digits + active_config.digits_per_input)
-        start_digits = checkpoint_digits(checkpoint, explicit_digits_consumed)
+        target_digits: int | None = None
+        if explicit_digits_consumed is not None:
+            target_digits = max(0, min(max_digits, explicit_digits_consumed))
+            if target_digits % active_config.digits_per_input:
+                target_digits -= target_digits % active_config.digits_per_input
+            checkpoint_match = checkpoint_at_or_before(run_name, target_digits)
+            if checkpoint_match is None:
+                checkpoint = resolve_checkpoint(run_name, checkpoint_name, max_digits=max_digits + active_config.digits_per_input)
+                start_digits = checkpoint_digits(checkpoint, None)
+                target_digits = start_digits
+            else:
+                start_digits, checkpoint = checkpoint_match
+        else:
+            checkpoint = resolve_checkpoint(run_name, checkpoint_name, max_digits=max_digits + active_config.digits_per_input)
+            start_digits = checkpoint_digits(checkpoint, None)
         if start_digits > max_digits:
             raise ValueError(f"Checkpoint is at {start_digits:,} digits, but max is {max_digits:,}.")
 
@@ -988,6 +1044,16 @@ def main() -> None:
         )
         with checkpoint.open("rb") as state_file:
             pyboy.load_state(state_file)
+        if target_digits is not None and start_digits < target_digits:
+            start_digits, _, _ = advance_pi_inputs(
+                pyboy,
+                digits,
+                start_digits,
+                target_digits,
+                active_hold_frames,
+                active_release_frames,
+                input_config=active_config,
+            )
         initial_image = load_checkpoint_screenshot(run_name, start_digits) or render_loaded_state(pyboy)
 
         session = ReviewSession(
@@ -1044,6 +1110,10 @@ def main() -> None:
         server.serve_forever()
     finally:
         if app.session is not None:
+            try:
+                app.persist_review_position(int(app.session.info()["digits_consumed"]))
+            except Exception:
+                pass
             app.session.stop()
         server.server_close()
         if app.emulator_thread is not None:
