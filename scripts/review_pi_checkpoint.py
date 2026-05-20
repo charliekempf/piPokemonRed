@@ -51,6 +51,8 @@ BATTLE_FLAG_ADDR = 0xD057
 BATTLE_TRAINER_VALUE = 2
 OBTAINED_BADGES_ADDR = 0xD356
 CURRENT_MAP_ADDR = 0xD35E
+PLAYER_Y_ADDR = 0xD361
+PLAYER_X_ADDR = 0xD362
 EVO_OLD_SPECIES_ADDR = 0xCEE9
 EVO_NEW_SPECIES_ADDR = 0xCEEA
 EVOLUTION_OCCURRED_ADDR = 0xD121
@@ -1316,6 +1318,14 @@ def current_map_id(pyboy: PyBoy) -> int:
     return int(pyboy.memory[CURRENT_MAP_ADDR])
 
 
+def current_player_tile(pyboy: PyBoy) -> dict[str, int]:
+    return {
+        "map_id": current_map_id(pyboy),
+        "x": int(pyboy.memory[PLAYER_X_ADDR]),
+        "y": int(pyboy.memory[PLAYER_Y_ADDR]),
+    }
+
+
 def map_name(map_id: int) -> str:
     name = MAP_NAMES.get(map_id, f"Map ${map_id:02X}")
     context = MAP_CONTEXTS.get(map_id)
@@ -1327,6 +1337,18 @@ def map_name(map_id: int) -> str:
             name = name[len(prefix) + 1 :]
             break
     return f"{context} | {name}"
+
+
+def progression_state(pyboy: PyBoy) -> dict[str, object]:
+    return {
+        "label": "Progression route data pending",
+        "objective_location": "",
+        "current_tile": current_player_tile(pyboy),
+        "remaining_steps": None,
+        "total_steps_from_respawn": None,
+        "graph_max_steps": None,
+        "reachable": False,
+    }
 
 
 def move_name(move_id: int) -> str:
@@ -1676,6 +1698,7 @@ class ReviewSession:
                 "current_input_frame": self.current_input_frame,
                 "map_id": map_id,
                 "location": map_name(map_id),
+                "progression": progression_state(self.pyboy),
                 "speed": self.speed,
                 "actual_speed_x": round(self._actual_speed_x, 1),
                 "actual_digits_per_second": self._actual_speed_x

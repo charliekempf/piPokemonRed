@@ -5,6 +5,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from review_pi_checkpoint import (
     GAMEBOY_FPS,
+    CURRENT_MAP_ADDR,
+    PLAYER_X_ADDR,
+    PLAYER_Y_ADDR,
     PLAYER_MONEY_ADDR,
     PLAY_TIME_HOURS_ADDR,
     PLAY_TIME_MINUTES_ADDR,
@@ -13,7 +16,9 @@ from review_pi_checkpoint import (
     POKEDEX_SEEN_ADDR,
     count_pokedex_flags,
     elapsed_play_time,
+    current_player_tile,
     play_time,
+    progression_state,
     read_bcd_money,
 )
 
@@ -69,3 +74,26 @@ def test_elapsed_play_time_uses_frames_not_capped_display_clock() -> None:
         "seconds": 34,
         "total_seconds": 1_080_754,
     }
+
+
+def test_current_player_tile_reads_map_and_coordinates() -> None:
+    pyboy = FakePyBoy()
+    pyboy.memory.values[CURRENT_MAP_ADDR] = 0x01
+    pyboy.memory.values[PLAYER_X_ADDR] = 7
+    pyboy.memory.values[PLAYER_Y_ADDR] = 9
+
+    assert current_player_tile(pyboy) == {"map_id": 1, "x": 7, "y": 9}
+
+
+def test_progression_state_exposes_route_data_placeholder() -> None:
+    pyboy = FakePyBoy()
+    pyboy.memory.values[CURRENT_MAP_ADDR] = 0x02
+    pyboy.memory.values[PLAYER_X_ADDR] = 4
+    pyboy.memory.values[PLAYER_Y_ADDR] = 6
+
+    state = progression_state(pyboy)
+
+    assert state["label"] == "Progression route data pending"
+    assert state["current_tile"] == {"map_id": 2, "x": 4, "y": 6}
+    assert state["remaining_steps"] is None
+    assert state["total_steps_from_respawn"] is None

@@ -44,6 +44,10 @@ const runSelectEl = document.querySelector("#run-select");
 const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
+const progressionRangeEl = document.querySelector("#progression-range");
+const progressionPointEl = document.querySelector("#progression-point");
+const progressionDistanceEl = document.querySelector("#progression-distance");
+const progressionGraphEl = document.querySelector("#progression-graph");
 const partyEl = document.querySelector("#party");
 const bagEl = document.querySelector("#bag");
 const playerPanelEl = document.querySelector("#player-panel");
@@ -85,6 +89,9 @@ let configRenderSignature = "";
 let lastInputFetchAt = 0;
 let lastPartyMembers = [];
 let badgesExpanded = false;
+let progressionSamples = [];
+let lastProgressionSampleDigit = null;
+let lastProgressionState = {};
 const expandedPartySlots = new Set();
 const BUTTON_COLORS = {
   a: "#6f89af",
@@ -373,6 +380,8 @@ runSelectEl.addEventListener("change", async () => {
   bagRenderSignature = "";
   inputRenderSignature = "";
   configRenderSignature = "";
+  progressionSamples = [];
+  lastProgressionSampleDigit = null;
   runSelectEl.disabled = false;
   refresh();
 });
@@ -443,6 +452,10 @@ loadCheckpointButton.addEventListener("click", () => {
     return;
   }
   post("/api/jump", { digits: selectedCheckpointDigits });
+});
+
+progressionRangeEl.addEventListener("change", () => {
+  renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
 });
 
 function fmt(value) {
@@ -1000,6 +1013,134 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
   timelineEl.replaceChildren(track);
 }
 
+function renderProgressionGraph(progression = {}, currentDigits = 0) {
+  const digit = Math.max(0, Number(currentDigits) || 0);
+  const remainingSteps = Number(progression.remaining_steps);
+  const totalSteps = Number(progression.total_steps_from_respawn);
+  const graphMaxSteps = Number(progression.graph_max_steps);
+  const selectableRange = Math.max(1, Number(progressionRangeEl.value) || 10000);
+  const startDigit = Math.max(0, digit - selectableRange);
+  const hasDistance = Number.isFinite(remainingSteps);
+  const pointLabel = progression.label || "Progression route data pending";
+  const locationLabel = progression.objective_location ? ` | ${progression.objective_location}` : "";
+
+  progressionPointEl.textContent = `${pointLabel}${locationLabel}`;
+  progressionDistanceEl.textContent = hasDistance ? `${fmt(Math.round(remainingSteps))} steps` : "Awaiting route data";
+
+  if (hasDistance && lastProgressionSampleDigit !== digit) {
+    progressionSamples.push({ digit, steps: Math.max(0, remainingSteps) });
+    lastProgressionSampleDigit = digit;
+  }
+  progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= digit);
+
+  const width = Math.max(640, Math.floor(progressionGraphEl.getBoundingClientRect().width || progressionGraphEl.clientWidth || 640));
+  const height = 260;
+  const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+  if (
+    progressionGraphEl.width !== Math.round(width * pixelRatio)
+    || progressionGraphEl.height !== Math.round(height * pixelRatio)
+  ) {
+    progressionGraphEl.width = Math.round(width * pixelRatio);
+    progressionGraphEl.height = Math.round(height * pixelRatio);
+    progressionGraphEl.style.height = `${height}px`;
+  }
+
+  const context = progressionGraphEl.getContext("2d");
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, width, height);
+
+  const plot = {
+    left: 96,
+    right: width - 62,
+    top: 36,
+    bottom: height - 26,
+  };
+  const plotWidth = Math.max(1, plot.right - plot.left);
+  const plotHeight = Math.max(1, plot.bottom - plot.top);
+  const yMax = Math.max(
+    1,
+    Number.isFinite(graphMaxSteps) ? graphMaxSteps : 0,
+    Number.isFinite(totalSteps) ? totalSteps * 2 : 0,
+    ...progressionSamples.map((sample) => sample.steps),
+  );
+
+  context.fillStyle = "#1c1f26";
+  roundRect(context, 0.5, 0.5, width - 1, height - 1, 8);
+  context.fill();
+  context.strokeStyle = "#454b58";
+  context.stroke();
+
+  context.strokeStyle = "#555c6c";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(plot.left, plot.top);
+  context.lineTo(plot.right, plot.top);
+  context.moveTo(plot.left, plot.top);
+  context.lineTo(plot.left, plot.bottom);
+  context.stroke();
+
+  context.font = "12px Segoe UI, system-ui, sans-serif";
+  context.fillStyle = "#aeb4c0";
+  context.textBaseline = "middle";
+  context.textAlign = "right";
+  for (let index = 0; index <= 4; index += 1) {
+    const ratio = index / 4;
+    const y = plot.top + (plotHeight * ratio);
+    context.strokeStyle = index === 0 ? "#6f89af" : "#30333c";
+    context.beginPath();
+    context.moveTo(plot.left, y);
+    context.lineTo(plot.right, y);
+    context.stroke();
+    context.fillText(fmt(Math.round(yMax * ratio)), plot.left - 10, y);
+  }
+
+  context.textAlign = "center";
+  context.textBaseline = "top";
+  context.fillText(fmt(startDigit), plot.left, 10);
+  context.fillText(fmt(digit), plot.right, 10);
+  context.fillText("digits", plot.left + (plotWidth / 2), 10);
+
+  context.save();
+  context.translate(18, plot.top + (plotHeight / 2));
+  context.rotate(-Math.PI / 2);
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("steps from progression tile", 0, 0);
+  context.restore();
+
+  const visibleSamples = progressionSamples.filter((sample) => Number.isFinite(sample.steps));
+  if (visibleSamples.length < 2) {
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = "700 14px Segoe UI, system-ui, sans-serif";
+    context.fillStyle = "#fff4b8";
+    context.fillText(hasDistance ? "Collecting samples" : "Awaiting progression route data", plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) - 8);
+    context.font = "12px Segoe UI, system-ui, sans-serif";
+    context.fillStyle = "#aeb4c0";
+    context.fillText(`Range: last ${fmt(selectableRange)} digits`, plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) + 16);
+    progressionGraphEl.title = hasDistance
+      ? "Collecting progression distance samples."
+      : "The graph is ready, but the Kanto route data has not been populated yet.";
+    return;
+  }
+
+  context.strokeStyle = "#8fb4e0";
+  context.lineWidth = 2;
+  context.beginPath();
+  visibleSamples.forEach((sample, index) => {
+    const x = plot.left + (((sample.digit - startDigit) / selectableRange) * plotWidth);
+    const y = plot.top + ((Math.max(0, Math.min(yMax, sample.steps)) / yMax) * plotHeight);
+    if (index === 0) {
+      context.moveTo(x, y);
+    } else {
+      context.lineTo(x, y);
+    }
+  });
+  context.stroke();
+
+  progressionGraphEl.title = `${fmt(visibleSamples.length)} samples over the last ${fmt(selectableRange)} digits.`;
+}
+
 function setInitialControls(state) {
   if (controlsInitialized) {
     return;
@@ -1140,12 +1281,14 @@ async function refresh() {
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     const state = await response.json();
+    lastProgressionState = state;
     setInitialControls(state);
     renderStats(state);
     renderRuns(state.runs || [], state.active_run || "");
     renderConfigInfo(state.config || {});
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
+    renderProgressionGraph(state.progression || {}, state.digits_consumed);
     renderParty(state.party || []);
     renderBag(state.bag || []);
     renderPlayerInfo(state.player_info || {});
@@ -1172,6 +1315,8 @@ async function refresh() {
     setVideoExportStats({ state: "Disconnected" });
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
+    lastProgressionState = {};
+    renderProgressionGraph({}, 0);
     renderParty([]);
     renderBag([]);
     renderPlayerInfo({});

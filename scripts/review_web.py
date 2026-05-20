@@ -844,6 +844,7 @@ class ReviewWebApp:
                 "frames_elapsed": 0,
                 "map_id": None,
                 "location": "-",
+                "progression": {},
                 "speed": 10,
                 "actual_speed_x": 0,
                 "actual_digits_per_second": 0,
