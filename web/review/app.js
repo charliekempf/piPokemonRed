@@ -495,6 +495,14 @@ function fmt(value) {
   return Number(value).toLocaleString();
 }
 
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return NaN;
+  }
+  const number = Number(value);
+  return Number.isFinite(number) ? number : NaN;
+}
+
 function fmtRate(value) {
   const rate = Number(value);
   if (!Number.isFinite(rate)) {
@@ -1055,9 +1063,9 @@ function applyGeneratedProgressionSamples(samples = []) {
     .map((sample) => {
       const baselineValue = sample.baseline_steps ?? sample.total_steps_from_respawn;
       return {
-        digit: Number(sample.digit),
-        steps: sample.steps === null || sample.steps === undefined ? NaN : Number(sample.steps),
-        baselineSteps: baselineValue === null || baselineValue === undefined ? NaN : Number(baselineValue),
+        digit: finiteNumber(sample.digit),
+        steps: finiteNumber(sample.steps),
+        baselineSteps: finiteNumber(baselineValue),
       };
     })
     .filter((sample) => Number.isFinite(sample.digit));
@@ -1109,16 +1117,20 @@ async function pollProgressionGraph() {
 }
 
 function renderProgressionGraph(progression = {}, currentDigits = 0, options = {}) {
-  const digit = Math.max(0, Number(currentDigits) || 0);
+  const digit = Math.max(0, finiteNumber(currentDigits) || 0);
+  const generatedEndDigit = options.preserveSamples
+    ? progressionSamples.reduce((maximum, sample) => Math.max(maximum, Number.isFinite(sample.digit) ? sample.digit : 0), 0)
+    : 0;
+  const graphEndDigit = Math.max(digit, generatedEndDigit);
   const rawRemainingSteps = progression.remaining_steps;
   const rawTotalSteps = progression.total_steps_from_respawn;
   const rawGraphMaxSteps = progression.graph_max_steps;
-  const remainingSteps = rawRemainingSteps === null || rawRemainingSteps === undefined ? NaN : Number(rawRemainingSteps);
-  const totalSteps = rawTotalSteps === null || rawTotalSteps === undefined ? NaN : Number(rawTotalSteps);
-  const graphMaxSteps = rawGraphMaxSteps === null || rawGraphMaxSteps === undefined ? NaN : Number(rawGraphMaxSteps);
-  const selectableRange = Math.max(1, Number(progressionRangeEl.value) || 10000);
+  const remainingSteps = finiteNumber(rawRemainingSteps);
+  const totalSteps = finiteNumber(rawTotalSteps);
+  const graphMaxSteps = finiteNumber(rawGraphMaxSteps);
+  const selectableRange = Math.max(1, finiteNumber(progressionRangeEl.value) || 10000);
   const sampleInterval = progressionSampleInterval();
-  const startDigit = Math.max(0, digit - selectableRange);
+  const startDigit = Math.max(0, graphEndDigit - selectableRange);
   const hasDistance = Number.isFinite(remainingSteps);
   const pointLabel = progression.label || "Progression route data pending";
   const locationLabel = progression.objective_location ? ` | ${progression.objective_location}` : "";
@@ -1149,7 +1161,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     });
     lastProgressionSampleDigit = digit;
   }
-  progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= digit);
+  progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= graphEndDigit);
 
   const width = Math.max(640, Math.floor(progressionGraphEl.getBoundingClientRect().width || progressionGraphEl.clientWidth || 640));
   const height = 260;
@@ -1188,13 +1200,13 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     }
     return values;
   });
-  const yMax = Math.max(
-    1,
-    Number.isFinite(graphMaxSteps) ? graphMaxSteps : 0,
-    Number.isFinite(totalSteps) ? totalSteps * 2 : 0,
-    Number.isFinite(globalBaselineSteps) ? globalBaselineSteps : 0,
+  const yCandidates = [
+    graphMaxSteps,
+    Number.isFinite(totalSteps) ? totalSteps * 2 : NaN,
+    globalBaselineSteps,
     ...finiteStepValues,
-  );
+  ].filter(Number.isFinite).map((value) => Math.max(0, value));
+  const yMax = Math.max(1, ...yCandidates);
 
   context.fillStyle = "#1c1f26";
   roundRect(context, 0.5, 0.5, width - 1, height - 1, 8);
@@ -1229,7 +1241,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   context.textAlign = "center";
   context.textBaseline = "top";
   context.fillText(fmt(startDigit), plot.left, 10);
-  context.fillText(fmt(digit), plot.right, 10);
+  context.fillText(fmt(graphEndDigit), plot.right, 10);
   context.fillText("digits", plot.left + (plotWidth / 2), 10);
 
   context.save();
