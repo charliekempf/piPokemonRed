@@ -1055,7 +1055,9 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
 }
 
 function progressionSampleInterval() {
-  return Math.max(1, Math.min(10000, Math.round(10 ** Number(progressionSampleEl.value || 0))));
+  const exponent = Math.max(0, Math.min(4, Math.round(finiteNumber(progressionSampleEl.value) || 0)));
+  progressionSampleEl.value = String(exponent);
+  return 10 ** exponent;
 }
 
 function applyGeneratedProgressionSamples(samples = []) {
