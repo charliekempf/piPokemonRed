@@ -435,11 +435,7 @@ function renderInputs(items, state = {}) {
   const height = items.length
     ? Math.max(1, (items.length * INPUT_ROW_HEIGHT) + ((items.length - 1) * INPUT_ROW_GAP) + (INPUT_CANVAS_PADDING * 2))
     : 72;
-  const inputPhase = {
-    currentInputFrame: Math.max(0, Number(state.current_input_frame) || 0),
-    framesPerInput: Math.max(1, Number(state.frames_per_input) || 1),
-  };
-  const signature = JSON.stringify({ items, inputPhase, width, height, pixelRatio: window.devicePixelRatio || 1 });
+  const signature = JSON.stringify({ items, width, height, pixelRatio: window.devicePixelRatio || 1 });
   if (signature === inputRenderSignature) {
     return;
   }
@@ -477,7 +473,7 @@ function renderInputs(items, state = {}) {
   items.forEach((item, index) => {
     const role = item.role || "future";
     const y = INPUT_CANVAS_PADDING + (index * (INPUT_ROW_HEIGHT + INPUT_ROW_GAP));
-    drawInputRow(context, item, role, 0.5, y + 0.5, width - 1, INPUT_ROW_HEIGHT, inputPhase);
+    drawInputRow(context, item, role, 0.5, y + 0.5, width - 1, INPUT_ROW_HEIGHT);
   });
 }
 
@@ -557,27 +553,12 @@ function drawConfigPie(mapping) {
   context.stroke();
 }
 
-function drawInputRow(context, item, role, x, y, width, height, inputPhase = {}) {
+function drawInputRow(context, item, role, x, y, width, height) {
   const isCurrent = role === "current";
   const isPast = role === "past";
   roundRect(context, x, y, width, height, 6);
   context.fillStyle = isCurrent ? "#3b4a61" : isPast ? "#292c34" : "#30333c";
   context.fill();
-  if (isCurrent) {
-    const progress = Math.max(
-      0,
-      Math.min(1, Number(inputPhase.currentInputFrame || 0) / Math.max(1, Number(inputPhase.framesPerInput || 1))),
-    );
-    if (progress > 0) {
-      context.save();
-      roundRect(context, x, y, width * progress, height, 6);
-      context.clip();
-      roundRect(context, x, y, width, height, 6);
-      context.fillStyle = "rgba(111, 137, 175, 0.28)";
-      context.fill();
-      context.restore();
-    }
-  }
   context.strokeStyle = isCurrent ? "#6f89af" : isPast ? "#3a3f4a" : "#454b58";
   context.stroke();
 
