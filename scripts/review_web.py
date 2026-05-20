@@ -310,6 +310,19 @@ def image_bytes_for_pix_fmt(pyboy: PyBoy, pix_fmt: str) -> bytes:
     return image.convert("RGB").tobytes()
 
 
+def audio_bytes_for_pyboy(pyboy: PyBoy, target_bytes: int) -> bytes:
+    head = pyboy.sound.raw_buffer_head
+    if head <= 0:
+        return bytes(target_bytes)
+
+    data = bytes(pyboy.sound.raw_buffer[:head])
+    if len(data) < target_bytes:
+        return data + bytes(target_bytes - len(data))
+    if len(data) > target_bytes:
+        return data[:target_bytes]
+    return data
+
+
 def run_video_export(
     app: "ReviewWebApp",
     start_digits: int,
@@ -328,8 +341,11 @@ def run_video_export(
         input_config.on_frames + input_config.off_frames
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_video_path = output_path.with_suffix(".video" + output_path.suffix)
+    temp_audio_path = output_path.with_suffix(".audio.s8")
     temp_output_path = output_path.with_suffix(".tmp" + output_path.suffix)
-    temp_output_path.unlink(missing_ok=True)
+    for temp_path in (temp_video_path, temp_audio_path, temp_output_path):
+        temp_path.unlink(missing_ok=True)
 
     command = [
         "ffmpeg",
@@ -346,7 +362,7 @@ def run_video_export(
         "pipe:0",
         "-an",
         *list(preset["ffmpeg_args"]),
-        str(temp_output_path),
+        str(temp_video_path),
     ]
 
     pyboy = PyBoy(
@@ -362,6 +378,9 @@ def run_video_export(
     process: subprocess.Popen[bytes] | None = None
     frames_written = 0
     digits_consumed = checkpoint_digits_consumed
+    audio_sample_rate = 48000
+    audio_channels = 2
+    audio_sample_credit = 0.0
     try:
         with checkpoint_path.open("rb") as state_file:
             pyboy.load_state(state_file)
@@ -388,36 +407,88 @@ def run_video_export(
         if process.stdin is None:
             raise RuntimeError("Could not open ffmpeg stdin.")
 
-        while digits_consumed < end_digits:
-            value = int(app.digits[digits_consumed : digits_consumed + input_config.digits_per_input])
-            button = button_for_value(value, input_config)
-            pyboy.button_press(button)
-            for _ in range(input_config.on_frames):
-                pyboy.tick(1, True, True)
-                process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
-                frames_written += 1
-            pyboy.button_release(button)
-            for _ in range(input_config.off_frames):
-                pyboy.tick(1, True, True)
-                process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
-                frames_written += 1
-            digits_consumed += input_config.digits_per_input
-            if frames_written % 600 == 0:
-                app.update_video_export(
-                    state="Exporting",
-                    start_digits=start_digits,
-                    end_digits=end_digits,
-                    current_digits=digits_consumed,
-                    frames_written=frames_written,
-                    total_frames=frame_count,
-                    output_path=str(output_path),
-                    preset=preset_name,
-                )
+        with temp_audio_path.open("wb") as audio_file:
+            while digits_consumed < end_digits:
+                value = int(app.digits[digits_consumed : digits_consumed + input_config.digits_per_input])
+                button = button_for_value(value, input_config)
+                pyboy.button_press(button)
+                for _ in range(input_config.on_frames):
+                    pyboy.tick(1, True, True)
+                    audio_sample_credit += audio_sample_rate / GAMEBOY_FPS
+                    frame_samples = int(audio_sample_credit)
+                    audio_sample_credit -= frame_samples
+                    audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
+                    process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                    frames_written += 1
+                pyboy.button_release(button)
+                for _ in range(input_config.off_frames):
+                    pyboy.tick(1, True, True)
+                    audio_sample_credit += audio_sample_rate / GAMEBOY_FPS
+                    frame_samples = int(audio_sample_credit)
+                    audio_sample_credit -= frame_samples
+                    audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
+                    process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                    frames_written += 1
+                digits_consumed += input_config.digits_per_input
+                if frames_written % 600 == 0:
+                    app.update_video_export(
+                        state="Exporting",
+                        start_digits=start_digits,
+                        end_digits=end_digits,
+                        current_digits=digits_consumed,
+                        frames_written=frames_written,
+                        total_frames=frame_count,
+                        output_path=str(output_path),
+                        preset=preset_name,
+                    )
 
         process.stdin.close()
         return_code = process.wait(timeout=30)
         if return_code != 0:
             raise RuntimeError(f"ffmpeg failed with exit code {return_code}")
+        if not temp_audio_path.exists() or temp_audio_path.stat().st_size <= 0:
+            raise RuntimeError("Export completed without audio samples.")
+
+        app.update_video_export(
+            state="Muxing audio",
+            start_digits=start_digits,
+            end_digits=end_digits,
+            current_digits=end_digits,
+            frames_written=frames_written,
+            total_frames=frame_count,
+            output_path=str(output_path),
+            preset=preset_name,
+        )
+        audio_codec_args = ["-c:a", "aac"] if output_path.suffix.lower() == ".mp4" else ["-c:a", "flac"]
+        mux_command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(temp_video_path),
+            "-f",
+            "s8",
+            "-ar",
+            str(audio_sample_rate),
+            "-ac",
+            str(audio_channels),
+            "-i",
+            str(temp_audio_path),
+            "-c:v",
+            "copy",
+            *audio_codec_args,
+            "-shortest",
+            str(temp_output_path),
+        ]
+        mux_result = subprocess.run(
+            mux_command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=Path.cwd(),
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            check=False,
+        )
+        if mux_result.returncode != 0:
+            raise RuntimeError(f"ffmpeg audio mux failed with exit code {mux_result.returncode}")
         temp_output_path.replace(output_path)
         app.update_video_export(
             state="Complete",
@@ -438,6 +509,9 @@ def run_video_export(
                     pass
             process.terminate()
         pyboy.stop()
+        temp_video_path.unlink(missing_ok=True)
+        temp_audio_path.unlink(missing_ok=True)
+        temp_output_path.unlink(missing_ok=True)
 
 
 class ReviewWebApp:
