@@ -289,6 +289,24 @@ async function post(path, body = {}) {
   return response.json().catch(() => ({}));
 }
 
+function sortVideoExportPresets() {
+  const selectedValue = videoExportPresetEl.value;
+  const options = Array.from(videoExportPresetEl.options);
+  options.sort((left, right) => {
+    if (left.value === "mp4") {
+      return -1;
+    }
+    if (right.value === "mp4") {
+      return 1;
+    }
+    return left.textContent.localeCompare(right.textContent, undefined, { sensitivity: "base" });
+  });
+  videoExportPresetEl.replaceChildren(...options);
+  videoExportPresetEl.value = selectedValue || "mp4";
+}
+
+sortVideoExportPresets();
+
 romUploadButtonEl.addEventListener("click", () => {
   romUploadEl.click();
 });
