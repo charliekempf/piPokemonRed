@@ -58,14 +58,29 @@ VIDEO_EXPORT_PRESETS = {
         "label": "AV1",
         "extension": ".mkv",
         "input_pix_fmt": "gray",
-        "ffmpeg_args": ["-c:v", "libaom-av1", "-usage", "realtime", "-pix_fmt", "gray"],
+        "ffmpeg_args": ["-c:v", "libaom-av1", "-usage", "realtime", "-cpu-used", "8", "-threads", "1", "-pix_fmt", "gray"],
         "audio_args": ["-c:a", "flac"],
     },
     "av1_lossless": {
         "label": "AV1 lossless",
         "extension": ".mkv",
         "input_pix_fmt": "gray",
-        "ffmpeg_args": ["-c:v", "libaom-av1", "-usage", "realtime", "-crf", "0", "-b:v", "0", "-pix_fmt", "gray"],
+        "ffmpeg_args": [
+            "-c:v",
+            "libaom-av1",
+            "-usage",
+            "realtime",
+            "-cpu-used",
+            "8",
+            "-threads",
+            "1",
+            "-crf",
+            "0",
+            "-b:v",
+            "0",
+            "-pix_fmt",
+            "gray",
+        ],
         "audio_args": ["-c:a", "flac"],
     },
     "ffv1": {
@@ -334,6 +349,27 @@ def audio_bytes_for_pyboy(pyboy: PyBoy, target_bytes: int) -> bytes:
     return data
 
 
+def tail_text(path: Path, limit: int = 4000) -> str:
+    if not path.exists():
+        return ""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return ""
+    return data[-limit:].decode("utf-8", errors="replace").strip()
+
+
+def ffmpeg_failure_message(process: subprocess.Popen[bytes], stderr_path: Path, fallback: BaseException) -> str:
+    try:
+        return_code = process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        return_code = process.poll()
+    details = tail_text(stderr_path)
+    if details:
+        return f"ffmpeg pipe closed with return code {return_code}: {details}"
+    return f"ffmpeg pipe closed with return code {return_code}: {fallback}"
+
+
 def run_video_export(
     app: "ReviewWebApp",
     start_digits: int,
@@ -354,13 +390,15 @@ def run_video_export(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_video_path = output_path.with_suffix(".video" + output_path.suffix)
     temp_audio_path = output_path.with_suffix(".audio.s8")
+    temp_stderr_path = output_path.with_suffix(".ffmpeg.log")
     temp_output_path = output_path.with_suffix(".tmp" + output_path.suffix)
-    for temp_path in (temp_video_path, temp_audio_path, temp_output_path):
+    for temp_path in (temp_video_path, temp_audio_path, temp_stderr_path, temp_output_path):
         temp_path.unlink(missing_ok=True)
 
     command = [
         "ffmpeg",
         "-y",
+        "-nostdin",
         "-f",
         "rawvideo",
         "-pix_fmt",
@@ -387,6 +425,7 @@ def run_video_export(
     )
     pyboy.set_emulation_speed(0)
     process: subprocess.Popen[bytes] | None = None
+    stderr_file = None
     frames_written = 0
     digits_consumed = checkpoint_digits_consumed
     audio_sample_rate = 48000
@@ -407,11 +446,12 @@ def run_video_export(
                 input_config=input_config,
             )
 
+        stderr_file = temp_stderr_path.open("wb")
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_file,
             cwd=Path.cwd(),
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
@@ -429,7 +469,10 @@ def run_video_export(
                     frame_samples = int(audio_sample_credit)
                     audio_sample_credit -= frame_samples
                     audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
-                    process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                    try:
+                        process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                    except BrokenPipeError as error:
+                        raise RuntimeError(ffmpeg_failure_message(process, temp_stderr_path, error)) from error
                     frames_written += 1
                 pyboy.button_release(button)
                 for _ in range(input_config.off_frames):
@@ -438,7 +481,10 @@ def run_video_export(
                     frame_samples = int(audio_sample_credit)
                     audio_sample_credit -= frame_samples
                     audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
-                    process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                    try:
+                        process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                    except BrokenPipeError as error:
+                        raise RuntimeError(ffmpeg_failure_message(process, temp_stderr_path, error)) from error
                     frames_written += 1
                 digits_consumed += input_config.digits_per_input
                 if frames_written % 600 == 0:
@@ -455,8 +501,12 @@ def run_video_export(
 
         process.stdin.close()
         return_code = process.wait(timeout=30)
+        if stderr_file is not None:
+            stderr_file.close()
+            stderr_file = None
         if return_code != 0:
-            raise RuntimeError(f"ffmpeg failed with exit code {return_code}")
+            details = tail_text(temp_stderr_path)
+            raise RuntimeError(f"ffmpeg failed with exit code {return_code}: {details}")
         if not temp_audio_path.exists() or temp_audio_path.stat().st_size <= 0:
             raise RuntimeError("Export completed without audio samples.")
 
@@ -473,6 +523,7 @@ def run_video_export(
         mux_command = [
             "ffmpeg",
             "-y",
+            "-nostdin",
             "-i",
             str(temp_video_path),
             "-f",
@@ -519,8 +570,11 @@ def run_video_export(
                     pass
             process.terminate()
         pyboy.stop()
+        if stderr_file is not None:
+            stderr_file.close()
         temp_video_path.unlink(missing_ok=True)
         temp_audio_path.unlink(missing_ok=True)
+        temp_stderr_path.unlink(missing_ok=True)
         temp_output_path.unlink(missing_ok=True)
 
 
