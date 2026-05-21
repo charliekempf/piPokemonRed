@@ -1,7 +1,7 @@
 param(
-    [string]$RunName = "statistical_spread",
+    [string]$RunName = "statistical_walk",
     [string]$Digits = "data\pi_1b_digits.txt",
-    [string]$Config = "config\statistical_spread.json",
+    [string]$Config = "config\statistical_walk.json",
     [int]$MaxDigits = 0,
     [string]$Checkpoint = "penultimate",
     [int]$Speed = 10,

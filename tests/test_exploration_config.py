@@ -28,36 +28,11 @@ class FakePyBoy:
         self.events.append(("tick", frames))
 
 
-def test_exploration_config_spread() -> None:
-    config_path = Path("config/exploration.json")
+def test_statistical_walk_config_spread() -> None:
+    config_path = Path("config/statistical_walk.json")
     config = load_input_config(config_path)
 
-    assert config_display_name(config_path) == "Exploration"
-    assert config.on_frames == 2
-    assert config.off_frames == 14
-    assert config.digits_per_input == 2
-
-    counts: dict[str, int] = {}
-    for value in range(100):
-        button = button_for_value(value, config)
-        counts[button] = counts.get(button, 0) + 1
-
-    assert counts == {
-        "a": 14,
-        "b": 13,
-        "up": 18,
-        "down": 18,
-        "left": 18,
-        "right": 18,
-        "start": 1,
-    }
-
-
-def test_exploration_fast_keeps_spread_with_short_offtime() -> None:
-    config_path = Path("config/exploration_fast.json")
-    config = load_input_config(config_path)
-
-    assert config_display_name(config_path) == "Exploration Fast"
+    assert config_display_name(config_path) == "Statistical Walk"
     assert config.on_frames == 2
     assert config.off_frames == 1
     assert config.digits_per_input == 2
@@ -68,22 +43,22 @@ def test_exploration_fast_keeps_spread_with_short_offtime() -> None:
         counts[button] = counts.get(button, 0) + 1
 
     assert counts == {
-        "a": 14,
-        "b": 13,
-        "up": 18,
-        "down": 18,
-        "left": 18,
-        "right": 18,
+        "a": 54,
+        "up": 10,
+        "down": 10,
+        "left": 10,
+        "right": 10,
+        "b": 5,
         "start": 1,
     }
 
 
-def test_exploration_medium_keeps_spread_with_medium_offtime() -> None:
-    config_path = Path("config/exploration_medium.json")
+def test_super_walk_keeps_exploration_spread_with_step_timing() -> None:
+    config_path = Path("config/super_walk.json")
     config = load_input_config(config_path)
 
-    assert config_display_name(config_path) == "Exploration Medium"
-    assert config.on_frames == 2
+    assert config_display_name(config_path) == "Super Walk"
+    assert config.on_frames == 4
     assert config.off_frames == 13
     assert config.digits_per_input == 2
 
@@ -103,61 +78,11 @@ def test_exploration_medium_keeps_spread_with_medium_offtime() -> None:
     }
 
 
-def test_exploration_medium_fast_keeps_spread_with_shorter_offtime() -> None:
-    config_path = Path("config/exploration_medium_fast.json")
+def test_super_stride_uses_stride_mapping() -> None:
+    config_path = Path("config/super_stride.json")
     config = load_input_config(config_path)
 
-    assert config_display_name(config_path) == "Exploration Medium Fast"
-    assert config.on_frames == 2
-    assert config.off_frames == 4
-    assert config.digits_per_input == 2
-
-    counts: dict[str, int] = {}
-    for value in range(100):
-        button = button_for_value(value, config)
-        counts[button] = counts.get(button, 0) + 1
-
-    assert counts == {
-        "a": 14,
-        "b": 13,
-        "up": 18,
-        "down": 18,
-        "left": 18,
-        "right": 18,
-        "start": 1,
-    }
-
-
-def test_exploration_medium_medium_fast_keeps_spread_with_mid_offtime() -> None:
-    config_path = Path("config/exploration_medium_medium_fast.json")
-    config = load_input_config(config_path)
-
-    assert config_display_name(config_path) == "Exploration Medium Medium Fast"
-    assert config.on_frames == 2
-    assert config.off_frames == 8
-    assert config.digits_per_input == 2
-
-    counts: dict[str, int] = {}
-    for value in range(100):
-        button = button_for_value(value, config)
-        counts[button] = counts.get(button, 0) + 1
-
-    assert counts == {
-        "a": 14,
-        "b": 13,
-        "up": 18,
-        "down": 18,
-        "left": 18,
-        "right": 18,
-        "start": 1,
-    }
-
-
-def test_super_duper_exploration_uses_stride_mapping() -> None:
-    config_path = Path("config/super_duper_exploration.json")
-    config = load_input_config(config_path)
-
-    assert config_display_name(config_path) == "Super Duper Exploration"
+    assert config_display_name(config_path) == "Super Stride"
     assert config.mapping_mode == "digit_stride"
     assert config.on_frames == 4
     assert config.off_frames == 13
@@ -188,8 +113,8 @@ def test_super_duper_exploration_uses_stride_mapping() -> None:
     assert abs(average_frames_per_input(config) - 78.2) < 0.0001
 
 
-def test_super_duper_exploration_repeats_directional_cycles() -> None:
-    config = load_input_config(Path("config/super_duper_exploration.json"))
+def test_super_stride_repeats_directional_cycles() -> None:
+    config = load_input_config(Path("config/super_stride.json"))
     pyboy = FakePyBoy()
 
     result = advance_pi_inputs(
@@ -210,8 +135,8 @@ def test_super_duper_exploration_repeats_directional_cycles() -> None:
     assert sum(1 for event in pyboy.events if event == ("press", "start")) == 1
 
 
-def test_super_duper_frame_count_is_digit_exact() -> None:
-    config = load_input_config(Path("config/super_duper_exploration.json"))
+def test_super_stride_frame_count_is_digit_exact() -> None:
+    config = load_input_config(Path("config/super_stride.json"))
 
     assert frames_for_digit_range("00098099", 0, 8, config) == (1 + 10 + 1 + 1) * (
         config.on_frames + config.off_frames
@@ -219,14 +144,14 @@ def test_super_duper_frame_count_is_digit_exact() -> None:
     assert frames_for_digit_range("00098099", 2, 4, config) == 10 * (config.on_frames + config.off_frames)
 
 
-def test_super_duper_input_window_marks_step_count() -> None:
+def test_super_stride_input_window_marks_step_count() -> None:
     from review_pi_checkpoint import ReviewSession
 
     session = object.__new__(ReviewSession)
     session._lock = __import__("threading").Lock()
     session.digits_consumed = 0
     session.digits = "09798099"
-    session.input_config = load_input_config(Path("config/super_duper_exploration.json"))
+    session.input_config = load_input_config(Path("config/super_stride.json"))
 
     items = session.input_window(previous_count=0, next_count=3)
 

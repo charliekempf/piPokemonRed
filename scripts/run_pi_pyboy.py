@@ -14,9 +14,9 @@ from pyboy import PyBoy
 
 ROM = Path("roms/Pokemon - Red Version (USA, Europe) (SGB Enhanced).gb")
 PI_DIGITS = Path("data/pi_10m_digits.txt")
-RUN_NAME = "statistical_spread"
+RUN_NAME = "statistical_walk"
 GAMEBOY_FPS = 4194304 / 70224
-INPUT_CONFIG = Path("config/statistical_spread.json")
+INPUT_CONFIG = Path("config/statistical_walk.json")
 VALID_BUTTONS = {"a", "b", "start", "select", "up", "down", "left", "right"}
 RUN_CONFIG_FILENAME = "input_config.json"
 

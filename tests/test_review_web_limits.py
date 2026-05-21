@@ -22,10 +22,12 @@ def test_refresh_available_digits_uses_digit_file_length() -> None:
         scale=4,
         run_name="missing-test-run",
         digits_per_input=2,
+        frames_per_input=3,
         hard_max_digits=None,
         rom_path=Path("roms/test.gb"),
         digits_path=Path("data/test.txt"),
-        config_path=Path("config/statistical_spread.json"),
+        digits=session.digits,
+        config_path=Path("config/statistical_walk.json"),
         session_factory=lambda: session,
     )
 
@@ -41,10 +43,12 @@ def test_refresh_available_digits_honors_hard_limit() -> None:
         scale=4,
         run_name="missing-test-run",
         digits_per_input=2,
+        frames_per_input=3,
         hard_max_digits=11,
         rom_path=Path("roms/test.gb"),
         digits_path=Path("data/test.txt"),
-        config_path=Path("config/statistical_spread.json"),
+        digits=session.digits,
+        config_path=Path("config/statistical_walk.json"),
         session_factory=lambda: session,
     )
 
