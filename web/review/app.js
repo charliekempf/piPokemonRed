@@ -1650,7 +1650,7 @@ function renderStats(state) {
   const progressionLabel = state.progression?.label || "progression objective";
   const progressionLocation = state.progression?.objective_location ? ` | ${state.progression.objective_location}` : "";
   statProgressionDistanceEl.textContent = Number.isFinite(progressionSteps)
-    ? `${fmt(Math.round(progressionSteps))} steps`
+    ? `${fmt(Math.round(progressionSteps))} steps away`
     : "-";
   statProgressionDistanceEl.title = Number.isFinite(progressionSteps)
     ? `${fmt(Math.round(progressionSteps))} steps to ${progressionLabel}${progressionLocation}`
