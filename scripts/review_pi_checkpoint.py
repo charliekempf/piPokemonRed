@@ -1123,6 +1123,17 @@ class Snapshot:
     state: bytes
 
 
+@dataclass
+class ManualRestorePoint:
+    digits_consumed: int
+    frames_elapsed: int
+    max_digits: int
+    current_input_frame: int
+    inputs_sent: int
+    last_button: str
+    state: bytes
+
+
 class AudioSink:
     def __init__(self, sample_rate: int) -> None:
         self.device = 0
@@ -1535,6 +1546,7 @@ class ReviewSession:
         self._warp_limit_digits = 1_000_000
         self._manual_mode = False
         self._manual_buttons: set[str] = set()
+        self._manual_restore_point: ManualRestorePoint | None = None
         self._simulation_started_at: float | None = None
         self._last_simulation: dict[str, int | float | str] | None = None
         self._progression_record_low_steps: int | None = None
@@ -1734,12 +1746,28 @@ class ReviewSession:
 
     def set_manual_mode(self, enabled: bool) -> bool:
         buttons_to_release: list[str] = []
+        restore_point: ManualRestorePoint | None = None
         with self._lock:
             enabled = bool(enabled)
             if self._manual_mode == enabled:
                 return self._manual_mode
             buttons_to_release = sorted(self._manual_buttons)
             self._manual_buttons.clear()
+            if enabled:
+                state_buffer = io.BytesIO()
+                self.pyboy.save_state(state_buffer)
+                self._manual_restore_point = ManualRestorePoint(
+                    digits_consumed=self.digits_consumed,
+                    frames_elapsed=self.frames_elapsed,
+                    max_digits=self.max_digits,
+                    current_input_frame=self.current_input_frame,
+                    inputs_sent=self.inputs_sent,
+                    last_button=self.last_button,
+                    state=state_buffer.getvalue(),
+                )
+            else:
+                restore_point = self._manual_restore_point
+                self._manual_restore_point = None
             self._manual_mode = enabled
             self._rewind_digits_requested = 0
             self._fast_forward_target_digits = None
@@ -1752,6 +1780,23 @@ class ReviewSession:
             self._restore_playback_speed_unlocked()
         for button in buttons_to_release:
             self.pyboy.button_release(button)
+        if restore_point is not None:
+            self.pyboy.load_state(io.BytesIO(restore_point.state))
+            image = render_loaded_state(self.pyboy)
+            with self._lock:
+                self.digits_consumed = restore_point.digits_consumed
+                self.frames_elapsed = restore_point.frames_elapsed
+                self.max_digits = restore_point.max_digits
+                self.current_input_frame = restore_point.current_input_frame
+                self.inputs_sent = restore_point.inputs_sent
+                self.last_button = restore_point.last_button
+                self.latest_image = image
+                self.status = "paused"
+                self._actual_speed_x = 0.0
+                self._actual_digits_per_second = 0.0
+                self._speed_sample_started_at = time.perf_counter()
+                self._speed_sample_frames = 0
+                self._speed_sample_digits = 0
         return enabled
 
     def manual_input(self, button: str, pressed: bool) -> dict[str, object]:
@@ -1850,6 +1895,7 @@ class ReviewSession:
                 "status": self.status,
                 "manual_mode": self._manual_mode,
                 "manual_buttons": sorted(self._manual_buttons),
+                "manual_restore_active": self._manual_restore_point is not None,
                 "snapshots": len(self.snapshots),
                 "inputs_sent": self.inputs_sent,
                 "last_button": self.last_button,

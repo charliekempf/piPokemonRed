@@ -1176,6 +1176,7 @@ class ReviewWebApp:
                 "status": "ROM required",
                 "manual_mode": False,
                 "manual_buttons": [],
+                "manual_restore_active": False,
                 "digits_consumed": 0,
                 "max_digits": max_digits,
                 "frames_elapsed": 0,
