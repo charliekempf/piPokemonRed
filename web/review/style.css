@@ -312,7 +312,7 @@ body {
 
 .status-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(170px, 220px);
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 200px) minmax(120px, 150px);
   gap: 8px;
   margin: 10px 0;
 }
@@ -334,6 +334,10 @@ body {
 
 .location-card {
   grid-column: 2;
+}
+
+.progression-distance-card {
+  grid-column: 3;
 }
 
 .stat-label {

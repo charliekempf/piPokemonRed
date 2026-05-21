@@ -3,6 +3,7 @@ const statusEl = document.querySelector("#status");
 const statDigitsEl = document.querySelector("#stat-digits");
 const statProgressEl = document.querySelector("#stat-progress span");
 const statLocationEl = document.querySelector("#stat-location");
+const statProgressionDistanceEl = document.querySelector("#stat-progression-distance");
 const statSpeedEl = document.querySelector("#stat-speed");
 const statActualSpeedEl = document.querySelector("#stat-actual-speed");
 const statDigitRateEl = document.querySelector("#stat-digit-rate");
@@ -1645,6 +1646,15 @@ function renderStats(state) {
   statDigitsEl.textContent = `${fmt(state.digits_consumed)} / ${fmt(state.max_digits)}`;
   statLocationEl.textContent = state.location || "-";
   statLocationEl.title = state.map_id == null ? "" : `Map $${Number(state.map_id).toString(16).toUpperCase().padStart(2, "0")}`;
+  const progressionSteps = finiteNumber(state.progression?.remaining_steps);
+  const progressionLabel = state.progression?.label || "progression objective";
+  const progressionLocation = state.progression?.objective_location ? ` | ${state.progression.objective_location}` : "";
+  statProgressionDistanceEl.textContent = Number.isFinite(progressionSteps)
+    ? `${fmt(Math.round(progressionSteps))} steps`
+    : "-";
+  statProgressionDistanceEl.title = Number.isFinite(progressionSteps)
+    ? `${fmt(Math.round(progressionSteps))} steps to ${progressionLabel}${progressionLocation}`
+    : "Progression route data unavailable";
   statProgressEl.style.width = `${progress}%`;
   statSpeedEl.textContent = state.speed_limiter_enabled === "off" ? "Set Unlimited" : `Set ${speedLabel(state.speed)}`;
   statActualSpeedEl.textContent = actualSpeedLabel(state.actual_speed_x);
