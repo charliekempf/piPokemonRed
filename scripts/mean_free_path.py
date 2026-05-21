@@ -252,6 +252,102 @@ def write_distribution_svg(lengths: list[int], output: Path) -> None:
     output.write_text(svg, encoding="utf-8")
 
 
+def write_percentile_svg(lengths: list[int], output: Path) -> None:
+    if not lengths:
+        raise ValueError("Cannot graph an empty distribution.")
+
+    count, mean, variance, minimum, maximum = online_stats(lengths)
+    standard_deviation = math.sqrt(variance)
+    frequencies: dict[int, int] = {}
+    for length in lengths:
+        frequencies[length] = frequencies.get(length, 0) + 1
+
+    width = 1200
+    height = 720
+    margin_left = 88
+    margin_right = 42
+    margin_top = 76
+    margin_bottom = 82
+    plot_width = width - margin_left - margin_right
+    plot_height = height - margin_top - margin_bottom
+    max_x = max(maximum + 1, 1)
+
+    def x_pos(value: float) -> float:
+        return margin_left + (value / max_x) * plot_width
+
+    def y_pos(percent: float) -> float:
+        return margin_top + plot_height - (percent / 100) * plot_height
+
+    grid_lines: list[str] = []
+    for percent in range(0, 101, 10):
+        y = y_pos(percent)
+        grid_lines.append(f'<line x1="{margin_left}" y1="{y:.2f}" x2="{width - margin_right}" y2="{y:.2f}" stroke="#233041" stroke-width="1"/>')
+        grid_lines.append(
+            f'<text x="{margin_left - 12}" y="{y + 5:.2f}" text-anchor="end" fill="#9fb0c4" font-size="14">{percent}%</text>'
+        )
+
+    x_ticks: list[str] = []
+    tick_count = 10
+    for index in range(tick_count + 1):
+        value = round(max_x * index / tick_count)
+        x = x_pos(value)
+        x_ticks.append(f'<line x1="{x:.2f}" y1="{margin_top + plot_height}" x2="{x:.2f}" y2="{margin_top + plot_height + 8}" stroke="#9fb0c4" stroke-width="1"/>')
+        x_ticks.append(f'<text x="{x:.2f}" y="{height - 42}" text-anchor="middle" fill="#9fb0c4" font-size="14">{value}</text>')
+
+    points: list[str] = []
+    cumulative_less_than = 0
+    points.append(f"{x_pos(0):.2f},{y_pos(0):.2f}")
+    for step_threshold in range(1, max_x + 1):
+        cumulative_less_than += frequencies.get(step_threshold - 1, 0)
+        percent_less_than = cumulative_less_than / count * 100
+        points.append(f"{x_pos(step_threshold):.2f},{y_pos(percent_less_than):.2f}")
+
+    percentile_marks = []
+    cumulative = 0
+    sorted_lengths = sorted(frequencies)
+    for target in (50, 75, 90, 95, 99):
+        threshold = maximum + 1
+        for length in sorted_lengths:
+            cumulative += frequencies[length]
+            if cumulative / count * 100 >= target:
+                threshold = length + 1
+                break
+        cumulative = 0
+        x = x_pos(threshold)
+        y = y_pos(target)
+        percentile_marks.append(f'<line x1="{x:.2f}" y1="{y:.2f}" x2="{x:.2f}" y2="{margin_top + plot_height}" stroke="#26c485" stroke-width="1.5" stroke-dasharray="6 6"/>')
+        percentile_marks.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="4.5" fill="#26c485"/>')
+        percentile_marks.append(f'<text x="{x + 7:.2f}" y="{y - 7:.2f}" fill="#26c485" font-size="13">P{target}: &lt; {threshold}</text>')
+
+    mean_x = x_pos(mean)
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <rect width="100%" height="100%" fill="#0f1722"/>
+  <text x="{margin_left}" y="38" fill="#f5f7fb" font-size="26" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Pokemon Red Map Mean Free Path Percentiles</text>
+  <text x="{margin_left}" y="62" fill="#9fb0c4" font-size="15" font-family="Segoe UI, Arial, sans-serif">Y axis is the percentage of path samples with fewer steps than X</text>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    {''.join(grid_lines)}
+    <line x1="{margin_left}" y1="{margin_top + plot_height}" x2="{width - margin_right}" y2="{margin_top + plot_height}" stroke="#d8e2ef" stroke-width="1.5"/>
+    <line x1="{margin_left}" y1="{margin_top}" x2="{margin_left}" y2="{margin_top + plot_height}" stroke="#d8e2ef" stroke-width="1.5"/>
+    <polyline points="{' '.join(points)}" fill="none" stroke="#4f9cff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+    <line x1="{mean_x:.2f}" y1="{margin_top}" x2="{mean_x:.2f}" y2="{margin_top + plot_height}" stroke="#ffe066" stroke-width="2.5"/>
+    <text x="{mean_x + 8:.2f}" y="{margin_top + 24}" fill="#ffe066" font-size="15">mean {mean:.2f}</text>
+    {''.join(percentile_marks)}
+    {''.join(x_ticks)}
+    <text x="{margin_left + plot_width / 2:.2f}" y="{height - 12}" text-anchor="middle" fill="#d8e2ef" font-size="16">free path threshold X (steps)</text>
+    <text x="24" y="{margin_top + plot_height / 2:.2f}" transform="rotate(-90 24 {margin_top + plot_height / 2:.2f})" text-anchor="middle" fill="#d8e2ef" font-size="16">paths with fewer than X steps</text>
+    <g transform="translate({width - 390} 32)">
+      <rect x="0" y="0" width="350" height="92" rx="8" fill="#151f2c" stroke="#26364a"/>
+      <text x="18" y="28" fill="#f5f7fb" font-size="16" font-weight="700">Summary</text>
+      <text x="18" y="52" fill="#c7d4e5" font-size="14">Mean: {mean:.4f} steps</text>
+      <text x="18" y="73" fill="#c7d4e5" font-size="14">Standard deviation: {standard_deviation:.4f} steps</text>
+    </g>
+  </g>
+</svg>
+"""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(svg, encoding="utf-8")
+
+
 def sample_until_stable(
     maps: dict[int, MapData],
     connections: dict[tuple[int, int, int, int, int], StepResult],
@@ -308,6 +404,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=314159)
     parser.add_argument("--exact", action="store_true", help="Also compute the exact mean over every walkable tile and direction.")
     parser.add_argument("--distribution-svg", type=Path, help="Write an exact probability distribution histogram as an SVG.")
+    parser.add_argument("--percentile-svg", type=Path, help="Write an exact cumulative percentile graph as an SVG.")
     args = parser.parse_args()
 
     database = load_database(args.database)
@@ -350,10 +447,17 @@ def main() -> None:
         if args.distribution_svg:
             write_distribution_svg(lengths, args.distribution_svg)
             print(f"Wrote distribution graph to {args.distribution_svg}")
-    elif args.distribution_svg:
+        if args.percentile_svg:
+            write_percentile_svg(lengths, args.percentile_svg)
+            print(f"Wrote percentile graph to {args.percentile_svg}")
+    elif args.distribution_svg or args.percentile_svg:
         lengths = exact_lengths(maps, connections, tiles)
-        write_distribution_svg(lengths, args.distribution_svg)
-        print(f"Wrote distribution graph to {args.distribution_svg}")
+        if args.distribution_svg:
+            write_distribution_svg(lengths, args.distribution_svg)
+            print(f"Wrote distribution graph to {args.distribution_svg}")
+        if args.percentile_svg:
+            write_percentile_svg(lengths, args.percentile_svg)
+            print(f"Wrote percentile graph to {args.percentile_svg}")
 
 
 if __name__ == "__main__":
