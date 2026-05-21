@@ -2482,8 +2482,64 @@ class ReviewSession:
         simulator.set_emulation_speed(0)
         digits_consumed = start_digits
         inputs_sent = 0
+        frames_advanced = 0
         last_button = self.last_button
         found = False
+
+        def reached_target_state() -> bool:
+            nonlocal battle_seen
+            nonlocal trainer_battle_seen
+            nonlocal wild_battle_seen
+            nonlocal blackout_seen
+            nonlocal evolution_seen
+            nonlocal starting_evolution_marker
+            nonlocal starting_species
+
+            in_battle = is_in_battle(simulator)
+            in_trainer_battle = is_in_trainer_battle(simulator)
+            in_wild_battle = is_in_wild_battle(simulator)
+            blackout = is_party_blackout(simulator)
+            if target_state == "battle":
+                if battle_seen:
+                    if not in_battle:
+                        battle_seen = False
+                elif in_battle:
+                    return True
+            elif target_state == "trainer_battle":
+                if trainer_battle_seen:
+                    if not in_trainer_battle:
+                        trainer_battle_seen = False
+                elif in_trainer_battle:
+                    return True
+            elif target_state == "wild_battle":
+                if wild_battle_seen:
+                    if not in_wild_battle:
+                        wild_battle_seen = False
+                elif in_wild_battle:
+                    return True
+            elif target_state == "blackout":
+                if blackout_seen:
+                    if not blackout:
+                        blackout_seen = False
+                elif blackout:
+                    return True
+            elif target_state == "level_up" and has_party_level_up(simulator, starting_levels):
+                return True
+            elif target_state == "evolution":
+                in_evolution = is_evolution_active(simulator)
+                if evolution_seen:
+                    if not in_evolution:
+                        evolution_seen = False
+                        starting_evolution_marker = evolution_marker(simulator)
+                        starting_species = party_species(simulator)
+                elif has_evolution_started(simulator, starting_evolution_marker, starting_species):
+                    return True
+            elif target_state == "item_pickup" and has_bag_item_gain(simulator, starting_bag_items):
+                return True
+            elif target_state == "scene_change" and current_map_id(simulator) != starting_map:
+                return True
+            return False
+
         try:
             simulator.load_state(state_buffer)
             battle_seen = is_in_battle(simulator)
@@ -2507,62 +2563,15 @@ class ReviewSession:
                     if self.release_frames:
                         simulator.tick(self.release_frames, False, True)
                     frames_advanced += self.hold_frames + self.release_frames
+                    if reached_target_state():
+                        found = True
+                        break
                 digits_consumed += self.input_config.digits_per_input
                 inputs_sent += 1
                 last_button = button
                 if inputs_sent % 5000 == 0:
                     self._update_seek(digits_consumed)
-
-                in_battle = is_in_battle(simulator)
-                in_trainer_battle = is_in_trainer_battle(simulator)
-                in_wild_battle = is_in_wild_battle(simulator)
-                blackout = is_party_blackout(simulator)
-                if target_state == "battle":
-                    if battle_seen:
-                        if not in_battle:
-                            battle_seen = False
-                    elif in_battle:
-                        found = True
-                        break
-                elif target_state == "trainer_battle":
-                    if trainer_battle_seen:
-                        if not in_trainer_battle:
-                            trainer_battle_seen = False
-                    elif in_trainer_battle:
-                        found = True
-                        break
-                elif target_state == "wild_battle":
-                    if wild_battle_seen:
-                        if not in_wild_battle:
-                            wild_battle_seen = False
-                    elif in_wild_battle:
-                        found = True
-                        break
-                elif target_state == "blackout":
-                    if blackout_seen:
-                        if not blackout:
-                            blackout_seen = False
-                    elif blackout:
-                        found = True
-                        break
-                elif target_state == "level_up" and has_party_level_up(simulator, starting_levels):
-                    found = True
-                    break
-                elif target_state == "evolution":
-                    in_evolution = is_evolution_active(simulator)
-                    if evolution_seen:
-                        if not in_evolution:
-                            evolution_seen = False
-                            starting_evolution_marker = evolution_marker(simulator)
-                            starting_species = party_species(simulator)
-                    elif has_evolution_started(simulator, starting_evolution_marker, starting_species):
-                        found = True
-                        break
-                elif target_state == "item_pickup" and has_bag_item_gain(simulator, starting_bag_items):
-                    found = True
-                    break
-                elif target_state == "scene_change" and current_map_id(simulator) != starting_map:
-                    found = True
+                if found:
                     break
 
             final_state = io.BytesIO()
