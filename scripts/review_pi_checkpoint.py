@@ -2590,7 +2590,10 @@ class ReviewSession:
                 break
             digits_slice = self.digits[digit_index : digit_index + digits_per_input]
             action = action_for_value(int(digits_slice), self.input_config)
-            label = f"{action.button} x{action.repetitions}" if action.repetitions > 1 else action.button
+            if self.input_config.mapping_mode == "digit_stride" and action.button in {"up", "down", "left", "right"}:
+                label = f"{action.repetitions} step{'s' if action.repetitions != 1 else ''} {action.button}"
+            else:
+                label = action.button
             buttons.append((digit_index, digits_slice, label))
         return buttons
 
@@ -2613,12 +2616,19 @@ class ReviewSession:
                 role = "current"
             else:
                 role = "future"
+            action = action_for_value(int(digits_slice), self.input_config)
+            step_count = (
+                action.repetitions
+                if self.input_config.mapping_mode == "digit_stride" and action.button in {"up", "down", "left", "right"}
+                else None
+            )
             items.append(
                 {
                     "digit_index": digit_index,
                     "pair": digits_slice,
-                    "button": button_for_value(int(digits_slice), self.input_config),
-                    "repetitions": action_for_value(int(digits_slice), self.input_config).repetitions,
+                    "button": action.button,
+                    "repetitions": action.repetitions,
+                    "step_count": step_count,
                     "role": role,
                 }
             )

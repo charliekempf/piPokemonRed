@@ -786,11 +786,20 @@ function drawInputRow(context, item, role, x, y, width, height) {
   context.fillText(`${fmt(item.digit_index)}  ${item.pair}`, x + 8, y + (height / 2));
   context.font = "700 13px Consolas, 'Cascadia Mono', monospace";
   context.fillStyle = "#fff4b8";
-  const repetitions = Number(item.repetitions || 1);
-  const button = `${String(item.button || "").toUpperCase()}${repetitions > 1 ? ` x${repetitions}` : ""}`;
+  const button = inputActionLabel(item);
   const buttonWidth = context.measureText(button).width;
   context.fillText(button, x + width - 8 - buttonWidth, y + (height / 2));
   context.restore();
+}
+
+function inputActionLabel(item) {
+  const button = String(item.button || "").toUpperCase();
+  const stepCount = Number(item.step_count || 0);
+  if (stepCount > 0) {
+    return `${fmt(stepCount)} Step${stepCount === 1 ? "" : "s"} ${button}`;
+  }
+  const repetitions = Number(item.repetitions || 1);
+  return `${button}${repetitions > 1 ? ` x${repetitions}` : ""}`;
 }
 
 function roundRect(context, x, y, width, height, radius) {
@@ -810,11 +819,7 @@ function roundRect(context, x, y, width, height, radius) {
 
 function inputsAccessibilityLabel(items) {
   return items
-    .map((item) => {
-      const repetitions = Number(item.repetitions || 1);
-      const button = `${String(item.button || "").toUpperCase()}${repetitions > 1 ? ` x${repetitions}` : ""}`;
-      return `${item.role || "future"} ${fmt(item.digit_index)} ${item.pair} ${button}`;
-    })
+    .map((item) => `${item.role || "future"} ${fmt(item.digit_index)} ${item.pair} ${inputActionLabel(item)}`)
     .join(", ");
 }
 

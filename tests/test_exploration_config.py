@@ -207,3 +207,24 @@ def test_super_duper_exploration_repeats_directional_cycles() -> None:
     assert result.frames_advanced == (10 + 10 + 1) * (config.on_frames + config.off_frames)
     assert sum(1 for event in pyboy.events if event == ("press", "up")) == 20
     assert sum(1 for event in pyboy.events if event == ("press", "start")) == 1
+
+
+def test_super_duper_input_window_marks_step_count() -> None:
+    from review_pi_checkpoint import ReviewSession
+
+    session = object.__new__(ReviewSession)
+    session._lock = __import__("threading").Lock()
+    session.digits_consumed = 0
+    session.digits = "09798099"
+    session.input_config = load_input_config(Path("config/super_duper_exploration.json"))
+
+    items = session.input_window(previous_count=0, next_count=3)
+
+    assert items[0]["button"] == "up"
+    assert items[0]["step_count"] == 10
+    assert items[1]["button"] == "right"
+    assert items[1]["step_count"] == 10
+    assert items[2]["button"] == "a"
+    assert items[2]["step_count"] is None
+    assert items[3]["button"] == "start"
+    assert items[3]["step_count"] is None
