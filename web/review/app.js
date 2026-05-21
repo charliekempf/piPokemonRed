@@ -53,6 +53,8 @@ const progressionGraphStatusEl = document.querySelector("#progression-graph-stat
 const progressionPointEl = document.querySelector("#progression-point");
 const progressionDistanceEl = document.querySelector("#progression-distance");
 const progressionCloserCheckpointEl = document.querySelector("#progression-closer-checkpoint");
+const progressionGraphShellEl = document.querySelector("#progression-graph-shell");
+const progressionGraphLabelsEl = document.querySelector("#progression-graph-labels");
 const progressionGraphEl = document.querySelector("#progression-graph");
 const progressionSigmaEl = document.querySelector("#progression-sigma");
 const progressionProbabilityEl = document.querySelector("#progression-probability");
@@ -98,6 +100,8 @@ let partyRenderSignature = "";
 let bagRenderSignature = "";
 let inputRenderSignature = "";
 let splitsRenderSignature = "";
+let progressionGraphRenderer = null;
+let progressionGraphRendererFailed = false;
 let configRenderSignature = "";
 let lastInputFetchAt = 0;
 let lastPartyMembers = [];
@@ -311,6 +315,134 @@ function createRenderer(canvas) {
     console.warn("Falling back to Canvas 2D renderer.", error);
     return create2dRenderer(canvas);
   }
+}
+
+function hexToRgba(color, alpha = 1) {
+  const normalized = String(color || "#ffffff").replace("#", "");
+  const expanded = normalized.length === 3
+    ? normalized.split("").map((character) => character + character).join("")
+    : normalized;
+  const value = Number.parseInt(expanded, 16);
+  if (!Number.isFinite(value)) {
+    return [1, 1, 1, alpha];
+  }
+  return [
+    ((value >> 16) & 255) / 255,
+    ((value >> 8) & 255) / 255,
+    (value & 255) / 255,
+    alpha,
+  ];
+}
+
+function createProgressionGraphWebglRenderer(canvas) {
+  const contextOptions = {
+    alpha: true,
+    antialias: true,
+    depth: false,
+    preserveDrawingBuffer: true,
+  };
+  const gl = canvas.getContext("webgl", contextOptions)
+    || canvas.getContext("experimental-webgl", contextOptions);
+  if (!gl) {
+    return null;
+  }
+
+  const vertexShader = compileShader(
+    gl,
+    gl.VERTEX_SHADER,
+    `
+      attribute vec2 position;
+      attribute vec4 color;
+      varying vec4 vColor;
+      void main() {
+        gl_Position = vec4(position, 0.0, 1.0);
+        vColor = color;
+      }
+    `,
+  );
+  const fragmentShader = compileShader(
+    gl,
+    gl.FRAGMENT_SHADER,
+    `
+      precision mediump float;
+      varying vec4 vColor;
+      void main() {
+        gl_FragColor = vColor;
+      }
+    `,
+  );
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    throw new Error(gl.getProgramInfoLog(program) || "Could not link graph WebGL program.");
+  }
+
+  const buffer = gl.createBuffer();
+  gl.useProgram(program);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  const position = gl.getAttribLocation(program, "position");
+  const color = gl.getAttribLocation(program, "color");
+  gl.enableVertexAttribArray(position);
+  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(color);
+  gl.vertexAttribPointer(color, 4, gl.FLOAT, false, 24, 8);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  return {
+    mode: "WebGL",
+    resize(width, height, pixelRatio) {
+      const backingWidth = Math.round(width * pixelRatio);
+      const backingHeight = Math.round(height * pixelRatio);
+      if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+        canvas.width = backingWidth;
+        canvas.height = backingHeight;
+      }
+      canvas.style.height = `${height}px`;
+      gl.viewport(0, 0, backingWidth, backingHeight);
+    },
+    clear() {
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    },
+    draw(segments, width, height) {
+      this.clear();
+      if (!segments.length) {
+        return;
+      }
+      const vertices = new Float32Array(segments.length * 12);
+      let offset = 0;
+      for (const segment of segments) {
+        const rgba = hexToRgba(segment.color, segment.alpha ?? 1);
+        const x1 = ((segment.x1 / width) * 2) - 1;
+        const y1 = 1 - ((segment.y1 / height) * 2);
+        const x2 = ((segment.x2 / width) * 2) - 1;
+        const y2 = 1 - ((segment.y2 / height) * 2);
+        vertices.set([x1, y1, ...rgba, x2, y2, ...rgba], offset);
+        offset += 12;
+      }
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+      gl.drawArrays(gl.LINES, 0, segments.length * 2);
+    },
+  };
+}
+
+function getProgressionGraphRenderer() {
+  if (progressionGraphRenderer || progressionGraphRendererFailed) {
+    return progressionGraphRenderer;
+  }
+  try {
+    progressionGraphRenderer = createProgressionGraphWebglRenderer(progressionGraphEl);
+  } catch (error) {
+    console.warn("Falling back to Canvas 2D progression graph plotting.", error);
+    progressionGraphRendererFailed = true;
+    progressionGraphRenderer = null;
+  }
+  return progressionGraphRenderer;
 }
 
 const renderer = createRenderer(screen);
@@ -1307,6 +1439,41 @@ async function pollProgressionGraph() {
   }
 }
 
+function resizeProgressionCanvas(canvas, width, height, pixelRatio) {
+  const backingWidth = Math.round(width * pixelRatio);
+  const backingHeight = Math.round(height * pixelRatio);
+  if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+    canvas.width = backingWidth;
+    canvas.height = backingHeight;
+  }
+  canvas.style.height = `${height}px`;
+}
+
+function addDashedLineSegments(segments, x1, y, x2, dash, gap, color, alpha = 1) {
+  let x = x1;
+  while (x < x2) {
+    const end = Math.min(x + dash, x2);
+    segments.push({ x1: x, y1: y, x2: end, y2: y, color, alpha });
+    x += dash + gap;
+  }
+}
+
+function drawProgressionSegments2d(context, segments) {
+  context.save();
+  context.lineWidth = 2;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  for (const segment of segments) {
+    context.strokeStyle = segment.color;
+    context.globalAlpha = segment.alpha ?? 1;
+    context.beginPath();
+    context.moveTo(segment.x1, segment.y1);
+    context.lineTo(segment.x2, segment.y2);
+    context.stroke();
+  }
+  context.restore();
+}
+
 function renderProgressionGraph(progression = {}, currentDigits = 0, options = {}) {
   const digit = Math.max(0, finiteNumber(currentDigits) || 0);
   const rawRemainingSteps = progression.remaining_steps;
@@ -1385,19 +1552,22 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= graphEndDigit);
   }
 
-  const width = Math.max(640, Math.floor(progressionGraphEl.getBoundingClientRect().width || progressionGraphEl.clientWidth || 640));
+  const width = Math.max(640, Math.floor(progressionGraphShellEl.getBoundingClientRect().width || progressionGraphShellEl.clientWidth || 640));
   const height = 260;
   const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
-  if (
-    progressionGraphEl.width !== Math.round(width * pixelRatio)
-    || progressionGraphEl.height !== Math.round(height * pixelRatio)
-  ) {
-    progressionGraphEl.width = Math.round(width * pixelRatio);
-    progressionGraphEl.height = Math.round(height * pixelRatio);
-    progressionGraphEl.style.height = `${height}px`;
+  resizeProgressionCanvas(progressionGraphLabelsEl, width, height, pixelRatio);
+  const graphRenderer = getProgressionGraphRenderer();
+  progressionGraphShellEl.dataset.renderer = graphRenderer ? graphRenderer.mode : "Canvas 2D";
+  if (graphRenderer) {
+    graphRenderer.resize(width, height, pixelRatio);
+  } else {
+    resizeProgressionCanvas(progressionGraphEl, width, height, pixelRatio);
+    const fallbackContext = progressionGraphEl.getContext("2d");
+    fallbackContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    fallbackContext.clearRect(0, 0, width, height);
   }
 
-  const context = progressionGraphEl.getContext("2d");
+  const context = progressionGraphLabelsEl.getContext("2d");
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   context.clearRect(0, 0, width, height);
 
@@ -1495,18 +1665,12 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     }
     return "#aeb4c0";
   };
+  const plotSegments = [];
 
   if (Number.isFinite(globalBaselineSteps)) {
     const baselineY = yForSteps(globalBaselineSteps);
+    addDashedLineSegments(plotSegments, plot.left, baselineY, plot.right, 7, 5, "#8b909d", 0.95);
     context.save();
-    context.strokeStyle = "#8b909d";
-    context.lineWidth = 1.5;
-    context.setLineDash([7, 5]);
-    context.beginPath();
-    context.moveTo(plot.left, baselineY);
-    context.lineTo(plot.right, baselineY);
-    context.stroke();
-    context.setLineDash([]);
     context.font = "12px Segoe UI, system-ui, sans-serif";
     context.fillStyle = "#bec3ce";
     context.textAlign = "right";
@@ -1518,6 +1682,9 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   const visibleSamples = progressionSamples.filter((sample) => Number.isFinite(sample.steps));
   renderProgressionProbability(visibleSamples, globalBaselineSteps, sampleInterval);
   if (visibleSamples.length < 2) {
+    if (graphRenderer) {
+      graphRenderer.draw([], width, height);
+    }
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.font = "700 14px Segoe UI, system-ui, sans-serif";
@@ -1526,29 +1693,38 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     context.font = "12px Segoe UI, system-ui, sans-serif";
     context.fillStyle = "#aeb4c0";
     context.fillText(fullRange ? "Range: full HDF5 archive" : `Range: centered ${fmt(selectableRange)} digits`, plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) + 16);
-    progressionGraphEl.title = hasDistance
+    progressionGraphShellEl.title = hasDistance
       ? "No progression distance samples are available for this range."
       : "The graph is ready, but the Kanto route data has not been populated yet.";
     return;
   }
 
-  context.lineWidth = 2.25;
-  context.lineCap = "round";
-  context.lineJoin = "round";
   for (let index = 1; index < visibleSamples.length; index += 1) {
     const previous = visibleSamples[index - 1];
     const sample = visibleSamples[index];
-    context.strokeStyle = segmentColor(previous, sample);
-    context.beginPath();
-    context.moveTo(xForDigit(previous.digit), yForSteps(previous.steps));
-    context.lineTo(xForDigit(sample.digit), yForSteps(sample.steps));
-    context.stroke();
+    plotSegments.push({
+      x1: xForDigit(previous.digit),
+      y1: yForSteps(previous.steps),
+      x2: xForDigit(sample.digit),
+      y2: yForSteps(sample.steps),
+      color: segmentColor(previous, sample),
+      alpha: 1,
+    });
+  }
+
+  if (graphRenderer) {
+    graphRenderer.draw(plotSegments, width, height);
+  } else {
+    const fallbackContext = progressionGraphEl.getContext("2d");
+    fallbackContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    fallbackContext.clearRect(0, 0, width, height);
+    drawProgressionSegments2d(fallbackContext, plotSegments);
   }
 
   const rangeDescription = fullRange
     ? `across the full HDF5 archive from ${fmt(Math.round(startDigit))} to ${fmt(Math.round(graphEndDigit))}`
     : `over ${fmt(selectableRange)} digits centered on the current digit`;
-  progressionGraphEl.title = Number.isFinite(globalBaselineSteps)
+  progressionGraphShellEl.title = Number.isFinite(globalBaselineSteps)
     ? `${fmt(visibleSamples.length)} samples ${rangeDescription}. Gray line: ${fmt(Math.round(globalBaselineSteps))} checkpoint-tile steps.`
     : `${fmt(visibleSamples.length)} samples ${rangeDescription}.`;
 }
