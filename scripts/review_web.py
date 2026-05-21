@@ -39,6 +39,7 @@ from run_pi_pyboy import (
     ROM,
     RUN_NAME,
     RUN_CONFIG_FILENAME,
+    PROGRESSION_DISTANCE_FILENAME,
     action_for_value,
     average_frames_per_input,
     advance_pi_inputs,
@@ -762,6 +763,65 @@ def generate_progression_graph_samples(
         pyboy.stop()
 
 
+def archived_progression_graph_samples(run_name: str, start_digits: int, end_digits: int, sample_digits: int) -> list[dict[str, object]]:
+    archive_path = Path("results") / run_name / PROGRESSION_DISTANCE_FILENAME
+    if not archive_path.exists():
+        return []
+    try:
+        import h5py
+    except ImportError:
+        return []
+
+    try:
+        with h5py.File(archive_path, "r") as handle:
+            if "digit" not in handle or "remaining_steps" not in handle:
+                return []
+            digits = handle["digit"][:]
+            if len(digits) == 0:
+                return []
+            selected_indexes = [
+                index
+                for index, raw_digit in enumerate(digits)
+                if start_digits <= int(raw_digit) <= end_digits and (int(raw_digit) - start_digits) % sample_digits == 0
+            ]
+            if not selected_indexes:
+                return []
+            return [archived_progression_graph_sample(handle, index) for index in selected_indexes]
+    except OSError:
+        return []
+
+
+def archived_progression_graph_sample(handle, index: int) -> dict[str, object]:
+    def int_or_none(dataset_name: str) -> int | None:
+        if dataset_name not in handle:
+            return None
+        value = int(handle[dataset_name][index])
+        return None if value < 0 else value
+
+    def bool_value(dataset_name: str) -> bool:
+        return bool(dataset_name in handle and bool(handle[dataset_name][index]))
+
+    def string_value(dataset_name: str) -> str:
+        if dataset_name not in handle:
+            return ""
+        value = handle[dataset_name][index]
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        return str(value)
+
+    return {
+        "digit": int(handle["digit"][index]),
+        "steps": int_or_none("remaining_steps"),
+        "label": string_value("gate_label"),
+        "objective_location": string_value("objective_location"),
+        "reachable": bool_value("reachable"),
+        "baseline_steps": int_or_none("total_steps_from_respawn"),
+        "total_steps_from_respawn": int_or_none("total_steps_from_respawn"),
+        "in_battle": bool_value("in_battle"),
+        "source": "hdf5",
+    }
+
+
 class ReviewWebApp:
     def __init__(
         self,
@@ -1073,10 +1133,29 @@ class ReviewWebApp:
         if sample_digits % digits_per_input:
             sample_digits += digits_per_input - (sample_digits % digits_per_input)
         start_digits = normalize_digit(max(0, end_digits - range_digits), digits_per_input)
+        cache_key = self.progression_graph_cache_key(start_digits, end_digits, sample_digits)
+        archived_samples = archived_progression_graph_samples(self.run_name, start_digits, end_digits, sample_digits)
+        if archived_samples:
+            archived_status = {
+                "state": "Archived",
+                "running": False,
+                "start_digits": start_digits,
+                "end_digits": end_digits,
+                "current_digits": int(archived_samples[-1]["digit"]),
+                "sample_digits": sample_digits,
+                "sample_count": len(archived_samples),
+                "samples": archived_samples,
+                "cache_hit": False,
+                "archive_hit": True,
+                "error": "",
+            }
+            self.cache_progression_graph(cache_key, archived_status)
+            self.update_progression_graph(**archived_status)
+            return archived_status
+
         checkpoint = checkpoint_at_or_before(self.run_name, start_digits)
         if checkpoint is None:
             raise ValueError("No checkpoint before graph range start.")
-        cache_key = self.progression_graph_cache_key(start_digits, end_digits, sample_digits)
 
         with self._lock:
             if self.progression_graph_thread is not None and self.progression_graph_thread.is_alive():

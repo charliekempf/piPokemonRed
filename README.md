@@ -99,7 +99,7 @@ Add `--fresh` to ignore existing checkpoints and restart from reset. Pass `--hol
 
 Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`. These generated files are intentionally ignored by git.
 
-Headless runs also append one progression-distance sample per pi input to `results/<run-name>/progression_distance.h5`. The HDF5 datasets grow across resumed charting runs and are trimmed back to the loaded checkpoint before new samples are appended.
+Headless runs also append one progression-distance sample per pi input to `results/<run-name>/progression_distance.h5`. The HDF5 datasets grow across resumed charting runs and are trimmed back to the loaded checkpoint before new samples are appended. The progression graph loads archived HDF5 samples for the selected range when they are available, avoiding a PyBoy resimulation pass.
 
 Review a checkpoint in the local web UI:
 

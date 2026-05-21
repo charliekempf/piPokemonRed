@@ -31,6 +31,7 @@ Important scripts:
 
 - `scripts/run_pi_pyboy.py` runs the headless deterministic simulation and writes savestates/screenshots/progress.
 - During headless charting, `scripts/run_pi_pyboy.py` also appends one progression-distance sample after each pi input to `results/<run>/progression_distance.h5`. The HDF5 file is ignored/local, expandable across resumed runs, and trimmed back to the resume checkpoint before appending.
+- `scripts/review_web.py` uses archived `results/<run>/progression_distance.h5` rows for generated progression graphs when a requested digit range has available HDF5 samples, and only falls back to PyBoy graph regeneration when the archive has no rows for that range.
 - `scripts/review_web.py` runs the local web reviewer/control surface with WebGL canvas rendering, speed control, digit-based rewind/fast-forward, backend simulation controls, and an upcoming-input preview.
 - `scripts/review_pi_checkpoint.py` is the older Tk-based reviewer kept for reference.
 - `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh web reviewer.
