@@ -22,8 +22,6 @@ VALID_BUTTONS = {"a", "b", "start", "select", "up", "down", "left", "right"}
 RUN_CONFIG_FILENAME = "input_config.json"
 PROGRESSION_DISTANCE_FILENAME = "progression_distance.h5"
 RUNS_ROOT = Path("runs")
-LEGACY_SAVES_ROOT = Path("saves")
-LEGACY_RESULTS_ROOT = Path("results")
 
 
 def run_root(run_name: str, root: Path = RUNS_ROOT) -> Path:
@@ -58,42 +56,11 @@ def run_videos_dir(run_name: str, root: Path = RUNS_ROOT) -> Path:
     return run_root(run_name, root) / "videos"
 
 
-def legacy_checkpoint_dir(run_name: str) -> Path:
-    return LEGACY_SAVES_ROOT / run_name
-
-
-def legacy_review_cache_dir(run_name: str) -> Path:
-    return LEGACY_SAVES_ROOT / run_name / "review_cache"
-
-
-def legacy_screenshot_dir(run_name: str) -> Path:
-    return LEGACY_RESULTS_ROOT / run_name / "screenshots"
-
-
-def legacy_progress_path(run_name: str) -> Path:
-    return LEGACY_RESULTS_ROOT / run_name / "progress.json"
-
-
-def legacy_progression_distance_path(run_name: str) -> Path:
-    return LEGACY_RESULTS_ROOT / run_name / PROGRESSION_DISTANCE_FILENAME
-
-
 def checkpoint_search_dirs(run_name: str, include_review_cache: bool = False) -> list[Path]:
-    paths = [run_checkpoint_dir(run_name), legacy_checkpoint_dir(run_name)]
+    paths = [run_checkpoint_dir(run_name)]
     if include_review_cache:
-        paths.extend([run_review_cache_dir(run_name), legacy_review_cache_dir(run_name)])
-    unique: list[Path] = []
-    for path in paths:
-        if path not in unique:
-            unique.append(path)
-    return unique
-
-
-def first_existing_path(paths: list[Path]) -> Path | None:
-    for path in paths:
-        if path.exists():
-            return path
-    return None
+        paths.append(run_review_cache_dir(run_name))
+    return paths
 
 
 @dataclass(frozen=True)
@@ -270,21 +237,12 @@ def config_run_suffix(config_path: Path) -> str:
 def resolve_configured_run_name(
     run_name: str,
     config_path: Path,
-    checkpoint_root: Path | None = None,
-    results_root: Path | None = None,
     runs_root: Path = RUNS_ROOT,
 ) -> str:
-    if checkpoint_root is not None and results_root is not None and runs_root == RUNS_ROOT:
-        runs_root = checkpoint_root.parent / "runs"
     config_text = canonical_config_text(config_path)
     configured_run_name = slug_for_name(config_display_name(config_path) or run_name)
-    config_candidates = [
-        run_config_path(configured_run_name, runs_root),
-        (checkpoint_root or LEGACY_SAVES_ROOT) / configured_run_name / RUN_CONFIG_FILENAME,
-        (results_root or LEGACY_RESULTS_ROOT) / configured_run_name / RUN_CONFIG_FILENAME,
-    ]
-    existing_config = first_existing_path(config_candidates)
-    if existing_config is not None and not configs_are_compatible(existing_config, config_path):
+    existing_config = run_config_path(configured_run_name, runs_root)
+    if existing_config.exists() and not configs_are_compatible(existing_config, config_path):
         configured_run_name = config_run_suffix(config_path)
     target_config_path = run_config_path(configured_run_name, runs_root)
 
@@ -565,12 +523,7 @@ def latest_checkpoint(checkpoint_dir: Path) -> tuple[int, Path] | None:
 
 
 def latest_checkpoint_for_run(run_name: str) -> tuple[int, Path] | None:
-    candidates: list[tuple[int, Path]] = []
-    for checkpoint_dir in checkpoint_search_dirs(run_name):
-        checkpoint = latest_checkpoint(checkpoint_dir)
-        if checkpoint is not None:
-            candidates.append(checkpoint)
-    return max(candidates) if candidates else None
+    return latest_checkpoint(run_checkpoint_dir(run_name))
 
 
 def checkpoint_at_or_before(checkpoint_dir: Path, target_digits: int) -> tuple[int, Path] | None:
@@ -586,12 +539,7 @@ def checkpoint_at_or_before(checkpoint_dir: Path, target_digits: int) -> tuple[i
 
 
 def checkpoint_at_or_before_for_run(run_name: str, target_digits: int) -> tuple[int, Path] | None:
-    candidates: list[tuple[int, Path]] = []
-    for checkpoint_dir in checkpoint_search_dirs(run_name):
-        checkpoint = checkpoint_at_or_before(checkpoint_dir, target_digits)
-        if checkpoint is not None:
-            candidates.append(checkpoint)
-    return max(candidates) if candidates else None
+    return checkpoint_at_or_before(run_checkpoint_dir(run_name), target_digits)
 
 
 def first_missing_progression_distance_digit(

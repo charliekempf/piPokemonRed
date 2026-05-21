@@ -18,13 +18,13 @@ The README screenshot masks the gameplay preview so the public repo does not inc
 
 - `roms/` - local ROM files, ignored by git
 - `runs/` - per-config generated run data, ignored by git
-- `saves/` - legacy emulator RAM/save state files, ignored by git
+- `saves/` - emulator RAM/save files, ignored by git
 - `data/` - downloaded pi digit files, ignored by git
 - `tas/` - downloaded TAS/movie files, ignored by git
 - `tools/` - downloaded emulator cores and local tools, ignored by git
 - `src/` - project code
 - `scripts/` - local benchmark and utility scripts
-- `results/` - shared generated benchmark/output files and legacy run outputs, ignored by git
+- `results/` - shared generated benchmark/output files, ignored by git
 
 ## Publishing / Asset Policy
 
@@ -105,7 +105,7 @@ py scripts\run_pi_pyboy.py --config config\statistical_walk.json --digits data\p
 
 Add `--fresh` to ignore existing checkpoints and restart from reset. Pass `--hold-frames` or `--release-frames` only when intentionally overriding the config for an experiment.
 
-Generated per-config run data now lives together under `runs/<run-name>/`: checkpoints in `checkpoints/`, screenshots in `screenshots/`, exports in `videos/`, progress metadata in `progress.json`, and the run's copied `input_config.json`. These generated files are intentionally ignored by git. The reviewer still reads legacy local data from `saves/<run-name>/` and `results/<run-name>/` so older runs remain usable.
+Generated per-config run data lives together under `runs/<run-name>/`: checkpoints in `checkpoints/`, screenshots in `screenshots/`, exports in `videos/`, progress metadata in `progress.json`, archived progression samples in `progression_distance.h5`, review seek cache in `review_cache/`, and the run's copied `input_config.json`. These generated files are intentionally ignored by git.
 
 Headless runs can also append one progression-distance sample per pi input to `runs/<run-name>/progression_distance.h5`. The HDF5 datasets grow across resumed charting runs and are trimmed back to the loaded checkpoint before new samples are appended. The progression graph loads archived HDF5 samples for the selected range when they are available, including a `Full HDF5 range` option for plotting the entire archived digit span.
 

@@ -45,12 +45,8 @@ from run_pi_pyboy import (
     button_for_value,
     checkpoint_search_dirs,
     config_display_name,
-    first_existing_path,
     frames_for_digit_range,
     latest_checkpoint_for_run,
-    legacy_progress_path,
-    legacy_progression_distance_path,
-    legacy_screenshot_dir,
     load_input_config,
     resolve_configured_run_name,
     run_checkpoint_dir,
@@ -130,11 +126,10 @@ class RomMissingError(RuntimeError):
 
 
 def read_review_session_state() -> dict[str, object]:
-    state_path = first_existing_path([REVIEW_SESSION_STATE, Path("results") / "review_session_state.json"])
-    if state_path is None:
+    if not REVIEW_SESSION_STATE.exists():
         return {}
     try:
-        return json.loads(state_path.read_text(encoding="utf-8"))
+        return json.loads(REVIEW_SESSION_STATE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -196,22 +191,18 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
             "active": run_name == active_run_name,
         }
 
-    for root in (Path("runs"), Path("saves")):
-        if not root.exists():
-            continue
-        for run_dir in root.iterdir():
+    runs_root = Path("runs")
+    if runs_root.exists():
+        for run_dir in runs_root.iterdir():
             if not run_dir.is_dir():
                 continue
             checkpoints = list_checkpoints(run_dir.name)
-            config_path = first_existing_path([
-                run_config_path(run_dir.name),
-                Path("saves") / run_dir.name / RUN_CONFIG_FILENAME,
-            ])
-            if not checkpoints and config_path is None:
+            config_path = run_config_path(run_dir.name)
+            if not checkpoints and not config_path.exists():
                 continue
             label = run_dir.name
-            config_available = config_path is not None
-            if config_available and config_path is not None:
+            config_available = config_path.exists()
+            if config_available:
                 try:
                     config = load_input_config(config_path)
                     label = f"{config_display_name(config_path)} ({config.digits_per_input}d, {config.on_frames}/{config.off_frames})"
@@ -284,12 +275,7 @@ def config_info(config_path: Path) -> dict[str, object]:
 
 
 def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Image | None:
-    screenshot_path = first_existing_path([
-        run_screenshot_dir(run_name) / f"checkpoint_{digits_consumed}_digits.png",
-        legacy_screenshot_dir(run_name) / f"checkpoint_{digits_consumed}_digits.png",
-    ])
-    if screenshot_path is None:
-        return None
+    screenshot_path = run_screenshot_dir(run_name) / f"checkpoint_{digits_consumed}_digits.png"
     if not screenshot_path.exists():
         return None
     with Image.open(screenshot_path) as image:
@@ -315,9 +301,7 @@ def image_to_rgba(image: Image.Image | None) -> bytes:
 
 
 def read_progress(run_name: str) -> dict[str, object]:
-    progress_path = first_existing_path([run_progress_path(run_name), legacy_progress_path(run_name)])
-    if progress_path is None:
-        return {}
+    progress_path = run_progress_path(run_name)
     if not progress_path.exists():
         return {}
     try:
@@ -807,12 +791,7 @@ def generate_progression_graph_samples(
 
 
 def archived_progression_graph_samples(run_name: str, start_digits: int, end_digits: int, sample_digits: int) -> list[dict[str, object]]:
-    archive_path = first_existing_path([
-        run_progression_distance_path(run_name),
-        legacy_progression_distance_path(run_name),
-    ])
-    if archive_path is None:
-        return []
+    archive_path = run_progression_distance_path(run_name)
     if not archive_path.exists():
         return []
     try:
@@ -840,12 +819,7 @@ def archived_progression_graph_samples(run_name: str, start_digits: int, end_dig
 
 
 def archived_progression_digit_bounds(run_name: str) -> tuple[int, int] | None:
-    archive_path = first_existing_path([
-        run_progression_distance_path(run_name),
-        legacy_progression_distance_path(run_name),
-    ])
-    if archive_path is None:
-        return None
+    archive_path = run_progression_distance_path(run_name)
     if not archive_path.exists():
         return None
     try:
@@ -1170,11 +1144,8 @@ class ReviewWebApp:
 
     def select_run(self, run_name: str) -> None:
         run_name = str(run_name)
-        config_path = first_existing_path([
-            run_config_path(run_name),
-            Path("saves") / run_name / RUN_CONFIG_FILENAME,
-        ])
-        if config_path is None:
+        config_path = run_config_path(run_name)
+        if not config_path.exists():
             raise ValueError(f"Run {run_name} does not have {RUN_CONFIG_FILENAME}.")
 
         input_config = load_input_config(config_path)
@@ -1838,11 +1809,8 @@ def main() -> None:
     remembered_digits: int | None = None
     if restore_requested:
         remembered_run_name = str(remembered_state.get("run_name", "")).strip()
-        remembered_config_path = first_existing_path([
-            run_config_path(remembered_run_name),
-            Path("saves") / remembered_run_name / RUN_CONFIG_FILENAME,
-        ])
-        if remembered_run_name and remembered_config_path is not None:
+        remembered_config_path = run_config_path(remembered_run_name)
+        if remembered_run_name and remembered_config_path.exists():
             try:
                 remembered_digits = int(remembered_state["digits_consumed"])
             except (KeyError, TypeError, ValueError):

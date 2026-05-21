@@ -21,7 +21,7 @@ Current core approach:
 - Current verified timing is hold button for 2 frames, then release for 1 frame. One-frame taps were tested and often did not affect Pokemon Red gameplay.
 - Input timing, digit-to-button ranges, config display name, and Pokemon game metadata are configured in `config/statistical_walk.json`. The default config is named `Statistical Walk` and targets `Pokemon Red` version `1.0`, region `USA/Europe`.
 - Current config values are `on_frames: 2`, `off_frames: 1`, `digits_per_input: 2`, with the two-digit mapping below.
-- Runs are config-scoped. `scripts/run_pi_pyboy.py`, `scripts/review_web.py`, and `scripts/review_pi_checkpoint.py` write generated per-config data under `runs/<run>/`: `input_config.json`, `checkpoints/`, `screenshots/`, `review_cache/`, `progression_distance.h5`, `progress.json`, and `videos/`. Folder names are derived from the config display name, for example `Statistical Walk` uses `statistical_walk`, so new folders and exported filenames stick to the config name. If a slug already exists with an incompatible config, the scripts use the config stem plus hash as a fallback. The reviewer still reads legacy local data from `saves/<run>` and `results/<run>` as a fallback.
+- Runs are config-scoped. `scripts/run_pi_pyboy.py`, `scripts/review_web.py`, and `scripts/review_pi_checkpoint.py` write generated per-config data under `runs/<run>/`: `input_config.json`, `checkpoints/`, `screenshots/`, `review_cache/`, `progression_distance.h5`, `progress.json`, and `videos/`. Folder names are derived from the config display name, for example `Statistical Walk` uses `statistical_walk`, so new folders and exported filenames stick to the config name. If a slug already exists with an incompatible config, the scripts use the config stem plus hash as a fallback. `runs/<run>/` is the only supported per-config generated-data location.
 - Current tracked configs are `Statistical Walk` (`config/statistical_walk.json`), `Super Walk` (`config/super_walk.json`), and `Super Stride` (`config/super_stride.json`). Do not re-add deleted exploratory variants unless Charlie asks.
 - Current verified run is `statistical_walk`, using `data/pi_1b_digits.txt`, with checkpoints/screenshots every 1,000,000 digits.
 - Highest digit reached for README/status purposes is 196,000,000 digits consumed in `statistical_walk`.
@@ -31,7 +31,7 @@ Important scripts:
 
 - `scripts/run_pi_pyboy.py` runs the headless deterministic simulation and writes savestates/screenshots/progress.
 - During headless charting, `scripts/run_pi_pyboy.py` also appends one progression-distance sample after each pi input to `runs/<run>/progression_distance.h5`. The HDF5 file is ignored/local, expandable across resumed runs, and trimmed back to the resume checkpoint before appending.
-- `scripts/review_web.py` automatically loads archived `runs/<run>/progression_distance.h5` rows for the selected progression graph range when available, with legacy `results/<run>/progression_distance.h5` fallback. Manual Generate Graph uses the same API and only falls back to PyBoy graph regeneration when the archive has no rows for that range.
+- `scripts/review_web.py` automatically loads archived `runs/<run>/progression_distance.h5` rows for the selected progression graph range when available. Manual Generate Graph uses the same API and only falls back to PyBoy graph regeneration when the archive has no rows for that range.
 - `scripts/review_web.py` runs the local web reviewer/control surface with WebGL canvas rendering, speed control, digit-based rewind/fast-forward, backend simulation controls, and an upcoming-input preview.
 - `scripts/review_pi_checkpoint.py` is the older Tk-based reviewer kept for reference.
 - `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh web reviewer.
@@ -75,7 +75,7 @@ Current reviewer UI behavior:
 - The Config and Video Export panels sit side by side below the Progression Distance graph. Config shows game/version/region, digits per input, button ranges, and a pie chart of the mapping spread.
 - The Progression Distance graph lives below the main reviewer panes. It uses `results/progression_world.json`, which is generated locally and ignored because it derives from Pokemon map data. If the graph says the database is missing, run `py scripts\build_progression_world.py` after cloning/updating `tools/pokered`.
 - The Progression Distance graph uses a stacked canvas: Canvas 2D for labels/grid and a WebGL plot layer for sample lines, with Canvas 2D fallback if WebGL is unavailable.
-- The Progression Distance graph range dropdown includes `Full HDF5 range`, which plots the complete min/max digit span currently archived in `runs/<run>/progression_distance.h5` or the legacy results fallback.
+- The Progression Distance graph range dropdown includes `Full HDF5 range`, which plots the complete min/max digit span currently archived in `runs/<run>/progression_distance.h5`.
 - Progression distance is computed by a detached background worker in `scripts/review_web.py`; do not move Dijkstra/pathfinding back into `ReviewSession.info()` or `/api/state`, because that can slow emulator playback while the UI polls.
 - The progression panel also shows the nearest closer blackout checkpoint: the closest home/Pokemon Center return tile whose cached objective distance is lower than the current `wLastBlackoutMap` checkpoint tile.
 
@@ -94,7 +94,7 @@ Current reviewer UI behavior:
 ## Workspace Organization
 
 - Keep ROM files in `roms/`.
-- Keep per-config generated run data in `runs/<run>/`; legacy emulator RAM/save files may still exist in `saves/`.
+- Keep per-config generated run data in `runs/<run>/`; keep emulator RAM/save files in `saves/`.
 - Keep downloaded input data in `data/`.
 - Keep downloaded TAS/movie files in `tas/`.
 - Keep generated benchmark outputs in `results/`.

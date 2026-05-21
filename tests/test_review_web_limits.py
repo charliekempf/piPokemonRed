@@ -210,7 +210,7 @@ def test_progression_graph_full_range_uses_hdf5_bounds(tmp_path: Path, monkeypat
     import h5py
 
     monkeypatch.chdir(tmp_path)
-    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path = Path("runs/statistical_walk/progression_distance.h5")
     archive_path.parent.mkdir(parents=True)
     with h5py.File(archive_path, "w") as handle:
         handle.create_dataset("digit", data=[2, 4, 6, 8, 10, 12, 14, 16, 18])

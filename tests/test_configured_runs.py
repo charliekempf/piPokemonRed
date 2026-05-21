@@ -31,8 +31,8 @@ def test_same_config_reuses_base_run_folder(tmp_path: Path) -> None:
     config = tmp_path / "mapping.json"
     write_config(config, 53, name="Experiment")
 
-    first = resolve_configured_run_name("experiment", config, tmp_path / "saves", tmp_path / "results")
-    second = resolve_configured_run_name("experiment", config, tmp_path / "saves", tmp_path / "results")
+    first = resolve_configured_run_name("experiment", config, runs_root=tmp_path / "runs")
+    second = resolve_configured_run_name("experiment", config, runs_root=tmp_path / "runs")
 
     assert first == "experiment"
     assert second == "experiment"
@@ -47,8 +47,8 @@ def test_different_config_gets_separate_run_folder(tmp_path: Path) -> None:
     write_config(first_config, 53, name="Experiment")
     write_config(second_config, 40, name="Experiment")
 
-    first = resolve_configured_run_name("experiment", first_config, tmp_path / "saves", tmp_path / "results")
-    second = resolve_configured_run_name("experiment", second_config, tmp_path / "saves", tmp_path / "results")
+    first = resolve_configured_run_name("experiment", first_config, runs_root=tmp_path / "runs")
+    second = resolve_configured_run_name("experiment", second_config, runs_root=tmp_path / "runs")
 
     assert first == "experiment"
     assert second.startswith("alternate_")
@@ -62,8 +62,8 @@ def test_config_name_controls_run_folder_slug(tmp_path: Path) -> None:
     write_config(first_config, 53, name="Experiment")
     write_config(renamed_config, 53, name="Statistical Walk")
 
-    first = resolve_configured_run_name("experiment", first_config, tmp_path / "saves", tmp_path / "results")
-    renamed = resolve_configured_run_name("experiment", renamed_config, tmp_path / "saves", tmp_path / "results")
+    first = resolve_configured_run_name("experiment", first_config, runs_root=tmp_path / "runs")
+    renamed = resolve_configured_run_name("experiment", renamed_config, runs_root=tmp_path / "runs")
 
     assert first == "experiment"
     assert renamed == "statistical_walk"
@@ -76,8 +76,8 @@ def test_game_version_change_gets_separate_run_folder(tmp_path: Path) -> None:
     write_config(first_config, 53, name="Experiment", version="1.0")
     write_config(second_config, 53, name="Experiment", version="1.1")
 
-    first = resolve_configured_run_name("experiment", first_config, tmp_path / "saves", tmp_path / "results")
-    second = resolve_configured_run_name("experiment", second_config, tmp_path / "saves", tmp_path / "results")
+    first = resolve_configured_run_name("experiment", first_config, runs_root=tmp_path / "runs")
+    second = resolve_configured_run_name("experiment", second_config, runs_root=tmp_path / "runs")
 
     assert first == "experiment"
     assert second.startswith("alternate_")
@@ -90,8 +90,8 @@ def test_adding_game_metadata_keeps_existing_run_folder(tmp_path: Path) -> None:
     write_config(old_config, 53, name="Experiment")
     write_config(updated_config, 53, name="Experiment", version="1.0")
 
-    first = resolve_configured_run_name("experiment", old_config, tmp_path / "saves", tmp_path / "results")
-    updated = resolve_configured_run_name("experiment", updated_config, tmp_path / "saves", tmp_path / "results")
+    first = resolve_configured_run_name("experiment", old_config, runs_root=tmp_path / "runs")
+    updated = resolve_configured_run_name("experiment", updated_config, runs_root=tmp_path / "runs")
 
     assert first == "experiment"
     assert updated == "experiment"
