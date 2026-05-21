@@ -222,6 +222,7 @@ WARP_STATE_LABELS = {
     "evolution": "evolution",
     "item_pickup": "item pickup",
     "level_up": "level up",
+    "progression_record_low": "record low progression distance",
     "scene_change": "scene change",
     "trainer_battle": "trainer battle",
     "wild_battle": "wild Pokemon battle",
@@ -1511,6 +1512,7 @@ class ReviewSession:
         self._warp_limit_digits = 1_000_000
         self._simulation_started_at: float | None = None
         self._last_simulation: dict[str, int | float | str] | None = None
+        self._progression_record_low_steps: int | None = None
         self._auto_snapshots_enabled = True
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._actual_speed_x = 0.0
@@ -1673,6 +1675,13 @@ class ReviewSession:
         with self._lock:
             self._warp_target_state = target_state
             self._warp_limit_digits = limit_digits
+            if target_state == "progression_record_low":
+                current_steps = self._current_progression_steps_unlocked()
+                if current_steps is not None and (
+                    self._progression_record_low_steps is None
+                    or current_steps < self._progression_record_low_steps
+                ):
+                    self._progression_record_low_steps = current_steps
             self._rewind_digits_requested = 0
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
@@ -1683,6 +1692,15 @@ class ReviewSession:
             self.status = f"finding next {label} within {limit_digits:,} digits"
             self._begin_seek_unlocked(f"Finding next {label}", self.digits_consumed, self.digits_consumed + limit_digits)
         return target_state
+
+    def _current_progression_steps_unlocked(self) -> int | None:
+        try:
+            tile = current_player_tile(self.pyboy)
+            progression = progression_state_for_tile(self.pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
+            steps = progression.get("remaining_steps")
+            return int(steps) if steps is not None else None
+        except Exception:
+            return None
 
     def _set_seek_emulation_speed_unlocked(self) -> None:
         self.pyboy.set_emulation_speed(0)
@@ -2485,6 +2503,16 @@ class ReviewSession:
         frames_advanced = 0
         last_button = self.last_button
         found = False
+        progression_record_low_steps: int | None = None
+
+        def simulator_progression_steps() -> int | None:
+            try:
+                tile = current_player_tile(simulator)
+                progression = progression_state_for_tile(simulator, Tile(tile["map_id"], tile["x"], tile["y"]))
+                steps = progression.get("remaining_steps")
+                return int(steps) if steps is not None else None
+            except Exception:
+                return None
 
         def reached_target_state() -> bool:
             nonlocal battle_seen
@@ -2552,6 +2580,12 @@ class ReviewSession:
             starting_evolution_marker = evolution_marker(simulator)
             starting_bag_items = bag_quantities(simulator)
             evolution_seen = is_evolution_active(simulator)
+            if target_state == "progression_record_low":
+                progression_record_low_steps = self._progression_record_low_steps
+                if progression_record_low_steps is None:
+                    progression_record_low_steps = simulator_progression_steps()
+                    with self._lock:
+                        self._progression_record_low_steps = progression_record_low_steps
             while digits_consumed < end_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 action = action_for_value(value, self.input_config)
@@ -2563,13 +2597,42 @@ class ReviewSession:
                     if self.release_frames:
                         simulator.tick(self.release_frames, False, True)
                     frames_advanced += self.hold_frames + self.release_frames
-                    if reached_target_state():
+                    if target_state != "progression_record_low" and reached_target_state():
                         found = True
                         break
                 digits_consumed += self.input_config.digits_per_input
                 inputs_sent += 1
                 last_button = button
-                if inputs_sent % 5000 == 0:
+                if target_state == "progression_record_low":
+                    current_steps = simulator_progression_steps()
+                    with self._lock:
+                        if current_steps is None:
+                            self.status = (
+                                f"finding next {WARP_STATE_LABELS[target_state]}: "
+                                f"distance unavailable at {digits_consumed:,} digits"
+                            )
+                        else:
+                            baseline = progression_record_low_steps
+                            if baseline is None:
+                                progression_record_low_steps = current_steps
+                                self._progression_record_low_steps = current_steps
+                                baseline = current_steps
+                            self.status = (
+                                f"finding next {WARP_STATE_LABELS[target_state]}: "
+                                f"{current_steps:,} steps, record {baseline:,}"
+                            )
+                    if (
+                        current_steps is not None
+                        and progression_record_low_steps is not None
+                        and current_steps < progression_record_low_steps
+                    ):
+                        progression_record_low_steps = current_steps
+                        found = True
+                        with self._lock:
+                            self._progression_record_low_steps = current_steps
+                        break
+
+                if target_state == "progression_record_low" or inputs_sent % 5000 == 0:
                     self._update_seek(digits_consumed)
                 if found:
                     break
@@ -2601,7 +2664,11 @@ class ReviewSession:
             self.paused = True
             self._warp_target_state = None
             self._restore_playback_speed_unlocked()
-            self.status = "paused"
+            self.status = (
+                f"found {WARP_STATE_LABELS[target_state]}: {self._progression_record_low_steps:,} steps"
+                if target_state == "progression_record_low" and self._progression_record_low_steps is not None
+                else "paused"
+            )
             self.latest_image = image
             self._auto_snapshots_enabled = False
             self._end_seek_unlocked()
