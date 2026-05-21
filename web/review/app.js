@@ -1567,12 +1567,12 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     context.textBaseline = "middle";
     context.font = "700 14px Segoe UI, system-ui, sans-serif";
     context.fillStyle = "#fff4b8";
-    context.fillText(hasDistance ? "Collecting samples" : "Awaiting progression route data", plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) - 8);
+    context.fillText(hasDistance ? "No Data" : "Awaiting progression route data", plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) - 8);
     context.font = "12px Segoe UI, system-ui, sans-serif";
     context.fillStyle = "#aeb4c0";
     context.fillText(fullRange ? "Range: full HDF5 archive" : `Range: centered ${fmt(selectableRange)} digits`, plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) + 16);
     progressionGraphEl.title = hasDistance
-      ? "Collecting progression distance samples."
+      ? "No progression distance samples are available for this range."
       : "The graph is ready, but the Kanto route data has not been populated yet.";
     return;
   }
