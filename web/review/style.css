@@ -852,7 +852,7 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(250px, 1fr) minmax(220px, 240px);
   gap: 14px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .side-bottom-row {
@@ -864,9 +864,15 @@ button:disabled {
 
 .next-panel,
 .splits-panel {
+  height: 420px;
+  box-sizing: border-box;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   align-content: start;
+}
+
+.next-panel {
+  overflow-y: auto;
 }
 
 .event-panel,
