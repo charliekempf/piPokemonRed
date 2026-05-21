@@ -223,6 +223,7 @@ WARP_STATE_LABELS = {
     "evolution": "evolution",
     "item_pickup": "item pickup",
     "level_up": "level up",
+    "ncc_record_low": "record low NCC distance",
     "progression_record_low": "record low progression distance",
     "scene_change": "scene change",
     "trainer_battle": "trainer battle",
@@ -1534,6 +1535,7 @@ class ReviewSession:
         self._simulation_started_at: float | None = None
         self._last_simulation: dict[str, int | float | str] | None = None
         self._progression_record_low_steps: int | None = None
+        self._ncc_record_low_steps: int | None = None
         self._auto_snapshots_enabled = True
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._actual_speed_x = 0.0
@@ -1703,6 +1705,13 @@ class ReviewSession:
                     or current_steps < self._progression_record_low_steps
                 ):
                     self._progression_record_low_steps = current_steps
+            elif target_state == "ncc_record_low":
+                current_steps = self._current_ncc_steps_unlocked()
+                if current_steps is not None and (
+                    self._ncc_record_low_steps is None
+                    or current_steps < self._ncc_record_low_steps
+                ):
+                    self._ncc_record_low_steps = current_steps
             self._rewind_digits_requested = 0
             self._fast_forward_target_digits = None
             self._simulate_target_digits = None
@@ -1721,6 +1730,26 @@ class ReviewSession:
             tile = current_player_tile(self.pyboy)
             progression = progression_state_for_tile(self.pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
             steps = progression.get("remaining_steps")
+            return int(steps) if steps is not None else None
+        except Exception:
+            return None
+
+    def _current_ncc_steps_unlocked(self) -> int | None:
+        try:
+            if is_in_battle(self.pyboy):
+                return None
+            tile = current_player_tile(self.pyboy)
+            checkpoint_tile = current_blackout_checkpoint_tile(self.pyboy)
+            respawn_tile = (
+                Tile(checkpoint_tile["map_id"], checkpoint_tile["x"], checkpoint_tile["y"])
+                if checkpoint_tile is not None
+                else None
+            )
+            progression = progression_state_for_tile(self.pyboy, Tile(tile["map_id"], tile["x"], tile["y"]), respawn_tile)
+            closer_checkpoint = progression.get("nearest_closer_checkpoint")
+            if not isinstance(closer_checkpoint, dict):
+                return None
+            steps = closer_checkpoint.get("steps")
             return int(steps) if steps is not None else None
         except Exception:
             return None
@@ -2529,7 +2558,8 @@ class ReviewSession:
         last_button = self.last_button
         found = False
         progression_record_low_steps: int | None = None
-        progression_record_low_checks_to_skip = 0
+        ncc_record_low_steps: int | None = None
+        record_low_checks_to_skip = 0
 
         def simulator_progression_steps() -> int | None:
             try:
@@ -2541,6 +2571,47 @@ class ReviewSession:
                 return int(steps) if steps is not None else None
             except Exception:
                 return None
+
+        def simulator_ncc_steps() -> int | None:
+            try:
+                if is_in_battle(simulator):
+                    return None
+                tile = current_player_tile(simulator)
+                checkpoint_tile = current_blackout_checkpoint_tile(simulator)
+                respawn_tile = (
+                    Tile(checkpoint_tile["map_id"], checkpoint_tile["x"], checkpoint_tile["y"])
+                    if checkpoint_tile is not None
+                    else None
+                )
+                progression = progression_state_for_tile(
+                    simulator,
+                    Tile(tile["map_id"], tile["x"], tile["y"]),
+                    respawn_tile,
+                )
+                closer_checkpoint = progression.get("nearest_closer_checkpoint")
+                if not isinstance(closer_checkpoint, dict):
+                    return None
+                steps = closer_checkpoint.get("steps")
+                return int(steps) if steps is not None else None
+            except Exception:
+                return None
+
+        def record_low_state() -> tuple[int | None, int | None]:
+            if target_state == "progression_record_low":
+                return simulator_progression_steps(), progression_record_low_steps
+            if target_state == "ncc_record_low":
+                return simulator_ncc_steps(), ncc_record_low_steps
+            return None, None
+
+        def set_record_low_steps(steps: int) -> None:
+            nonlocal progression_record_low_steps
+            nonlocal ncc_record_low_steps
+            if target_state == "progression_record_low":
+                progression_record_low_steps = steps
+                self._progression_record_low_steps = steps
+            elif target_state == "ncc_record_low":
+                ncc_record_low_steps = steps
+                self._ncc_record_low_steps = steps
 
         def reached_target_state() -> bool:
             nonlocal battle_seen
@@ -2614,6 +2685,12 @@ class ReviewSession:
                     progression_record_low_steps = simulator_progression_steps()
                     with self._lock:
                         self._progression_record_low_steps = progression_record_low_steps
+            elif target_state == "ncc_record_low":
+                ncc_record_low_steps = self._ncc_record_low_steps
+                if ncc_record_low_steps is None:
+                    ncc_record_low_steps = simulator_ncc_steps()
+                    with self._lock:
+                        self._ncc_record_low_steps = ncc_record_low_steps
             while digits_consumed < end_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
                 action = action_for_value(value, self.input_config)
@@ -2625,17 +2702,17 @@ class ReviewSession:
                     if self.release_frames:
                         simulator.tick(self.release_frames, False, True)
                     frames_advanced += self.hold_frames + self.release_frames
-                    if target_state != "progression_record_low" and reached_target_state():
+                    if target_state not in {"progression_record_low", "ncc_record_low"} and reached_target_state():
                         found = True
                         break
                 digits_consumed += self.input_config.digits_per_input
                 inputs_sent += 1
                 last_button = button
-                if target_state == "progression_record_low":
-                    if progression_record_low_checks_to_skip > 0:
-                        progression_record_low_checks_to_skip -= 1
+                if target_state in {"progression_record_low", "ncc_record_low"}:
+                    if record_low_checks_to_skip > 0:
+                        record_low_checks_to_skip -= 1
                     else:
-                        current_steps = simulator_progression_steps()
+                        current_steps, record_low_steps = record_low_state()
                         with self._lock:
                             if current_steps is None:
                                 self.status = (
@@ -2643,10 +2720,9 @@ class ReviewSession:
                                     f"distance unavailable at {digits_consumed:,} digits"
                                 )
                             else:
-                                baseline = progression_record_low_steps
+                                baseline = record_low_steps
                                 if baseline is None:
-                                    progression_record_low_steps = current_steps
-                                    self._progression_record_low_steps = current_steps
+                                    set_record_low_steps(current_steps)
                                     baseline = current_steps
                                 skipped_checks = progression_record_low_skip_count(current_steps, baseline)
                                 self.status = (
@@ -2657,21 +2733,21 @@ class ReviewSession:
                                     self.status += f", skipping {skipped_checks:,} digit checks"
                         if (
                             current_steps is not None
-                            and progression_record_low_steps is not None
-                            and current_steps < progression_record_low_steps
+                            and record_low_steps is not None
+                            and current_steps < record_low_steps
                         ):
-                            progression_record_low_steps = current_steps
                             found = True
                             with self._lock:
-                                self._progression_record_low_steps = current_steps
+                                set_record_low_steps(current_steps)
                             break
-                        progression_record_low_checks_to_skip = (
-                            progression_record_low_skip_count(current_steps, progression_record_low_steps)
-                            if current_steps is not None and progression_record_low_steps is not None
+                        _, updated_record_low_steps = record_low_state()
+                        record_low_checks_to_skip = (
+                            progression_record_low_skip_count(current_steps, updated_record_low_steps)
+                            if current_steps is not None and updated_record_low_steps is not None
                             else 0
                         )
 
-                if target_state == "progression_record_low" or inputs_sent % 5000 == 0:
+                if target_state in {"progression_record_low", "ncc_record_low"} or inputs_sent % 5000 == 0:
                     self._update_seek(digits_consumed)
                 if found:
                     break
@@ -2706,6 +2782,8 @@ class ReviewSession:
             self.status = (
                 f"found {WARP_STATE_LABELS[target_state]}: {self._progression_record_low_steps:,} steps"
                 if target_state == "progression_record_low" and self._progression_record_low_steps is not None
+                else f"found {WARP_STATE_LABELS[target_state]}: {self._ncc_record_low_steps:,} steps"
+                if target_state == "ncc_record_low" and self._ncc_record_low_steps is not None
                 else "paused"
             )
             self.latest_image = image
