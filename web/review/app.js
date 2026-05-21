@@ -547,7 +547,7 @@ generateProgressionGraphButton.addEventListener("click", async () => {
   generateProgressionGraphButton.disabled = true;
   progressionGraphStatusEl.textContent = "Starting graph generation";
   const result = await post("/api/generate-progression-graph", {
-    end_digits: currentDigits,
+    center_digits: currentDigits,
     range_digits: rangeDigits,
     sample_digits: sampleDigits,
   });
@@ -1360,10 +1360,6 @@ async function pollProgressionGraph() {
 
 function renderProgressionGraph(progression = {}, currentDigits = 0, options = {}) {
   const digit = Math.max(0, finiteNumber(currentDigits) || 0);
-  const generatedEndDigit = options.preserveSamples
-    ? progressionSamples.reduce((maximum, sample) => Math.max(maximum, Number.isFinite(sample.digit) ? sample.digit : 0), 0)
-    : 0;
-  const graphEndDigit = Math.max(digit, generatedEndDigit);
   const rawRemainingSteps = progression.remaining_steps;
   const rawTotalSteps = progression.total_steps_from_respawn;
   const rawGraphMaxSteps = progression.graph_max_steps;
@@ -1372,7 +1368,16 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   const graphMaxSteps = finiteNumber(rawGraphMaxSteps);
   const selectableRange = Math.max(1, finiteNumber(progressionRangeEl.value) || 10000);
   const sampleInterval = progressionSampleInterval();
-  const startDigit = Math.max(0, graphEndDigit - selectableRange);
+  const halfRange = selectableRange / 2;
+  const hasGeneratedSamples = options.preserveSamples && progressionSamples.length > 0;
+  const generatedMaxDigit = hasGeneratedSamples
+    ? progressionSamples.reduce((maximum, sample) => Math.max(maximum, Number.isFinite(sample.digit) ? sample.digit : 0), 0)
+    : NaN;
+  const graphCenterDigit = hasGeneratedSamples && Number.isFinite(generatedMaxDigit)
+    ? Math.min(digit, Math.max(0, generatedMaxDigit - halfRange))
+    : digit;
+  const startDigit = Math.max(0, graphCenterDigit - halfRange);
+  const graphEndDigit = startDigit + selectableRange;
   const hasDistance = Number.isFinite(remainingSteps);
   const pointLabel = progression.label || "Progression route data pending";
   const locationLabel = progression.objective_location ? ` | ${progression.objective_location}` : "";
@@ -1497,7 +1502,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   context.textBaseline = "top";
   context.fillText(fmt(startDigit), plot.left, 10);
   context.fillText(fmt(graphEndDigit), plot.right, 10);
-  context.fillText("digits", plot.left + (plotWidth / 2), 10);
+  context.fillText(`digits | current ${fmt(Math.round(digit))}`, plot.left + (plotWidth / 2), 10);
 
   context.save();
   context.translate(18, plot.top + (plotHeight / 2));
@@ -1558,7 +1563,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     context.fillText(hasDistance ? "Collecting samples" : "Awaiting progression route data", plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) - 8);
     context.font = "12px Segoe UI, system-ui, sans-serif";
     context.fillStyle = "#aeb4c0";
-    context.fillText(`Range: last ${fmt(selectableRange)} digits`, plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) + 16);
+    context.fillText(`Range: centered ${fmt(selectableRange)} digits`, plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) + 16);
     progressionGraphEl.title = hasDistance
       ? "Collecting progression distance samples."
       : "The graph is ready, but the Kanto route data has not been populated yet.";
@@ -1579,8 +1584,8 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   }
 
   progressionGraphEl.title = Number.isFinite(globalBaselineSteps)
-    ? `${fmt(visibleSamples.length)} samples over the last ${fmt(selectableRange)} digits. Gray line: ${fmt(Math.round(globalBaselineSteps))} checkpoint-tile steps.`
-    : `${fmt(visibleSamples.length)} samples over the last ${fmt(selectableRange)} digits.`;
+    ? `${fmt(visibleSamples.length)} samples over ${fmt(selectableRange)} digits centered on the current digit. Gray line: ${fmt(Math.round(globalBaselineSteps))} checkpoint-tile steps.`
+    : `${fmt(visibleSamples.length)} samples over ${fmt(selectableRange)} digits centered on the current digit.`;
 }
 
 function setInitialControls(state) {

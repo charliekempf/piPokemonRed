@@ -1120,19 +1120,25 @@ class ReviewWebApp:
 
     def start_progression_graph_generation(
         self,
-        end_digits: int,
+        center_digits: int,
         range_digits: int,
         sample_digits: int,
     ) -> dict[str, object]:
         if self.session is None:
             raise ValueError("ROM required.")
         digits_per_input = self.digits_per_input
-        end_digits = normalize_digit(max(0, int(end_digits)), digits_per_input)
+        center_digits = normalize_digit(max(0, int(center_digits)), digits_per_input)
         range_digits = max(digits_per_input, int(range_digits))
         sample_digits = max(digits_per_input, int(sample_digits))
         if sample_digits % digits_per_input:
             sample_digits += digits_per_input - (sample_digits % digits_per_input)
-        start_digits = normalize_digit(max(0, end_digits - range_digits), digits_per_input)
+        half_range = normalize_digit(range_digits // 2, digits_per_input)
+        start_digits = normalize_digit(max(0, center_digits - half_range), digits_per_input)
+        end_digits = normalize_digit(min(len(self.digits), start_digits + range_digits), digits_per_input)
+        if center_digits + half_range <= len(self.digits):
+            end_digits = normalize_digit(center_digits + half_range, digits_per_input)
+        if end_digits <= start_digits:
+            end_digits = min(len(self.digits), start_digits + digits_per_input)
         cache_key = self.progression_graph_cache_key(start_digits, end_digits, sample_digits)
         archived_samples = archived_progression_graph_samples(self.run_name, start_digits, end_digits, sample_digits)
         if archived_samples:
@@ -1424,7 +1430,7 @@ def make_handler(app: ReviewWebApp):
             if path == "/api/generate-progression-graph":
                 try:
                     status = app.start_progression_graph_generation(
-                        int(body.get("end_digits", 0)),
+                        int(body.get("center_digits", body.get("end_digits", 0))),
                         int(body.get("range_digits", 10000)),
                         int(body.get("sample_digits", 100)),
                     )
