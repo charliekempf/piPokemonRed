@@ -727,7 +727,8 @@ function renderConfigInfo(config = {}) {
       row.className = "config-range";
       swatch.className = "config-swatch";
       swatch.style.background = BUTTON_COLORS[button] || "#6f89af";
-      range.textContent = `${String(entry.min).padStart(digitsPerInput || 2, "0")}-${String(entry.max).padStart(digitsPerInput || 2, "0")} -> ${button.toUpperCase()}`;
+      const stepSuffix = entry.min_steps && entry.max_steps ? ` x${entry.min_steps}-${entry.max_steps}` : "";
+      range.textContent = `${String(entry.min).padStart(digitsPerInput || 2, "0")}-${String(entry.max).padStart(digitsPerInput || 2, "0")} -> ${button.toUpperCase()}${stepSuffix}`;
       share.textContent = `${Number(entry.percent || 0).toFixed(Number(entry.percent || 0) < 10 ? 1 : 0)}%`;
       row.append(swatch, range, share);
       return row;
@@ -785,7 +786,8 @@ function drawInputRow(context, item, role, x, y, width, height) {
   context.fillText(`${fmt(item.digit_index)}  ${item.pair}`, x + 8, y + (height / 2));
   context.font = "700 13px Consolas, 'Cascadia Mono', monospace";
   context.fillStyle = "#fff4b8";
-  const button = String(item.button || "").toUpperCase();
+  const repetitions = Number(item.repetitions || 1);
+  const button = `${String(item.button || "").toUpperCase()}${repetitions > 1 ? ` x${repetitions}` : ""}`;
   const buttonWidth = context.measureText(button).width;
   context.fillText(button, x + width - 8 - buttonWidth, y + (height / 2));
   context.restore();
@@ -808,7 +810,11 @@ function roundRect(context, x, y, width, height, radius) {
 
 function inputsAccessibilityLabel(items) {
   return items
-    .map((item) => `${item.role || "future"} ${fmt(item.digit_index)} ${item.pair} ${String(item.button || "").toUpperCase()}`)
+    .map((item) => {
+      const repetitions = Number(item.repetitions || 1);
+      const button = `${String(item.button || "").toUpperCase()}${repetitions > 1 ? ` x${repetitions}` : ""}`;
+      return `${item.role || "future"} ${fmt(item.digit_index)} ${item.pair} ${button}`;
+    })
     .join(", ");
 }
 

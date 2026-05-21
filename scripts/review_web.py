@@ -37,6 +37,8 @@ from run_pi_pyboy import (
     ROM,
     RUN_NAME,
     RUN_CONFIG_FILENAME,
+    action_for_value,
+    average_frames_per_input,
     advance_pi_inputs,
     button_for_value,
     config_display_name,
@@ -199,6 +201,36 @@ def config_info(config_path: Path) -> dict[str, object]:
     if not isinstance(game, dict):
         game = {}
     total_values = 10**config.digits_per_input
+    if config.mapping_mode == "digit_stride":
+        counts: OrderedDict[str, int] = OrderedDict()
+        for value in range(total_values):
+            button = button_for_value(value, config)
+            counts[button] = counts.get(button, 0) + 1
+        mapping = []
+        for button, count in counts.items():
+            values = [value for value in range(total_values) if button_for_value(value, config) == button]
+            mapping.append(
+                {
+                    "min": min(values),
+                    "max": max(values),
+                    "button": button,
+                    "count": count,
+                    "percent": (count / total_values) * 100,
+                    "min_steps": config.direction_step_min if button in {"up", "down", "left", "right"} else None,
+                    "max_steps": config.direction_step_max if button in {"up", "down", "left", "right"} else None,
+                }
+            )
+    else:
+        mapping = [
+            {
+                "min": button_range.minimum,
+                "max": button_range.maximum,
+                "button": button_range.button,
+                "count": button_range.maximum - button_range.minimum + 1,
+                "percent": ((button_range.maximum - button_range.minimum + 1) / total_values) * 100,
+            }
+            for button_range in config.mapping
+        ]
     return {
         "name": config_display_name(config_path),
         "game": {
@@ -209,16 +241,10 @@ def config_info(config_path: Path) -> dict[str, object]:
         "digits_per_input": config.digits_per_input,
         "on_frames": config.on_frames,
         "off_frames": config.off_frames,
-        "mapping": [
-            {
-                "min": button_range.minimum,
-                "max": button_range.maximum,
-                "button": button_range.button,
-                "count": button_range.maximum - button_range.minimum + 1,
-                "percent": ((button_range.maximum - button_range.minimum + 1) / total_values) * 100,
-            }
-            for button_range in config.mapping
-        ],
+        "mapping_mode": config.mapping_mode,
+        "direction_step_min": config.direction_step_min,
+        "direction_step_max": config.direction_step_max,
+        "mapping": mapping,
     }
 
 
@@ -392,8 +418,10 @@ def run_video_export(
         raise RuntimeError("No checkpoint before export start.")
 
     checkpoint_digits_consumed, checkpoint_path = checkpoint
-    frame_count = ((end_digits - start_digits) // input_config.digits_per_input) * (
-        input_config.on_frames + input_config.off_frames
+    frame_count = sum(
+        (action_for_value(int(app.digits[index : index + input_config.digits_per_input]), input_config).repetitions)
+        * (input_config.on_frames + input_config.off_frames)
+        for index in range(start_digits, end_digits, input_config.digits_per_input)
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_video_path = output_path.with_suffix(".video" + output_path.suffix)
@@ -469,31 +497,33 @@ def run_video_export(
         with temp_audio_path.open("wb") as audio_file:
             while digits_consumed < end_digits:
                 value = int(app.digits[digits_consumed : digits_consumed + input_config.digits_per_input])
-                button = button_for_value(value, input_config)
-                pyboy.button_press(button)
-                for _ in range(input_config.on_frames):
-                    pyboy.tick(1, True, True)
-                    audio_sample_credit += audio_sample_rate / GAMEBOY_FPS
-                    frame_samples = int(audio_sample_credit)
-                    audio_sample_credit -= frame_samples
-                    audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
-                    try:
-                        process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
-                    except BrokenPipeError as error:
-                        raise RuntimeError(ffmpeg_failure_message(process, temp_stderr_path, error)) from error
-                    frames_written += 1
-                pyboy.button_release(button)
-                for _ in range(input_config.off_frames):
-                    pyboy.tick(1, True, True)
-                    audio_sample_credit += audio_sample_rate / GAMEBOY_FPS
-                    frame_samples = int(audio_sample_credit)
-                    audio_sample_credit -= frame_samples
-                    audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
-                    try:
-                        process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
-                    except BrokenPipeError as error:
-                        raise RuntimeError(ffmpeg_failure_message(process, temp_stderr_path, error)) from error
-                    frames_written += 1
+                action = action_for_value(value, input_config)
+                button = action.button
+                for _ in range(action.repetitions):
+                    pyboy.button_press(button)
+                    for _ in range(input_config.on_frames):
+                        pyboy.tick(1, True, True)
+                        audio_sample_credit += audio_sample_rate / GAMEBOY_FPS
+                        frame_samples = int(audio_sample_credit)
+                        audio_sample_credit -= frame_samples
+                        audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
+                        try:
+                            process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                        except BrokenPipeError as error:
+                            raise RuntimeError(ffmpeg_failure_message(process, temp_stderr_path, error)) from error
+                        frames_written += 1
+                    pyboy.button_release(button)
+                    for _ in range(input_config.off_frames):
+                        pyboy.tick(1, True, True)
+                        audio_sample_credit += audio_sample_rate / GAMEBOY_FPS
+                        frame_samples = int(audio_sample_credit)
+                        audio_sample_credit -= frame_samples
+                        audio_file.write(audio_bytes_for_pyboy(pyboy, frame_samples * audio_channels))
+                        try:
+                            process.stdin.write(image_bytes_for_pix_fmt(pyboy, str(preset["input_pix_fmt"])))
+                        except BrokenPipeError as error:
+                            raise RuntimeError(ffmpeg_failure_message(process, temp_stderr_path, error)) from error
+                        frames_written += 1
                 digits_consumed += input_config.digits_per_input
                 if frames_written % 600 == 0:
                     app.update_video_export(
@@ -815,7 +845,7 @@ class ReviewWebApp:
             self.run_name = run_name
             self.config_path = config_path
             self.digits_per_input = input_config.digits_per_input
-            self.frames_per_input = input_config.on_frames + input_config.off_frames
+            self.frames_per_input = average_frames_per_input(input_config)
             self.session = session
             self.emulator_thread = None
             self.chart_simulation = None
@@ -1145,7 +1175,7 @@ class ReviewWebApp:
             "runs": list_runs(self.run_name),
             "active_run": self.run_name,
             "digits_per_input": self.digits_per_input,
-            "frames_per_input": int(info.get("frames_per_input", self.frames_per_input)),
+            "frames_per_input": info.get("frames_per_input", self.frames_per_input),
             "config": config_info(self.config_path) if self.config_path.exists() else {},
             "chart_simulation": self.chart_simulation_info(),
             "video_export": self.video_export_info(),
@@ -1502,7 +1532,7 @@ def main() -> None:
         args.scale,
         args.run_name,
         input_config.digits_per_input,
-        input_config.on_frames + input_config.off_frames,
+        average_frames_per_input(input_config, hold_frames, release_frames),
         args.max_digits,
         args.rom,
         args.digits,

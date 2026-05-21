@@ -22,8 +22,11 @@ from run_pi_pyboy import (
     PI_DIGITS,
     ROM,
     RUN_NAME,
+    AdvanceResult,
     PiInputConfig,
     Progress,
+    action_for_value,
+    average_frames_per_input,
     advance_pi_inputs,
     button_for_value,
     latest_checkpoint,
@@ -1472,8 +1475,8 @@ class ReviewSession:
         self.max_digits = max_digits
         self.hold_frames = hold_frames
         self.release_frames = release_frames
-        self.frames_per_input = hold_frames + release_frames
-        self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
+        self.frames_per_input = average_frames_per_input(self.input_config, hold_frames, release_frames)
+        self.frames_elapsed = int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input)
         self.current_input_frame = 0
         self.rewind_interval_digits = rewind_interval_digits
         self.max_snapshots = max(2, rewind_history_digits // rewind_interval_digits)
@@ -1906,16 +1909,23 @@ class ReviewSession:
                     and self.digits_consumed + self.input_config.digits_per_input >= fast_forward_target
                 )
                 value = int(self.digits[self.digits_consumed : self.digits_consumed + self.input_config.digits_per_input])
-                button = button_for_value(value, self.input_config)
+                action = action_for_value(value, self.input_config)
+                button = action.button
                 with self._lock:
                     self.current_input_frame = 0
-                self.pyboy.button_press(button)
-                self._tick_frames(self.hold_frames)
-                self.pyboy.button_release(button)
-                self._tick_frames(self.release_frames, force_final_render=will_finish_fast_forward)
+                frames_advanced = 0
+                for repetition in range(action.repetitions):
+                    self.pyboy.button_press(button)
+                    self._tick_frames(self.hold_frames)
+                    self.pyboy.button_release(button)
+                    self._tick_frames(
+                        self.release_frames,
+                        force_final_render=will_finish_fast_forward and repetition == action.repetitions - 1,
+                    )
+                    frames_advanced += self.hold_frames + self.release_frames
                 with self._lock:
                     self.digits_consumed += self.input_config.digits_per_input
-                    self.frames_elapsed += self.frames_per_input
+                    self.frames_elapsed += frames_advanced
                     self.current_input_frame = 0
                     self.inputs_sent += 1
                     self.last_button = button
@@ -2009,16 +2019,17 @@ class ReviewSession:
         start_digits: int,
         target_digits: int,
         chunk_digits: int = 10_000,
-    ) -> tuple[int, int, str]:
+    ) -> AdvanceResult:
         chunk_digits = self._normalize_digit_distance(chunk_digits)
         digits_consumed = start_digits
         total_inputs = 0
+        total_frames = 0
         last_button = "-"
         self._update_seek(digits_consumed)
         while digits_consumed < target_digits:
             next_cache_boundary = self._next_review_cache_boundary(digits_consumed)
             chunk_target = min(target_digits, digits_consumed + chunk_digits, next_cache_boundary)
-            digits_consumed, inputs_sent, last_button = advance_pi_inputs(
+            advance_result = advance_pi_inputs(
                 pyboy,
                 self.digits,
                 digits_consumed,
@@ -2027,10 +2038,12 @@ class ReviewSession:
                 self.release_frames,
                 input_config=self.input_config,
             )
+            digits_consumed, inputs_sent, last_button = advance_result
             total_inputs += inputs_sent
+            total_frames += advance_result.frames_advanced
             self._cache_review_checkpoint_if_needed(pyboy, digits_consumed)
             self._update_seek(digits_consumed)
-        return digits_consumed, total_inputs, last_button
+        return AdvanceResult(digits_consumed, total_inputs, last_button, total_frames)
 
     def _fast_forward_with_backend(self, target_digits: int) -> None:
         with self._lock:
@@ -2060,11 +2073,12 @@ class ReviewSession:
             else:
                 state_buffer.seek(0)
                 simulator.load_state(state_buffer)
-            digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
+            advance_result = self._advance_with_seek_progress(
                 simulator,
                 start_digits,
                 target_digits,
             )
+            digits_consumed, inputs_sent, last_button = advance_result
             final_state = io.BytesIO()
             simulator.save_state(final_state)
         finally:
@@ -2076,7 +2090,7 @@ class ReviewSession:
         with self._lock:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
-            self.frames_elapsed += inputs_sent * self.frames_per_input
+            self.frames_elapsed += advance_result.frames_advanced
             self.inputs_sent += inputs_sent
             self.last_button = last_button
             self.paused = True
@@ -2114,6 +2128,7 @@ class ReviewSession:
         progress_path = Path("results") / self.run_name / "progress.json"
         digits_consumed = start_digits
         inputs_sent = 0
+        total_frames_advanced = 0
         last_button = self.last_button
         last_state: Path | None = None
         resume_start_digits = start_digits
@@ -2132,7 +2147,7 @@ class ReviewSession:
             next_checkpoint = min(next_checkpoint, target_digits)
             while digits_consumed < target_digits:
                 chunk_target = min(next_checkpoint, target_digits)
-                digits_consumed, chunk_inputs, last_button = advance_pi_inputs(
+                advance_result = advance_pi_inputs(
                     simulator,
                     self.digits,
                     digits_consumed,
@@ -2141,7 +2156,9 @@ class ReviewSession:
                     self.release_frames,
                     input_config=self.input_config,
                 )
+                digits_consumed, chunk_inputs, last_button = advance_result
                 inputs_sent += chunk_inputs
+                total_frames_advanced += advance_result.frames_advanced
                 self._update_seek(digits_consumed)
                 if digits_consumed >= next_checkpoint or digits_consumed >= target_digits:
                     last_state = save_checkpoint(
@@ -2152,7 +2169,7 @@ class ReviewSession:
                         save_screenshot=True,
                     )
                     elapsed_so_far = max(time.perf_counter() - started_at, 0.000001)
-                    frames_advanced_so_far = inputs_sent * self.frames_per_input
+                    frames_advanced_so_far = total_frames_advanced
                     effective_fps_so_far = frames_advanced_so_far / elapsed_so_far
                     progress = Progress(
                         run_name=self.run_name,
@@ -2160,7 +2177,7 @@ class ReviewSession:
                         rom_path=str(self.rom_path or ROM),
                         digits_consumed=digits_consumed,
                         input_pairs_consumed=digits_consumed // self.input_config.digits_per_input,
-                        frames_elapsed=(digits_consumed // self.input_config.digits_per_input) * self.frames_per_input,
+                        frames_elapsed=int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input),
                         checkpoints_completed=len(list(checkpoint_dir.glob("checkpoint_*_digits.state"))),
                         elapsed_seconds=elapsed_so_far,
                         effective_fps=effective_fps_so_far,
@@ -2176,7 +2193,7 @@ class ReviewSession:
 
         elapsed = max(time.perf_counter() - started_at, 0.000001)
         effective_digits_per_second = (digits_consumed - resume_start_digits) / elapsed
-        frames_advanced = inputs_sent * self.frames_per_input
+        frames_advanced = total_frames_advanced
         effective_fps = frames_advanced / elapsed
         total_digits_advanced = digits_consumed - requested_start_digits
         last_button = self._button_before_digits(digits_consumed, fallback=last_button)
@@ -2186,7 +2203,7 @@ class ReviewSession:
         with self._lock:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
-            self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
+            self.frames_elapsed = int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input)
             self.inputs_sent += max(0, total_digits_advanced // self.input_config.digits_per_input)
             self.last_button = last_button
             self.paused = True
@@ -2270,11 +2287,12 @@ class ReviewSession:
             source_frames = snapshot.frames_elapsed
             with self._lock:
                 self._begin_seek_unlocked("Rewinding", source_digits, target)
-            digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
+            advance_result = self._advance_with_seek_progress(
                 self.pyboy,
                 source_digits,
                 target,
             )
+            digits_consumed, inputs_sent, last_button = advance_result
             image = render_loaded_state(self.pyboy)
             state_buffer = io.BytesIO()
             self.pyboy.save_state(state_buffer)
@@ -2296,11 +2314,12 @@ class ReviewSession:
             try:
                 with checkpoint_path.open("rb") as state_file:
                     simulator.load_state(state_file)
-                digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
+                advance_result = self._advance_with_seek_progress(
                     simulator,
                     source_digits,
                     target,
                 )
+                digits_consumed, inputs_sent, last_button = advance_result
                 state_buffer = io.BytesIO()
                 simulator.save_state(state_buffer)
             finally:
@@ -2312,7 +2331,7 @@ class ReviewSession:
         with self._lock:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
-            self.frames_elapsed = source_frames + inputs_sent * self.frames_per_input
+            self.frames_elapsed = source_frames + advance_result.frames_advanced
             if inputs_sent:
                 self.last_button = last_button
             self.paused = True
@@ -2362,11 +2381,12 @@ class ReviewSession:
         try:
             with checkpoint_path.open("rb") as state_file:
                 simulator.load_state(state_file)
-            digits_consumed, inputs_sent, last_button = self._advance_with_seek_progress(
+            advance_result = self._advance_with_seek_progress(
                 simulator,
                 checkpoint_digits_consumed,
                 target,
             )
+            digits_consumed, inputs_sent, last_button = advance_result
             final_state = io.BytesIO()
             simulator.save_state(final_state)
         finally:
@@ -2379,7 +2399,7 @@ class ReviewSession:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
             self.max_digits = max(self.max_digits, digits_consumed)
-            self.frames_elapsed = (digits_consumed // self.input_config.digits_per_input) * self.frames_per_input
+            self.frames_elapsed = int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input)
             self.inputs_sent = inputs_sent
             if inputs_sent:
                 self.last_button = last_button
@@ -2431,12 +2451,15 @@ class ReviewSession:
             evolution_seen = is_evolution_active(simulator)
             while digits_consumed < end_digits:
                 value = int(self.digits[digits_consumed : digits_consumed + self.input_config.digits_per_input])
-                button = button_for_value(value, self.input_config)
-                simulator.button_press(button)
-                simulator.tick(self.hold_frames, False, True)
-                simulator.button_release(button)
-                if self.release_frames:
-                    simulator.tick(self.release_frames, False, True)
+                action = action_for_value(value, self.input_config)
+                button = action.button
+                for _ in range(action.repetitions):
+                    simulator.button_press(button)
+                    simulator.tick(self.hold_frames, False, True)
+                    simulator.button_release(button)
+                    if self.release_frames:
+                        simulator.tick(self.release_frames, False, True)
+                    frames_advanced += self.hold_frames + self.release_frames
                 digits_consumed += self.input_config.digits_per_input
                 inputs_sent += 1
                 last_button = button
@@ -2516,7 +2539,7 @@ class ReviewSession:
         with self._lock:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
-            self.frames_elapsed += inputs_sent * self.frames_per_input
+            self.frames_elapsed += frames_advanced
             self.inputs_sent += inputs_sent
             self.last_button = last_button
             self.paused = True
@@ -2566,7 +2589,9 @@ class ReviewSession:
             if digit_index + digits_per_input > digits_available:
                 break
             digits_slice = self.digits[digit_index : digit_index + digits_per_input]
-            buttons.append((digit_index, digits_slice, button_for_value(int(digits_slice), self.input_config)))
+            action = action_for_value(int(digits_slice), self.input_config)
+            label = f"{action.button} x{action.repetitions}" if action.repetitions > 1 else action.button
+            buttons.append((digit_index, digits_slice, label))
         return buttons
 
     def input_window(self, previous_count: int = 3, next_count: int = 11) -> list[dict[str, int | str]]:
@@ -2593,6 +2618,7 @@ class ReviewSession:
                     "digit_index": digit_index,
                     "pair": digits_slice,
                     "button": button_for_value(int(digits_slice), self.input_config),
+                    "repetitions": action_for_value(int(digits_slice), self.input_config).repetitions,
                     "role": role,
                 }
             )

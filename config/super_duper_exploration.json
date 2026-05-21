@@ -1,0 +1,25 @@
+{
+  "name": "Super Duper Exploration",
+  "game": {
+    "title": "Pokemon Red",
+    "version": "1.0",
+    "region": "USA/Europe"
+  },
+  "mapping_mode": "digit_stride",
+  "on_frames": 4,
+  "off_frames": 13,
+  "digits_per_input": 2,
+  "first_digit_mapping": [
+    { "min": 0, "max": 1, "button": "up" },
+    { "min": 2, "max": 3, "button": "down" },
+    { "min": 4, "max": 5, "button": "left" },
+    { "min": 6, "max": 7, "button": "right" },
+    { "min": 8, "max": 8, "button": "a" },
+    { "min": 9, "max": 9, "button": "b" }
+  ],
+  "step_digit": {
+    "min_steps": 1,
+    "max_steps": 10
+  },
+  "start_combo": "99"
+}

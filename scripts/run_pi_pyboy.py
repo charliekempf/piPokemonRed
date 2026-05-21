@@ -29,11 +29,34 @@ class ButtonRange:
 
 
 @dataclass(frozen=True)
+class PiInputAction:
+    button: str
+    repetitions: int = 1
+
+
+@dataclass(frozen=True)
 class PiInputConfig:
     on_frames: int
     off_frames: int
     digits_per_input: int
     mapping: tuple[ButtonRange, ...]
+    mapping_mode: str = "range"
+    direction_step_min: int = 1
+    direction_step_max: int = 1
+    start_value: int | None = None
+
+
+@dataclass(frozen=True)
+class AdvanceResult:
+    digits_consumed: int
+    inputs_sent: int
+    last_button: str
+    frames_advanced: int
+
+    def __iter__(self):
+        yield self.digits_consumed
+        yield self.inputs_sent
+        yield self.last_button
 
 
 @dataclass
@@ -64,16 +87,22 @@ def load_input_config(config_path: Path = INPUT_CONFIG) -> PiInputConfig:
     if off_frames < 0:
         raise ValueError("off_frames must be at least 0")
 
+    mapping_mode = str(raw.get("mapping_mode", "range")).lower()
+    if mapping_mode not in {"range", "digit_stride"}:
+        raise ValueError(f"Unsupported mapping mode: {mapping_mode}")
+
     max_value = (10**digits_per_input) - 1
+    mapping_key = "first_digit_mapping" if mapping_mode == "digit_stride" else "mapping"
+    mapping_max_value = 9 if mapping_mode == "digit_stride" else max_value
     seen: set[int] = set()
     ranges: list[ButtonRange] = []
-    for entry in raw["mapping"]:
+    for entry in raw[mapping_key]:
         minimum = int(entry["min"])
         maximum = int(entry["max"])
         button = str(entry["button"]).lower()
         if button not in VALID_BUTTONS:
             raise ValueError(f"Unsupported button in config: {button}")
-        if minimum < 0 or maximum > max_value or minimum > maximum:
+        if minimum < 0 or maximum > mapping_max_value or minimum > maximum:
             raise ValueError(f"Invalid mapping range: {minimum}-{maximum}")
         for value in range(minimum, maximum + 1):
             if value in seen:
@@ -81,15 +110,38 @@ def load_input_config(config_path: Path = INPUT_CONFIG) -> PiInputConfig:
             seen.add(value)
         ranges.append(ButtonRange(minimum=minimum, maximum=maximum, button=button))
 
-    missing = set(range(max_value + 1)) - seen
+    missing = set(range(mapping_max_value + 1)) - seen
     if missing:
         raise ValueError(f"Mapping does not cover {len(missing)} values for {digits_per_input} digits per input")
+
+    direction_step_min = 1
+    direction_step_max = 1
+    start_value = None
+    if mapping_mode == "digit_stride":
+        if digits_per_input != 2:
+            raise ValueError("digit_stride mapping currently requires digits_per_input to be 2")
+        step_digit = raw.get("step_digit", {})
+        if not isinstance(step_digit, dict):
+            raise ValueError("digit_stride config requires a step_digit object")
+        direction_step_min = int(step_digit.get("min_steps", 1))
+        direction_step_max = int(step_digit.get("max_steps", 10))
+        if direction_step_min < 1 or direction_step_max < direction_step_min:
+            raise ValueError("Invalid digit_stride step range")
+        start_combo = str(raw.get("start_combo", "")).strip()
+        if start_combo:
+            if len(start_combo) != digits_per_input or not start_combo.isdigit():
+                raise ValueError("start_combo must be a digit string matching digits_per_input")
+            start_value = int(start_combo)
 
     return PiInputConfig(
         on_frames=on_frames,
         off_frames=off_frames,
         digits_per_input=digits_per_input,
         mapping=tuple(ranges),
+        mapping_mode=mapping_mode,
+        direction_step_min=direction_step_min,
+        direction_step_max=direction_step_max,
+        start_value=start_value,
     )
 
 
@@ -165,10 +217,42 @@ def resolve_configured_run_name(
 
 
 def button_for_value(value: int, input_config: PiInputConfig) -> str:
+    return action_for_value(value, input_config).button
+
+
+def action_for_value(value: int, input_config: PiInputConfig) -> PiInputAction:
+    if input_config.mapping_mode == "digit_stride":
+        if input_config.start_value is not None and value == input_config.start_value:
+            return PiInputAction("start")
+        first_digit = value // 10
+        second_digit = value % 10
+        for button_range in input_config.mapping:
+            if button_range.minimum <= first_digit <= button_range.maximum:
+                if button_range.button in {"up", "down", "left", "right"}:
+                    steps = input_config.direction_step_min + second_digit
+                    steps = min(steps, input_config.direction_step_max)
+                    return PiInputAction(button_range.button, steps)
+                return PiInputAction(button_range.button)
+        raise ValueError(f"No first-digit mapping for value {value}")
+
     for button_range in input_config.mapping:
         if button_range.minimum <= value <= button_range.maximum:
-            return button_range.button
+            return PiInputAction(button_range.button)
     raise ValueError(f"No button mapping for value {value}")
+
+
+def frames_for_action(action: PiInputAction, hold_frames: int, release_frames: int) -> int:
+    return action.repetitions * (hold_frames + release_frames)
+
+
+def average_frames_per_input(input_config: PiInputConfig, hold_frames: int | None = None, release_frames: int | None = None) -> float:
+    hold = input_config.on_frames if hold_frames is None else hold_frames
+    release = input_config.off_frames if release_frames is None else release_frames
+    max_value = (10**input_config.digits_per_input) - 1
+    return sum(
+        frames_for_action(action_for_value(value, input_config), hold, release)
+        for value in range(max_value + 1)
+    ) / (max_value + 1)
 
 
 def button_for_pair(value: int) -> str:
@@ -185,25 +269,30 @@ def advance_pi_inputs(
     render_final: bool = False,
     input_config: PiInputConfig | None = None,
     sound: bool = True,
-) -> tuple[int, int, str]:
+) -> AdvanceResult:
     config = input_config or load_input_config()
     digits_per_input = config.digits_per_input
     digits_consumed = start_digits
     inputs_sent = 0
+    frames_advanced = 0
     last_button = "-"
     while digits_consumed < target_digits:
         value = int(digits[digits_consumed : digits_consumed + digits_per_input])
-        button = button_for_value(value, config)
+        action = action_for_value(value, config)
+        button = action.button
         finishing = digits_consumed + digits_per_input >= target_digits
-        pyboy.button_press(button)
-        pyboy.tick(hold_frames, False, sound)
-        pyboy.button_release(button)
-        if release_frames:
-            pyboy.tick(release_frames, render_final and finishing, sound)
+        for repetition in range(action.repetitions):
+            pyboy.button_press(button)
+            pyboy.tick(hold_frames, False, sound)
+            pyboy.button_release(button)
+            if release_frames:
+                is_last_repetition = repetition == action.repetitions - 1
+                pyboy.tick(release_frames, render_final and finishing and is_last_repetition, sound)
+            frames_advanced += hold_frames + release_frames
         digits_consumed += digits_per_input
         inputs_sent += 1
         last_button = button
-    return digits_consumed, inputs_sent, last_button
+    return AdvanceResult(digits_consumed, inputs_sent, last_button, frames_advanced)
 
 
 def latest_checkpoint(checkpoint_dir: Path) -> tuple[int, Path] | None:
@@ -350,15 +439,15 @@ def main() -> None:
         progress_chunk_digits -= progress_chunk_digits % input_config.digits_per_input
     progress_chunk_digits = max(input_config.digits_per_input, progress_chunk_digits)
     digits_consumed = start_digits
-    frames_per_input = hold_frames + release_frames
-    frames_elapsed = (digits_consumed // input_config.digits_per_input) * frames_per_input
+    frames_per_input = average_frames_per_input(input_config, hold_frames, release_frames)
+    frames_elapsed = int((digits_consumed // input_config.digits_per_input) * frames_per_input)
     started_at = time.perf_counter()
     last_state: Path | None = state_to_load
 
     try:
         while digits_consumed < max_digits:
             chunk_target = min(next_checkpoint, digits_consumed + progress_chunk_digits, max_digits)
-            digits_consumed, inputs_sent, _ = advance_pi_inputs(
+            advance_result = advance_pi_inputs(
                 pyboy,
                 digits,
                 digits_consumed,
@@ -367,7 +456,8 @@ def main() -> None:
                 release_frames,
                 input_config=input_config,
             )
-            frames_elapsed += inputs_sent * frames_per_input
+            digits_consumed, _, _ = advance_result
+            frames_elapsed += advance_result.frames_advanced
 
             if digits_consumed >= next_checkpoint:
                 last_state = save_checkpoint(
