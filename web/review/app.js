@@ -47,7 +47,6 @@ const videoExportProgressEl = document.querySelector("#video-export-progress");
 const runSelectEl = document.querySelector("#run-select");
 const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
-const timelineEl = document.querySelector("#timeline");
 const progressionRangeEl = document.querySelector("#progression-range");
 const generateProgressionGraphButton = document.querySelector("#generate-progression-graph");
 const progressionGraphStatusEl = document.querySelector("#progression-graph-status");
@@ -1248,50 +1247,6 @@ function checkpointInfo(checkpoint) {
   return { digits, filename };
 }
 
-function renderTimeline(checkpoints, currentDigits, maxDigits) {
-  if (!checkpoints.length) {
-    const empty = document.createElement("div");
-    empty.className = "timeline-empty";
-    empty.textContent = "No checkpoints";
-    timelineEl.replaceChildren(empty);
-    return;
-  }
-
-  const checkpointItems = checkpoints.map(checkpointInfo);
-  const highestCheckpointDigits = Math.max(...checkpointItems.map((checkpoint) => checkpoint.digits));
-  const timelineMax = Math.max(
-    Number(maxDigits) || 0,
-    highestCheckpointDigits,
-    1,
-  );
-  const track = document.createElement("div");
-  const fill = document.createElement("span");
-  const cursor = document.createElement("span");
-
-  track.className = "timeline-track";
-  fill.className = "timeline-fill";
-  cursor.className = "timeline-cursor";
-
-  fill.style.width = `${Math.min(100, (highestCheckpointDigits / timelineMax) * 100)}%`;
-  cursor.style.left = `${Math.min(100, (Number(currentDigits) / timelineMax) * 100)}%`;
-  track.title = `Checkpoint coverage: ${fmt(highestCheckpointDigits)} digits charted. Click to jump to the nearest checkpoint.`;
-  track.addEventListener("click", (event) => {
-    if (backendBusy || !checkpointItems.length) {
-      return;
-    }
-    const rect = track.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    const targetDigits = ratio * timelineMax;
-    const nearest = checkpointItems.reduce((best, checkpoint) => {
-      return Math.abs(checkpoint.digits - targetDigits) < Math.abs(best.digits - targetDigits) ? checkpoint : best;
-    }, checkpointItems[0]);
-    post("/api/jump", { digits: nearest.digits });
-  });
-
-  track.append(fill, cursor);
-  timelineEl.replaceChildren(track);
-}
-
 function applyGeneratedProgressionSamples(samples = []) {
   const mapped = samples
     .map((sample) => {
@@ -1779,7 +1734,6 @@ async function refresh() {
     renderRuns(state.runs || [], state.active_run || "");
     renderConfigInfo(state.config || {});
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
-    renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
     renderProgressionGraph(state.progression || {}, state.digits_consumed);
     renderSplits(state.progression_splits || [], state.progression || {});
     renderParty(state.party || []);
@@ -1807,7 +1761,6 @@ async function refresh() {
     renderConfigInfo({});
     setVideoExportStats({ state: "Disconnected" });
     renderCheckpoints([], 0);
-    renderTimeline([], 0, 0);
     lastProgressionState = {};
     renderProgressionGraph({}, 0, { preserveSamples: true });
     renderSplits([], {});

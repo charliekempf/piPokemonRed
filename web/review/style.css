@@ -49,27 +49,21 @@ body {
   grid-row: 2;
 }
 
-.timeline-panel {
+.progression-graph-panel {
   grid-column: 1 / -1;
   grid-row: 3;
   min-width: 0;
 }
 
-.progression-graph-panel {
+.config-panel {
   grid-column: 1 / -1;
   grid-row: 4;
   min-width: 0;
 }
 
-.config-panel {
-  grid-column: 1 / -1;
-  grid-row: 5;
-  min-width: 0;
-}
-
 .video-export-panel {
   grid-column: 1 / -1;
-  grid-row: 6;
+  grid-row: 5;
   min-width: 0;
 }
 
@@ -80,7 +74,6 @@ body {
 .player-panel,
 .next-panel,
 .splits-panel,
-.timeline-panel,
 .progression-graph-panel,
 .config-panel,
 .video-export-panel {
@@ -868,7 +861,6 @@ button:disabled {
 .player-panel,
 .next-panel,
 .splits-panel,
-.timeline-panel,
 .progression-graph-panel,
 .video-export-panel {
   padding: 12px;
@@ -879,7 +871,6 @@ button:disabled {
 .party-panel h1,
 .next-panel h1,
 .splits-panel h1,
-.timeline-panel h1,
 .progression-graph-panel h1 {
   margin: 0 0 10px;
   font-size: 16px;
@@ -1497,64 +1488,6 @@ button:disabled {
 .button {
   color: #fff4b8;
   font-weight: 700;
-}
-
-.timeline {
-  min-height: 96px;
-}
-
-.timeline-track {
-  position: relative;
-  height: 80px;
-  margin: 0 4px;
-  cursor: pointer;
-}
-
-.timeline-track:hover::before {
-  border-color: #6f89af;
-}
-
-.timeline-track::before {
-  content: "";
-  position: absolute;
-  top: 18px;
-  left: 0;
-  right: 0;
-  height: 54px;
-  background: #1c1f26;
-  border: 1px solid #454b58;
-  border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.timeline-fill {
-  position: absolute;
-  top: 19px;
-  left: 1px;
-  height: 54px;
-  max-width: calc(100% - 2px);
-  background: linear-gradient(90deg, #4f6f98, #6f89af);
-  border-radius: 7px;
-}
-
-.timeline-cursor {
-  position: absolute;
-  top: 10px;
-  width: 3px;
-  height: 70px;
-  background: #fff4b8;
-  box-shadow: 0 0 0 2px rgba(255, 244, 184, 0.2);
-  transform: translateX(-50%);
-  z-index: 4;
-}
-
-.timeline-empty {
-  padding: 12px 10px;
-  color: #aeb4c0;
-  background: #30333c;
-  border: 1px solid #454b58;
-  border-radius: 6px;
-  font-size: 13px;
 }
 
 .progression-graph-panel {
