@@ -864,7 +864,7 @@ button:disabled {
 
 .next-panel,
 .splits-panel {
-  height: 420px;
+  height: 496px;
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
