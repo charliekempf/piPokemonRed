@@ -224,6 +224,10 @@
           <strong id="progression-closer-checkpoint">-</strong>
         </div>
         <div id="progression-graph-status" class="progression-graph-status">Live sampling</div>
+        <div id="progression-graph-shell" class="progression-graph-shell" aria-label="Player step distance from current progression point" role="img">
+          <canvas id="progression-graph-labels" class="progression-graph progression-graph-labels" width="1240" height="260"></canvas>
+          <canvas id="progression-graph" class="progression-graph progression-graph-plot" width="1240" height="260"></canvas>
+        </div>
         <div class="progression-probability-grid" aria-label="Progression probability estimate">
           <div>
             <span>Sigma</span>
@@ -241,10 +245,6 @@
             <span>Expected game time</span>
             <strong id="progression-expected-time">-</strong>
           </div>
-        </div>
-        <div id="progression-graph-shell" class="progression-graph-shell" aria-label="Player step distance from current progression point" role="img">
-          <canvas id="progression-graph-labels" class="progression-graph progression-graph-labels" width="1240" height="260"></canvas>
-          <canvas id="progression-graph" class="progression-graph progression-graph-plot" width="1240" height="260"></canvas>
         </div>
       </section>
       <section class="config-panel">
