@@ -162,10 +162,29 @@ def checkpoint_at_or_before(run_name: str, target_digits: int) -> tuple[int, Pat
 
 
 def list_runs(active_run_name: str) -> list[dict[str, object]]:
-    runs: list[dict[str, object]] = []
+    runs_by_name: dict[str, dict[str, object]] = {}
+
+    for config_path in sorted(Path("config").glob("*.json")):
+        try:
+            config = load_input_config(config_path)
+            run_name = resolve_configured_run_name(RUN_NAME, config_path)
+            label = f"{config_display_name(config_path)} ({config.digits_per_input}d, {config.on_frames}/{config.off_frames})"
+        except Exception:
+            continue
+        checkpoints = list_checkpoints(run_name)
+        highest_digits = max((int(checkpoint["digits"]) for checkpoint in checkpoints), default=0)
+        runs_by_name[run_name] = {
+            "name": run_name,
+            "label": label,
+            "checkpoint_count": len(checkpoints),
+            "highest_digits": highest_digits,
+            "config_available": True,
+            "active": run_name == active_run_name,
+        }
+
     saves_root = Path("saves")
     if not saves_root.exists():
-        return runs
+        return sorted(runs_by_name.values(), key=lambda run: (str(run["label"]).casefold(), str(run["name"]).casefold()))
     for run_dir in saves_root.iterdir():
         if not run_dir.is_dir():
             continue
@@ -182,17 +201,15 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
             except Exception:
                 config_available = False
         highest_digits = max((int(checkpoint["digits"]) for checkpoint in checkpoints), default=0)
-        runs.append(
-            {
-                "name": run_dir.name,
-                "label": label,
-                "checkpoint_count": len(checkpoints),
-                "highest_digits": highest_digits,
-                "config_available": config_available,
-                "active": run_dir.name == active_run_name,
-            }
-        )
-    return sorted(runs, key=lambda run: (str(run["label"]).casefold(), str(run["name"]).casefold()))
+        runs_by_name[run_dir.name] = {
+            "name": run_dir.name,
+            "label": label,
+            "checkpoint_count": len(checkpoints),
+            "highest_digits": highest_digits,
+            "config_available": config_available,
+            "active": run_dir.name == active_run_name,
+        }
+    return sorted(runs_by_name.values(), key=lambda run: (str(run["label"]).casefold(), str(run["name"]).casefold()))
 
 
 def config_info(config_path: Path) -> dict[str, object]:
