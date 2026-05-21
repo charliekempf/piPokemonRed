@@ -233,6 +233,10 @@ MANUAL_BUTTONS = {"up", "down", "left", "right", "a", "b", "start", "select"}
 
 
 def progression_record_low_skip_count(current_steps: int, record_steps: int) -> int:
+    return record_low_distance_checks_to_skip(current_steps, record_steps)
+
+
+def record_low_distance_checks_to_skip(current_steps: int, record_steps: int) -> int:
     return max(0, (current_steps - record_steps - 1) // 10)
 
 
@@ -2833,7 +2837,7 @@ class ReviewSession:
                                 if baseline is None:
                                     set_record_low_steps(current_steps)
                                     baseline = current_steps
-                                skipped_checks = progression_record_low_skip_count(current_steps, baseline)
+                                skipped_checks = record_low_distance_checks_to_skip(current_steps, baseline)
                                 self.status = (
                                     f"finding next {WARP_STATE_LABELS[target_state]}: "
                                     f"{current_steps:,} steps, record {baseline:,}"
@@ -2851,7 +2855,7 @@ class ReviewSession:
                             break
                         _, updated_record_low_steps = record_low_state()
                         record_low_checks_to_skip = (
-                            progression_record_low_skip_count(current_steps, updated_record_low_steps)
+                            record_low_distance_checks_to_skip(current_steps, updated_record_low_steps)
                             if current_steps is not None and updated_record_low_steps is not None
                             else 0
                         )

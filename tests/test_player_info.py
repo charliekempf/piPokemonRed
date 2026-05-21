@@ -18,6 +18,7 @@ from review_pi_checkpoint import (
     elapsed_play_time,
     current_player_tile,
     play_time,
+    record_low_distance_checks_to_skip,
     progression_record_low_skip_count,
     progression_state,
     read_bcd_money,
@@ -106,3 +107,12 @@ def test_progression_record_low_skip_count_scales_by_tens() -> None:
     assert progression_record_low_skip_count(111, 100) == 1
     assert progression_record_low_skip_count(120, 100) == 1
     assert progression_record_low_skip_count(121, 100) == 2
+
+
+def test_record_low_distance_checks_to_skip_scales_when_far_from_record() -> None:
+    assert record_low_distance_checks_to_skip(100, 100) == 0
+    assert record_low_distance_checks_to_skip(110, 100) == 0
+    assert record_low_distance_checks_to_skip(111, 100) == 1
+    assert record_low_distance_checks_to_skip(120, 100) == 1
+    assert record_low_distance_checks_to_skip(121, 100) == 2
+    assert record_low_distance_checks_to_skip(250, 100) == 14
