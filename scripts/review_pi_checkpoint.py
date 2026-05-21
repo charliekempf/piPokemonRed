@@ -1695,6 +1695,8 @@ class ReviewSession:
 
     def _current_progression_steps_unlocked(self) -> int | None:
         try:
+            if is_in_battle(self.pyboy):
+                return None
             tile = current_player_tile(self.pyboy)
             progression = progression_state_for_tile(self.pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
             steps = progression.get("remaining_steps")
@@ -1721,6 +1723,7 @@ class ReviewSession:
                 "digits_consumed": self.digits_consumed,
                 "gate": gate,
                 "current_tile": tile,
+                "in_battle": is_in_battle(self.pyboy),
             }
 
     def info(self) -> dict[str, object]:
@@ -2507,6 +2510,8 @@ class ReviewSession:
 
         def simulator_progression_steps() -> int | None:
             try:
+                if is_in_battle(simulator):
+                    return None
                 tile = current_player_tile(simulator)
                 progression = progression_state_for_tile(simulator, Tile(tile["map_id"], tile["x"], tile["y"]))
                 steps = progression.get("remaining_steps")

@@ -27,6 +27,7 @@ from review_pi_checkpoint import (
     ReviewSession,
     checkpoint_digits,
     current_player_tile,
+    is_in_battle,
     render_loaded_state,
     resolve_checkpoint,
 )
@@ -674,11 +675,29 @@ def generate_progression_graph_samples(
                 sound=False,
             )
 
+        last_sample: dict[str, object] | None = None
         while digits_consumed <= end_digits:
-            tile = current_player_tile(pyboy)
-            progression = progression_state_for_tile(pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
-            samples.append(
-                {
+            if is_in_battle(pyboy) and last_sample is not None:
+                sample = {
+                    **last_sample,
+                    "digit": digits_consumed,
+                    "in_battle": True,
+                }
+            elif is_in_battle(pyboy):
+                sample = {
+                    "digit": digits_consumed,
+                    "steps": None,
+                    "label": "In battle",
+                    "objective_location": "",
+                    "reachable": False,
+                    "baseline_steps": checkpoint_steps,
+                    "total_steps_from_respawn": checkpoint_progression.get("total_steps_from_respawn"),
+                    "in_battle": True,
+                }
+            else:
+                tile = current_player_tile(pyboy)
+                progression = progression_state_for_tile(pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
+                sample = {
                     "digit": digits_consumed,
                     "steps": progression.get("remaining_steps"),
                     "label": progression.get("label", ""),
@@ -686,8 +705,10 @@ def generate_progression_graph_samples(
                     "reachable": bool(progression.get("reachable", False)),
                     "baseline_steps": checkpoint_steps,
                     "total_steps_from_respawn": progression.get("total_steps_from_respawn"),
+                    "in_battle": False,
                 }
-            )
+                last_sample = sample
+            samples.append(sample)
             app.update_progression_graph(
                 state="Generating",
                 current_digits=digits_consumed,
@@ -795,6 +816,9 @@ class ReviewWebApp:
                 continue
             try:
                 snapshot = session.progression_snapshot()
+                if snapshot.get("in_battle"):
+                    time.sleep(PROGRESSION_REFRESH_SECONDS)
+                    continue
                 gate = snapshot["gate"]
                 tile_info = snapshot["current_tile"]
                 tile = Tile(int(tile_info["map_id"]), int(tile_info["x"]), int(tile_info["y"]))
