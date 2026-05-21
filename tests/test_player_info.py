@@ -18,6 +18,7 @@ from review_pi_checkpoint import (
     elapsed_play_time,
     current_player_tile,
     play_time,
+    progression_record_low_skip_count,
     progression_state,
     read_bcd_money,
 )
@@ -97,3 +98,11 @@ def test_progression_state_exposes_current_tile() -> None:
     assert state["current_tile"] == {"map_id": 2, "x": 4, "y": 6}
     assert "remaining_steps" in state
     assert "total_steps_from_respawn" in state
+
+
+def test_progression_record_low_skip_count_scales_by_tens() -> None:
+    assert progression_record_low_skip_count(100, 100) == 0
+    assert progression_record_low_skip_count(110, 100) == 0
+    assert progression_record_low_skip_count(111, 100) == 1
+    assert progression_record_low_skip_count(120, 100) == 1
+    assert progression_record_low_skip_count(121, 100) == 2

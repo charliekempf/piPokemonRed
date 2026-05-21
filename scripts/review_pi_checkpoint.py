@@ -227,6 +227,12 @@ WARP_STATE_LABELS = {
     "trainer_battle": "trainer battle",
     "wild_battle": "wild Pokemon battle",
 }
+
+
+def progression_record_low_skip_count(current_steps: int, record_steps: int) -> int:
+    return max(0, (current_steps - record_steps - 1) // 10)
+
+
 MAX_INTERACTIVE_REWIND_REPLAY_DIGITS = 100_000
 MAP_NAMES = {
     0x00: "Pallet Town",
@@ -2507,6 +2513,7 @@ class ReviewSession:
         last_button = self.last_button
         found = False
         progression_record_low_steps: int | None = None
+        progression_record_low_checks_to_skip = 0
 
         def simulator_progression_steps() -> int | None:
             try:
@@ -2609,33 +2616,44 @@ class ReviewSession:
                 inputs_sent += 1
                 last_button = button
                 if target_state == "progression_record_low":
-                    current_steps = simulator_progression_steps()
-                    with self._lock:
-                        if current_steps is None:
-                            self.status = (
-                                f"finding next {WARP_STATE_LABELS[target_state]}: "
-                                f"distance unavailable at {digits_consumed:,} digits"
-                            )
-                        else:
-                            baseline = progression_record_low_steps
-                            if baseline is None:
-                                progression_record_low_steps = current_steps
-                                self._progression_record_low_steps = current_steps
-                                baseline = current_steps
-                            self.status = (
-                                f"finding next {WARP_STATE_LABELS[target_state]}: "
-                                f"{current_steps:,} steps, record {baseline:,}"
-                            )
-                    if (
-                        current_steps is not None
-                        and progression_record_low_steps is not None
-                        and current_steps < progression_record_low_steps
-                    ):
-                        progression_record_low_steps = current_steps
-                        found = True
+                    if progression_record_low_checks_to_skip > 0:
+                        progression_record_low_checks_to_skip -= 1
+                    else:
+                        current_steps = simulator_progression_steps()
                         with self._lock:
-                            self._progression_record_low_steps = current_steps
-                        break
+                            if current_steps is None:
+                                self.status = (
+                                    f"finding next {WARP_STATE_LABELS[target_state]}: "
+                                    f"distance unavailable at {digits_consumed:,} digits"
+                                )
+                            else:
+                                baseline = progression_record_low_steps
+                                if baseline is None:
+                                    progression_record_low_steps = current_steps
+                                    self._progression_record_low_steps = current_steps
+                                    baseline = current_steps
+                                skipped_checks = progression_record_low_skip_count(current_steps, baseline)
+                                self.status = (
+                                    f"finding next {WARP_STATE_LABELS[target_state]}: "
+                                    f"{current_steps:,} steps, record {baseline:,}"
+                                )
+                                if skipped_checks:
+                                    self.status += f", skipping {skipped_checks:,} digit checks"
+                        if (
+                            current_steps is not None
+                            and progression_record_low_steps is not None
+                            and current_steps < progression_record_low_steps
+                        ):
+                            progression_record_low_steps = current_steps
+                            found = True
+                            with self._lock:
+                                self._progression_record_low_steps = current_steps
+                            break
+                        progression_record_low_checks_to_skip = (
+                            progression_record_low_skip_count(current_steps, progression_record_low_steps)
+                            if current_steps is not None and progression_record_low_steps is not None
+                            else 0
+                        )
 
                 if target_state == "progression_record_low" or inputs_sent % 5000 == 0:
                     self._update_seek(digits_consumed)
