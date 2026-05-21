@@ -1238,6 +1238,7 @@ class ReviewWebApp:
         center_digits: int,
         range_digits: int,
         full_range: bool = False,
+        archive_only: bool = False,
     ) -> dict[str, object]:
         if self.session is None:
             raise ValueError("ROM required.")
@@ -1278,6 +1279,24 @@ class ReviewWebApp:
             self.cache_progression_graph(cache_key, archived_status)
             self.update_progression_graph(**archived_status)
             return archived_status
+
+        if archive_only:
+            archive_status = {
+                "state": "NoArchive",
+                "running": False,
+                "start_digits": start_digits,
+                "end_digits": end_digits,
+                "current_digits": start_digits,
+                "sample_digits": sample_digits,
+                "sample_count": 0,
+                "samples": [],
+                "cache_hit": False,
+                "archive_hit": False,
+                "full_range": full_range,
+                "error": "",
+            }
+            self.update_progression_graph(**archive_status)
+            return archive_status
 
         if full_range:
             raise ValueError("No archived HDF5 samples are available for the full range.")
@@ -1556,6 +1575,7 @@ def make_handler(app: ReviewWebApp):
                         int(body.get("center_digits", body.get("end_digits", 0))),
                         int(body.get("range_digits", 10000)),
                         bool(body.get("full_range", False)),
+                        bool(body.get("archive_only", False)),
                     )
                     self._send_json({"ok": True, "graph": status})
                 except Exception as error:

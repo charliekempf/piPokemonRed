@@ -113,6 +113,8 @@ let lastProgressionState = {};
 let progressionGraphPollInFlight = false;
 let progressionGraphGenerationRunning = false;
 let lastProgressionGraphCompletion = "";
+let lastProgressionArchiveLoadKey = "";
+let progressionArchiveLoadInFlight = false;
 const expandedPartySlots = new Set();
 const manualHeldKeys = new Set();
 const MANUAL_KEY_BUTTONS = {
@@ -668,20 +670,27 @@ window.addEventListener("blur", () => {
 });
 
 progressionRangeEl.addEventListener("change", () => {
+  lastProgressionArchiveLoadKey = "";
   renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
+  autoLoadArchivedProgressionGraph();
 });
 
-generateProgressionGraphButton.addEventListener("click", async () => {
+function progressionGraphRequestPayload(archiveOnly = false) {
   const currentDigits = Math.max(0, Number(lastProgressionState.digits_consumed) || 0);
   const fullRange = progressionRangeEl.value === "full";
   const rangeDigits = fullRange ? 0 : Math.max(1, Number(progressionRangeEl.value) || 10000);
-  generateProgressionGraphButton.disabled = true;
-  progressionGraphStatusEl.textContent = "Starting graph generation";
-  const result = await post("/api/generate-progression-graph", {
+  return {
     center_digits: currentDigits,
     range_digits: rangeDigits,
     full_range: fullRange,
-  });
+    archive_only: archiveOnly,
+  };
+}
+
+generateProgressionGraphButton.addEventListener("click", async () => {
+  generateProgressionGraphButton.disabled = true;
+  progressionGraphStatusEl.textContent = "Starting graph generation";
+  const result = await post("/api/generate-progression-graph", progressionGraphRequestPayload(false));
   if (!result.ok) {
     generateProgressionGraphButton.disabled = false;
     progressionGraphStatusEl.textContent = result.error || "Graph generation failed";
@@ -1396,6 +1405,41 @@ function applyGeneratedProgressionSamples(samples = []) {
   renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0, { preserveSamples: true });
 }
 
+async function autoLoadArchivedProgressionGraph() {
+  if (romMissing || progressionGraphGenerationRunning || progressionArchiveLoadInFlight) {
+    return;
+  }
+  const payload = progressionGraphRequestPayload(true);
+  const key = [
+    lastProgressionState.active_run || "",
+    payload.center_digits,
+    payload.range_digits,
+    payload.full_range ? "full" : "window",
+    lastProgressionState.digits_per_input || "",
+  ].join(":");
+  if (key === lastProgressionArchiveLoadKey) {
+    return;
+  }
+  lastProgressionArchiveLoadKey = key;
+  progressionArchiveLoadInFlight = true;
+  try {
+    const result = await post("/api/generate-progression-graph", payload);
+    const graph = result.graph || {};
+    if (!result.ok || graph.state === "NoArchive" || !Array.isArray(graph.samples) || graph.samples.length === 0) {
+      return;
+    }
+    const sampleCount = Number(graph.sample_count) || graph.samples.length;
+    const completionKey = `${graph.start_digits}:${graph.end_digits}:${graph.sample_digits}:${sampleCount}`;
+    if (completionKey !== lastProgressionGraphCompletion) {
+      lastProgressionGraphCompletion = completionKey;
+      progressionGraphStatusEl.textContent = `Loaded ${fmt(sampleCount)} archived HDF5 samples`;
+      applyGeneratedProgressionSamples(graph.samples);
+    }
+  } finally {
+    progressionArchiveLoadInFlight = false;
+  }
+}
+
 async function pollProgressionGraph() {
   if (progressionGraphPollInFlight) {
     return;
@@ -1911,6 +1955,7 @@ async function refresh() {
     renderConfigInfo(state.config || {});
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderProgressionGraph(state.progression || {}, state.digits_consumed);
+    autoLoadArchivedProgressionGraph();
     renderSplits(state.progression_splits || [], state.progression || {});
     renderParty(state.party || []);
     renderBag(state.bag || []);

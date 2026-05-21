@@ -242,6 +242,32 @@ def test_progression_graph_full_range_uses_hdf5_bounds(tmp_path: Path, monkeypat
     assert [sample["digit"] for sample in status["samples"]] == [2, 4, 6, 8, 10, 12, 14, 16, 18]
 
 
+def test_progression_graph_archive_only_does_not_start_generation(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    session = FakeSession()
+    app = ReviewWebApp(
+        session=session,
+        scale=4,
+        run_name="statistical_walk",
+        digits_per_input=2,
+        frames_per_input=3,
+        hard_max_digits=None,
+        rom_path=Path("roms/test.gb"),
+        digits_path=Path("data/test.txt"),
+        digits=session.digits,
+        config_path=Path("config/statistical_walk.json"),
+        session_factory=lambda: session,
+    )
+
+    status = app.start_progression_graph_generation(center_digits=10, range_digits=8, archive_only=True)
+
+    assert status["state"] == "NoArchive"
+    assert status["running"] is False
+    assert status["samples"] == []
+    assert app.progression_graph_thread is None
+
+
 def test_append_progression_graph_samples_skips_duplicate_digits(tmp_path: Path, monkeypatch) -> None:
     import h5py
 
