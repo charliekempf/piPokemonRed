@@ -16,6 +16,7 @@ const romUploadStatusEl = document.querySelector("#rom-upload-status");
 const speedEl = document.querySelector("#speed");
 const pauseEl = document.querySelector("#pause");
 const muteEl = document.querySelector("#mute");
+const manualModeEl = document.querySelector("#manual-mode");
 const rewindEl = document.querySelector("#rewind");
 const rewindButton = document.querySelector("#rewind-button");
 const fastForwardButton = document.querySelector("#fast-forward-button");
@@ -88,6 +89,7 @@ let inputFetchInFlight = false;
 let controlsInitialized = false;
 let backendBusy = false;
 let romMissing = false;
+let manualMode = false;
 let romUploadInFlight = false;
 let selectedCheckpointDigits = null;
 let runListSignature = "";
@@ -108,6 +110,17 @@ let progressionGraphPollInFlight = false;
 let progressionGraphGenerationRunning = false;
 let lastProgressionGraphCompletion = "";
 const expandedPartySlots = new Set();
+const manualHeldKeys = new Set();
+const MANUAL_KEY_BUTTONS = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  KeyZ: "a",
+  KeyX: "b",
+  KeyC: "start",
+  KeyV: "select",
+};
 const BUTTON_COLORS = {
   a: "#6f89af",
   b: "#c97b68",
@@ -406,6 +419,17 @@ pauseEl.addEventListener("click", () => {
   post("/api/pause");
 });
 
+manualModeEl.addEventListener("click", async () => {
+  const result = await post("/api/manual-mode", { enabled: !manualMode });
+  if (result.ok) {
+    manualMode = Boolean(result.manual_mode);
+    updateManualControl();
+    if (!manualMode) {
+      manualHeldKeys.clear();
+    }
+  }
+});
+
 rewindButton.addEventListener("click", () => {
   post("/api/rewind", { digits: Number(rewindEl.value) });
 });
@@ -468,6 +492,41 @@ loadCheckpointButton.addEventListener("click", () => {
     return;
   }
   post("/api/jump", { digits: selectedCheckpointDigits });
+});
+
+window.addEventListener("keydown", (event) => {
+  if (!manualMode || event.repeat) {
+    return;
+  }
+  const button = MANUAL_KEY_BUTTONS[event.code];
+  if (!button) {
+    return;
+  }
+  event.preventDefault();
+  manualHeldKeys.add(event.code);
+  post("/api/manual-input", { button, pressed: true });
+});
+
+window.addEventListener("keyup", (event) => {
+  const button = MANUAL_KEY_BUTTONS[event.code];
+  if (!button) {
+    return;
+  }
+  if (manualMode) {
+    event.preventDefault();
+  }
+  manualHeldKeys.delete(event.code);
+  post("/api/manual-input", { button, pressed: false });
+});
+
+window.addEventListener("blur", () => {
+  for (const code of manualHeldKeys) {
+    const button = MANUAL_KEY_BUTTONS[code];
+    if (button) {
+      post("/api/manual-input", { button, pressed: false });
+    }
+  }
+  manualHeldKeys.clear();
 });
 
 progressionRangeEl.addEventListener("change", () => {
@@ -1538,6 +1597,7 @@ function setStateClass(status) {
   statusEl.dataset.state = normalized || "unknown";
   pauseEl.dataset.state = normalized || "unknown";
   const isPlaying = normalized === "running"
+    || normalized === "manual-control"
     || normalized === "pause-pending"
     || normalized.startsWith("fast-forwarding")
     || normalized.startsWith("rewinding")
@@ -1549,8 +1609,24 @@ function setStateClass(status) {
   pauseEl.title = isPlaying ? "Pause" : "Play";
 }
 
+function updateManualControl() {
+  manualModeEl.dataset.active = manualMode ? "true" : "false";
+  manualModeEl.textContent = manualMode ? "Manual On" : "Manual";
+  manualModeEl.setAttribute("aria-pressed", String(manualMode));
+  manualModeEl.setAttribute(
+    "aria-label",
+    manualMode
+      ? "Disable manual keyboard control"
+      : "Enable manual keyboard control",
+  );
+  manualModeEl.title = manualMode
+    ? "Manual mode: Arrow keys move, Z=A, X=B, C=Start, V=Select"
+    : "Enable manual mode: Arrow keys move, Z=A, X=B, C=Start, V=Select";
+}
+
 function renderStats(state) {
   romMissing = Boolean(state.rom_missing);
+  manualMode = Boolean(state.manual_mode);
   const progress = state.max_digits > 0
     ? Math.min(100, (Number(state.digits_consumed) / Number(state.max_digits)) * 100)
     : 0;
@@ -1582,6 +1658,7 @@ function renderStats(state) {
   muteEl.textContent = muted ? "🔇" : "🔊";
   muteEl.setAttribute("aria-label", audioUnavailable ? "Enable limited speed for audio" : muted ? "Unmute audio" : "Mute audio");
   muteEl.title = audioUnavailable ? "Audio off at Unlimited speed. Click for 1x audio." : muted ? "Unmute" : "Mute";
+  updateManualControl();
 
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
@@ -1590,12 +1667,14 @@ function renderStats(state) {
   generateProgressionGraphButton.disabled = progressionGraphGenerationRunning;
   stopSimulateButton.disabled = true;
   runSelectEl.disabled = backendBusy || !(state.runs || []).length;
+  manualModeEl.disabled = backendBusy || romMissing;
   if (romMissing) {
     jumpButton.disabled = true;
     warpStateButton.disabled = true;
     simulateButton.disabled = true;
     videoExportButton.disabled = true;
     generateProgressionGraphButton.disabled = true;
+    manualModeEl.disabled = true;
   }
   if (state.chart_simulation && state.chart_simulation.running) {
     const chart = state.chart_simulation;

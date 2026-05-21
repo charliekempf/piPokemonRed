@@ -229,6 +229,7 @@ WARP_STATE_LABELS = {
     "trainer_battle": "trainer battle",
     "wild_battle": "wild Pokemon battle",
 }
+MANUAL_BUTTONS = {"up", "down", "left", "right", "a", "b", "start", "select"}
 
 
 def progression_record_low_skip_count(current_steps: int, record_steps: int) -> int:
@@ -1532,6 +1533,8 @@ class ReviewSession:
         self._jump_target_digits: int | None = None
         self._warp_target_state: str | None = None
         self._warp_limit_digits = 1_000_000
+        self._manual_mode = False
+        self._manual_buttons: set[str] = set()
         self._simulation_started_at: float | None = None
         self._last_simulation: dict[str, int | float | str] | None = None
         self._progression_record_low_steps: int | None = None
@@ -1592,6 +1595,8 @@ class ReviewSession:
 
     def set_paused(self, paused: bool) -> None:
         with self._lock:
+            if self._manual_mode:
+                return
             self.paused = paused
             if not paused:
                 self.pause_requested = False
@@ -1599,11 +1604,12 @@ class ReviewSession:
 
     def toggle_pause_at_boundary(self) -> None:
         with self._lock:
-            if self.paused:
+            disable_manual = self._manual_mode
+            if not disable_manual and self.paused:
                 self.paused = False
                 self.pause_requested = False
                 self.status = "running"
-            else:
+            elif not disable_manual:
                 self.pause_requested = True
                 self._fast_forward_target_digits = None
                 self._simulate_target_digits = None
@@ -1611,6 +1617,9 @@ class ReviewSession:
                 self._warp_target_state = None
                 self._restore_playback_speed_unlocked()
                 self.status = "pause pending"
+        if disable_manual:
+            self.set_manual_mode(False)
+            return
 
     def request_rewind(self, digits: int) -> None:
         digits = self._normalize_digit_distance(digits)
@@ -1723,6 +1732,50 @@ class ReviewSession:
             self._begin_seek_unlocked(f"Finding next {label}", self.digits_consumed, self.digits_consumed + limit_digits)
         return target_state
 
+    def set_manual_mode(self, enabled: bool) -> bool:
+        buttons_to_release: list[str] = []
+        with self._lock:
+            enabled = bool(enabled)
+            if self._manual_mode == enabled:
+                return self._manual_mode
+            buttons_to_release = sorted(self._manual_buttons)
+            self._manual_buttons.clear()
+            self._manual_mode = enabled
+            self._rewind_digits_requested = 0
+            self._fast_forward_target_digits = None
+            self._simulate_target_digits = None
+            self._jump_target_digits = None
+            self._warp_target_state = None
+            self.pause_requested = False
+            self.paused = not enabled
+            self.status = "manual control" if enabled else "paused"
+            self._restore_playback_speed_unlocked()
+        for button in buttons_to_release:
+            self.pyboy.button_release(button)
+        return enabled
+
+    def manual_input(self, button: str, pressed: bool) -> dict[str, object]:
+        button = button.lower().strip()
+        if button not in MANUAL_BUTTONS:
+            raise ValueError(f"Unsupported manual button: {button}")
+        with self._lock:
+            if not self._manual_mode:
+                return {"manual_mode": False, "buttons": sorted(self._manual_buttons)}
+            if pressed:
+                if button in self._manual_buttons:
+                    return {"manual_mode": True, "buttons": sorted(self._manual_buttons)}
+                self._manual_buttons.add(button)
+            else:
+                if button not in self._manual_buttons:
+                    return {"manual_mode": True, "buttons": sorted(self._manual_buttons)}
+                self._manual_buttons.remove(button)
+        if pressed:
+            self.pyboy.button_press(button)
+        else:
+            self.pyboy.button_release(button)
+        with self._lock:
+            return {"manual_mode": self._manual_mode, "buttons": sorted(self._manual_buttons)}
+
     def _current_progression_steps_unlocked(self) -> int | None:
         try:
             if is_in_battle(self.pyboy):
@@ -1795,6 +1848,8 @@ class ReviewSession:
                 "speed_limiter_enabled": "on" if self.speed_limiter_enabled else "off",
                 "sound_volume": self.sound_volume,
                 "status": self.status,
+                "manual_mode": self._manual_mode,
+                "manual_buttons": sorted(self._manual_buttons),
                 "snapshots": len(self.snapshots),
                 "inputs_sent": self.inputs_sent,
                 "last_button": self.last_button,
@@ -1940,6 +1995,7 @@ class ReviewSession:
                     jump_target = self._jump_target_digits
                     warp_target_state = self._warp_target_state
                     warp_limit_digits = self._warp_limit_digits
+                    manual_mode = self._manual_mode
 
                 if rewind_digits:
                     self._rewind(rewind_digits)
@@ -1951,6 +2007,13 @@ class ReviewSession:
 
                 if warp_target_state is not None:
                     self._find_next_warp_state_with_backend(warp_target_state, warp_limit_digits)
+                    continue
+
+                if manual_mode:
+                    self._tick_frames(1)
+                    with self._lock:
+                        self.frames_elapsed += 1
+                        self.status = "manual control"
                     continue
 
                 if paused or pause_requested:

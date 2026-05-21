@@ -1174,6 +1174,8 @@ class ReviewWebApp:
                 "rom_missing": self.rom_missing,
                 "rom_path": str(self.rom_path),
                 "status": "ROM required",
+                "manual_mode": False,
+                "manual_buttons": [],
                 "digits_consumed": 0,
                 "max_digits": max_digits,
                 "frames_elapsed": 0,
@@ -1358,6 +1360,12 @@ def make_handler(app: ReviewWebApp):
             elif path == "/api/volume":
                 app.session.set_sound_volume(int(body.get("volume", 100)))
                 self._send_json({"ok": True})
+            elif path == "/api/manual-mode":
+                enabled = app.session.set_manual_mode(bool(body.get("enabled", False)))
+                self._send_json({"ok": True, "manual_mode": enabled})
+            elif path == "/api/manual-input":
+                state = app.session.manual_input(str(body.get("button", "")), bool(body.get("pressed", False)))
+                self._send_json({"ok": True, **state})
             elif path == "/api/rewind":
                 app.session.request_rewind(int(body.get("digits", 1000)))
                 self._send_json({"ok": True})
