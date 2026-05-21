@@ -1571,6 +1571,7 @@ class ReviewSession:
         self._seek_start_digits = digits_consumed
         self._seek_current_digits = digits_consumed
         self._seek_target_digits = digits_consumed
+        self._progression_snapshots: deque[dict[str, object]] = deque()
         self._take_snapshot()
         if self.latest_image is None:
             self._capture_frame()
@@ -1873,15 +1874,29 @@ class ReviewSession:
 
     def progression_snapshot(self) -> dict[str, object]:
         with self._lock:
-            tile = current_player_tile(self.pyboy)
-            gate = active_progression_gate(self.pyboy)
-            return {
-                "digits_consumed": self.digits_consumed,
-                "gate": gate,
-                "current_tile": tile,
-                "checkpoint_tile": current_blackout_checkpoint_tile(self.pyboy),
-                "in_battle": is_in_battle(self.pyboy),
-            }
+            return self._progression_snapshot_unlocked()
+
+    def _progression_snapshot_unlocked(self) -> dict[str, object]:
+        tile = current_player_tile(self.pyboy)
+        gate = active_progression_gate(self.pyboy)
+        return {
+            "digits_consumed": self.digits_consumed,
+            "frames_elapsed": self.frames_elapsed,
+            "gate": gate,
+            "current_tile": tile,
+            "checkpoint_tile": current_blackout_checkpoint_tile(self.pyboy),
+            "in_battle": is_in_battle(self.pyboy),
+        }
+
+    def _queue_progression_snapshot_unlocked(self) -> None:
+        self._progression_snapshots.append(self._progression_snapshot_unlocked())
+
+    def drain_progression_snapshots(self, limit: int = 20_000) -> list[dict[str, object]]:
+        with self._lock:
+            snapshots: list[dict[str, object]] = []
+            while self._progression_snapshots and len(snapshots) < limit:
+                snapshots.append(self._progression_snapshots.popleft())
+            return snapshots
 
     def info(self) -> dict[str, object]:
         with self._lock:
@@ -2130,6 +2145,7 @@ class ReviewSession:
                     self.inputs_sent += 1
                     self._speed_sample_digits += self.input_config.digits_per_input
                     self.last_button = button
+                    self._queue_progression_snapshot_unlocked()
                     if fast_forward_target is not None and self.digits_consumed >= fast_forward_target:
                         self.paused = True
                         self._fast_forward_target_digits = None

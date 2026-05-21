@@ -14,7 +14,7 @@ import webbrowser
 from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 from pyboy import PyBoy
@@ -67,6 +67,7 @@ WEB_ROOT = Path("web/review")
 REVIEW_SESSION_STATE = Path("runs") / "review_session_state.json"
 PROGRESSION_REFRESH_SECONDS = 0.5
 PROGRESSION_GRAPH_CACHE_LIMIT = 16
+PROGRESSION_LIVE_SAMPLE_LIMIT = 500_000
 RUN_PI_RE = re.compile(r"run_pi_pyboy\.py")
 MAX_DIGITS_RE = re.compile(r"--max-digits\s+(\d+)")
 RUN_NAME_RE = re.compile(r"--run-name\s+([^\s]+)")
@@ -958,6 +959,44 @@ def archived_progression_graph_sample(handle, index: int) -> dict[str, object]:
     }
 
 
+def progression_graph_sample_from_snapshot(snapshot: dict[str, object]) -> dict[str, object] | None:
+    if snapshot.get("in_battle"):
+        return None
+    gate = snapshot["gate"]
+    tile_info = snapshot["current_tile"]
+    checkpoint_info = snapshot.get("checkpoint_tile")
+    tile = Tile(int(tile_info["map_id"]), int(tile_info["x"]), int(tile_info["y"]))
+    checkpoint_tile = (
+        Tile(int(checkpoint_info["map_id"]), int(checkpoint_info["x"]), int(checkpoint_info["y"]))
+        if isinstance(checkpoint_info, dict)
+        else None
+    )
+    progression = progression_state_for_gate(gate, tile, checkpoint_tile)
+    steps = progression.get("remaining_steps")
+    return {
+        "digit": int(snapshot["digits_consumed"]),
+        "input_index": None,
+        "frames_elapsed": int(snapshot.get("frames_elapsed", 0) or 0),
+        "steps": steps,
+        "remaining_steps": steps,
+        "baseline_steps": progression.get("total_steps_from_respawn"),
+        "total_steps_from_respawn": progression.get("total_steps_from_respawn"),
+        "label": progression.get("label", ""),
+        "gate_label": progression.get("label", ""),
+        "gate_id": progression.get("id", ""),
+        "objective_location": progression.get("objective_location", ""),
+        "reachable": bool(progression.get("reachable", False)),
+        "nearest_closer_checkpoint_steps": (
+            progression.get("nearest_closer_checkpoint", {}).get("steps")
+            if isinstance(progression.get("nearest_closer_checkpoint"), dict)
+            else None
+        ),
+        "in_battle": False,
+        "source": "live",
+        "progression": progression,
+    }
+
+
 class ReviewWebApp:
     def __init__(
         self,
@@ -992,6 +1031,8 @@ class ReviewWebApp:
         self.progression_graph_thread: threading.Thread | None = None
         self.progression_graph_status: dict[str, object] = {"state": "Ready", "running": False}
         self.progression_graph_cache: OrderedDict[tuple[str, str, int, int, int], dict[str, object]] = OrderedDict()
+        self.progression_live_samples: OrderedDict[int, dict[str, object]] = OrderedDict()
+        self.progression_live_sample_sequence = 0
         self.progression_thread: threading.Thread | None = None
         self.progression_state: dict[str, object] = {}
         self.progression_signature = ""
@@ -1027,6 +1068,30 @@ class ReviewWebApp:
                 time.sleep(PROGRESSION_REFRESH_SECONDS)
                 continue
             try:
+                queued_snapshots = session.drain_progression_snapshots()
+                if queued_snapshots:
+                    latest_progression: dict[str, object] | None = None
+                    live_samples: list[dict[str, object]] = []
+                    for snapshot in queued_snapshots:
+                        sample = progression_graph_sample_from_snapshot(snapshot)
+                        if sample is None:
+                            continue
+                        progression = sample.pop("progression")
+                        latest_progression = progression if isinstance(progression, dict) else None
+                        live_samples.append(sample)
+                    if latest_progression is not None:
+                        latest_progression["computed_digits"] = int(live_samples[-1]["digit"])
+                    with self._lock:
+                        if latest_progression is not None:
+                            self.progression_state = latest_progression
+                        for sample in live_samples:
+                            self.progression_live_sample_sequence += 1
+                            sample["sequence"] = self.progression_live_sample_sequence
+                            self.progression_live_samples[self.progression_live_sample_sequence] = sample
+                        while len(self.progression_live_samples) > PROGRESSION_LIVE_SAMPLE_LIMIT:
+                            self.progression_live_samples.popitem(last=False)
+                    continue
+
                 snapshot = session.progression_snapshot()
                 if snapshot.get("in_battle"):
                     time.sleep(PROGRESSION_REFRESH_SECONDS)
@@ -1069,6 +1134,27 @@ class ReviewWebApp:
     def progression_info(self) -> dict[str, object]:
         with self._lock:
             return dict(self.progression_state)
+
+    def progression_live_samples_since(self, after_sequence: int, limit: int = 50_000) -> dict[str, object]:
+        after_sequence = max(0, int(after_sequence))
+        limit = max(1, min(100_000, int(limit)))
+        with self._lock:
+            samples = [
+                dict(sample)
+                for sequence, sample in self.progression_live_samples.items()
+                if sequence > after_sequence
+            ][:limit]
+            latest_sequence = self.progression_live_sample_sequence
+            if samples:
+                latest_sent_sequence = int(samples[-1]["sequence"])
+            else:
+                latest_sent_sequence = latest_sequence
+            return {
+                "samples": samples,
+                "latest_sequence": latest_sequence,
+                "next_sequence": latest_sent_sequence,
+                "has_more": latest_sent_sequence < latest_sequence,
+            }
 
     def install_rom(self, rom_bytes: bytes) -> None:
         self.rom_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1114,6 +1200,8 @@ class ReviewWebApp:
             self.progression_graph_thread = None
             self.progression_graph_status = {"state": "Ready", "running": False}
             self.progression_graph_cache.clear()
+            self.progression_live_samples.clear()
+            self.progression_live_sample_sequence = 0
             self.progression_state = {}
             self.progression_signature = ""
             self.frame_version = 0
@@ -1539,13 +1627,23 @@ class ReviewWebApp:
 def make_handler(app: ReviewWebApp):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            path = urlparse(self.path).path
+            parsed_url = urlparse(self.path)
+            path = parsed_url.path
             if path == "/":
                 self._serve_file(WEB_ROOT / "index.html")
             elif path == "/api/state":
                 self._send_json(app.state())
             elif path == "/api/inputs":
                 self._send_json(app.input_state())
+            elif path == "/api/progression-live-samples":
+                query = parse_qs(parsed_url.query)
+                try:
+                    after = int(query.get("after", ["0"])[0] or 0)
+                    limit = int(query.get("limit", ["50000"])[0] or 50000)
+                except ValueError:
+                    after = 0
+                    limit = 50_000
+                self._send_json(app.progression_live_samples_since(after, limit))
             elif path == "/api/progression-graph":
                 self._send_json(app.progression_graph_info())
             elif path == "/api/frame.png":

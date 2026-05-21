@@ -115,6 +115,9 @@ let progressionGraphGenerationRunning = false;
 let lastProgressionGraphCompletion = "";
 let lastProgressionArchiveLoadKey = "";
 let progressionArchiveLoadInFlight = false;
+let progressionLiveSamplesInFlight = false;
+let lastProgressionLiveSampleSeq = 0;
+let lastProgressionRunName = "";
 const expandedPartySlots = new Set();
 const manualHeldKeys = new Set();
 const MANUAL_KEY_BUTTONS = {
@@ -1405,6 +1408,66 @@ function applyGeneratedProgressionSamples(samples = []) {
   renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0, { preserveSamples: true });
 }
 
+function mergeProgressionSamples(samples = []) {
+  if (!Array.isArray(samples) || samples.length === 0) {
+    return false;
+  }
+  const byDigit = new Map(progressionSamples.map((sample) => [sample.digit, sample]));
+  let changed = false;
+  for (const sample of samples) {
+    const baselineValue = sample.baseline_steps ?? sample.total_steps_from_respawn;
+    const mapped = {
+      digit: finiteNumber(sample.digit),
+      steps: finiteNumber(sample.steps),
+      baselineSteps: finiteNumber(baselineValue),
+    };
+    if (!Number.isFinite(mapped.digit)) {
+      continue;
+    }
+    byDigit.set(mapped.digit, mapped);
+    changed = true;
+  }
+  if (!changed) {
+    return false;
+  }
+  progressionSamples = [...byDigit.values()].sort((a, b) => a.digit - b.digit);
+  lastProgressionSampleDigit = progressionSamples.length
+    ? progressionSamples[progressionSamples.length - 1].digit
+    : null;
+  lastProgressionSampleInterval = Math.max(1, Number(lastProgressionState.digits_per_input) || 1);
+  return true;
+}
+
+async function fetchLiveProgressionSamples() {
+  if (romMissing || progressionLiveSamplesInFlight) {
+    return;
+  }
+  progressionLiveSamplesInFlight = true;
+  try {
+    let hasMore = true;
+    let updated = false;
+    while (hasMore) {
+      const response = await fetch(`/api/progression-live-samples?after=${lastProgressionLiveSampleSeq}&limit=50000`, { cache: "no-store" });
+      const result = await response.json();
+      const samples = Array.isArray(result.samples) ? result.samples : [];
+      if (samples.length > 0) {
+        updated = mergeProgressionSamples(samples) || updated;
+        lastProgressionLiveSampleSeq = Number(result.next_sequence) || Number(samples[samples.length - 1].sequence) || lastProgressionLiveSampleSeq;
+      } else {
+        lastProgressionLiveSampleSeq = Math.max(lastProgressionLiveSampleSeq, Number(result.next_sequence) || 0);
+      }
+      hasMore = Boolean(result.has_more) && samples.length > 0;
+    }
+    if (updated) {
+      renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
+    }
+  } catch (error) {
+    console.warn("Live progression samples unavailable.", error);
+  } finally {
+    progressionLiveSamplesInFlight = false;
+  }
+}
+
 async function autoLoadArchivedProgressionGraph() {
   if (romMissing || progressionGraphGenerationRunning || progressionArchiveLoadInFlight) {
     return;
@@ -1575,23 +1638,6 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     lastProgressionSampleInterval = sampleInterval;
   }
 
-  if (
-    !options.preserveSamples
-    &&
-    hasDistance
-    && (
-      lastProgressionSampleDigit === null
-      || digit < lastProgressionSampleDigit
-      || digit - lastProgressionSampleDigit >= sampleInterval
-    )
-  ) {
-    progressionSamples.push({
-      digit,
-      steps: Math.max(0, remainingSteps),
-      baselineSteps: Number.isFinite(totalSteps) ? Math.max(0, totalSteps) : NaN,
-    });
-    lastProgressionSampleDigit = digit;
-  }
   if (!fullRange || !hasGeneratedSamples) {
     progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= graphEndDigit);
   }
@@ -1948,6 +1994,16 @@ async function refresh() {
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     const state = await response.json();
+    const activeRun = state.active_run || "";
+    if (activeRun !== lastProgressionRunName) {
+      progressionSamples = [];
+      lastProgressionSampleDigit = null;
+      lastProgressionSampleInterval = null;
+      lastProgressionLiveSampleSeq = 0;
+      lastProgressionGraphCompletion = "";
+      lastProgressionArchiveLoadKey = "";
+      lastProgressionRunName = activeRun;
+    }
     lastProgressionState = state;
     setInitialControls(state);
     renderStats(state);
@@ -1955,6 +2011,7 @@ async function refresh() {
     renderConfigInfo(state.config || {});
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderProgressionGraph(state.progression || {}, state.digits_consumed);
+    fetchLiveProgressionSamples();
     autoLoadArchivedProgressionGraph();
     renderSplits(state.progression_splits || [], state.progression || {});
     renderParty(state.party || []);
