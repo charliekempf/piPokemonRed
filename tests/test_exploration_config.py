@@ -9,6 +9,7 @@ from run_pi_pyboy import (
     average_frames_per_input,
     button_for_value,
     config_display_name,
+    frames_for_digit_range,
     load_input_config,
 )
 
@@ -207,6 +208,15 @@ def test_super_duper_exploration_repeats_directional_cycles() -> None:
     assert result.frames_advanced == (10 + 10 + 1) * (config.on_frames + config.off_frames)
     assert sum(1 for event in pyboy.events if event == ("press", "up")) == 20
     assert sum(1 for event in pyboy.events if event == ("press", "start")) == 1
+
+
+def test_super_duper_frame_count_is_digit_exact() -> None:
+    config = load_input_config(Path("config/super_duper_exploration.json"))
+
+    assert frames_for_digit_range("00098099", 0, 8, config) == (1 + 10 + 1 + 1) * (
+        config.on_frames + config.off_frames
+    )
+    assert frames_for_digit_range("00098099", 2, 4, config) == 10 * (config.on_frames + config.off_frames)
 
 
 def test_super_duper_input_window_marks_step_count() -> None:

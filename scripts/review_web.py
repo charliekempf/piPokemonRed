@@ -42,6 +42,7 @@ from run_pi_pyboy import (
     advance_pi_inputs,
     button_for_value,
     config_display_name,
+    frames_for_digit_range,
     latest_checkpoint,
     load_input_config,
     resolve_configured_run_name,
@@ -418,11 +419,7 @@ def run_video_export(
         raise RuntimeError("No checkpoint before export start.")
 
     checkpoint_digits_consumed, checkpoint_path = checkpoint
-    frame_count = sum(
-        (action_for_value(int(app.digits[index : index + input_config.digits_per_input]), input_config).repetitions)
-        * (input_config.on_frames + input_config.off_frames)
-        for index in range(start_digits, end_digits, input_config.digits_per_input)
-    )
+    frame_count = frames_for_digit_range(app.digits, start_digits, end_digits, input_config)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_video_path = output_path.with_suffix(".video" + output_path.suffix)
     temp_audio_path = output_path.with_suffix(".audio.s8")
@@ -933,7 +930,7 @@ class ReviewWebApp:
         if not running and target_digits <= 0:
             return {"running": False, "target_digits": 0}
         digits_consumed = int(progress.get("digits_consumed", 0) or 0)
-        digits_per_second = float(progress.get("effective_fps", 0) or 0)
+        digits_per_second = float(progress.get("effective_digits_per_second", progress.get("effective_fps", 0)) or 0)
         remaining_digits = max(0, target_digits - digits_consumed)
         eta_seconds = remaining_digits / digits_per_second if digits_per_second > 0 else None
         return {
@@ -1080,7 +1077,7 @@ class ReviewWebApp:
                 "end_digits": end_digits,
                 "current_digits": start_digits,
                 "frames_written": 0,
-                "total_frames": ((end_digits - start_digits) // digits_per_input) * self.frames_per_input,
+                "total_frames": frames_for_digit_range(self.digits, start_digits, end_digits, load_input_config(self.config_path)),
                 "output_path": str(output_path),
                 "preset": preset_name,
                 "error": "",

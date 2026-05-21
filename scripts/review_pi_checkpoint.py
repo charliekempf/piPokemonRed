@@ -29,6 +29,7 @@ from run_pi_pyboy import (
     average_frames_per_input,
     advance_pi_inputs,
     button_for_value,
+    frames_for_digit_range,
     latest_checkpoint,
     load_input_config,
     resolve_configured_run_name,
@@ -1476,7 +1477,14 @@ class ReviewSession:
         self.hold_frames = hold_frames
         self.release_frames = release_frames
         self.frames_per_input = average_frames_per_input(self.input_config, hold_frames, release_frames)
-        self.frames_elapsed = int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input)
+        self.frames_elapsed = frames_for_digit_range(
+            self.digits,
+            0,
+            digits_consumed,
+            self.input_config,
+            self.hold_frames,
+            self.release_frames,
+        )
         self.current_input_frame = 0
         self.rewind_interval_digits = rewind_interval_digits
         self.max_snapshots = max(2, rewind_history_digits // rewind_interval_digits)
@@ -1506,8 +1514,10 @@ class ReviewSession:
         self._auto_snapshots_enabled = True
         self._last_snapshot_digits = digits_consumed - rewind_interval_digits
         self._actual_speed_x = 0.0
+        self._actual_digits_per_second = 0.0
         self._speed_sample_started_at = time.perf_counter()
         self._speed_sample_frames = 0
+        self._speed_sample_digits = 0
         self._seek_active = False
         self._seek_label = ""
         self._seek_start_digits = digits_consumed
@@ -1709,10 +1719,7 @@ class ReviewSession:
                 "current_tile": current_player_tile(self.pyboy),
                 "speed": self.speed,
                 "actual_speed_x": round(self._actual_speed_x, 1),
-                "actual_digits_per_second": self._actual_speed_x
-                * GAMEBOY_FPS
-                * self.input_config.digits_per_input
-                / self.frames_per_input,
+                "actual_digits_per_second": self._actual_digits_per_second,
                 "speed_limiter_enabled": "on" if self.speed_limiter_enabled else "off",
                 "sound_volume": self.sound_volume,
                 "status": self.status,
@@ -1879,10 +1886,12 @@ class ReviewSession:
                         if pause_requested:
                             self.paused = True
                             self.pause_requested = False
-                            self.status = "paused"
+                        self.status = "paused"
                         self._actual_speed_x = 0.0
+                        self._actual_digits_per_second = 0.0
                         self._speed_sample_started_at = time.perf_counter()
                         self._speed_sample_frames = 0
+                        self._speed_sample_digits = 0
                     time.sleep(1 / 30)
                     continue
 
@@ -1890,8 +1899,10 @@ class ReviewSession:
                     with self._lock:
                         self.status = "complete"
                         self._actual_speed_x = 0.0
+                        self._actual_digits_per_second = 0.0
                         self._speed_sample_started_at = time.perf_counter()
                         self._speed_sample_frames = 0
+                        self._speed_sample_digits = 0
                     self.pyboy.tick(1, True)
                     time.sleep(1 / 30)
                     continue
@@ -1928,6 +1939,7 @@ class ReviewSession:
                     self.frames_elapsed += frames_advanced
                     self.current_input_frame = 0
                     self.inputs_sent += 1
+                    self._speed_sample_digits += self.input_config.digits_per_input
                     self.last_button = button
                     if fast_forward_target is not None and self.digits_consumed >= fast_forward_target:
                         self.paused = True
@@ -1972,8 +1984,10 @@ class ReviewSession:
             if elapsed < 0.5:
                 return
             self._actual_speed_x = (self._speed_sample_frames / elapsed) / GAMEBOY_FPS
+            self._actual_digits_per_second = self._speed_sample_digits / elapsed
             self._speed_sample_started_at = now
             self._speed_sample_frames = 0
+            self._speed_sample_digits = 0
 
     def _checkpoint_at_or_before(self, target_digits: int, minimum_digits: int = 0) -> tuple[int, Path] | None:
         checkpoint_dir = Path("saves") / self.run_name
@@ -2055,6 +2069,7 @@ class ReviewSession:
 
         target_digits = min(target_digits, self.max_digits)
         checkpoint = self._checkpoint_at_or_before(target_digits, minimum_digits=start_digits + self.input_config.digits_per_input)
+        base_frames_elapsed = self.frames_elapsed
         simulator = PyBoy(
             str(self.rom_path or ROM),
             window="null",
@@ -2068,6 +2083,14 @@ class ReviewSession:
         try:
             if checkpoint is not None:
                 start_digits, checkpoint_path = checkpoint
+                base_frames_elapsed = frames_for_digit_range(
+                    self.digits,
+                    0,
+                    start_digits,
+                    self.input_config,
+                    self.hold_frames,
+                    self.release_frames,
+                )
                 with checkpoint_path.open("rb") as state_file:
                     simulator.load_state(state_file)
             else:
@@ -2090,7 +2113,7 @@ class ReviewSession:
         with self._lock:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
-            self.frames_elapsed += advance_result.frames_advanced
+            self.frames_elapsed = base_frames_elapsed + advance_result.frames_advanced
             self.inputs_sent += inputs_sent
             self.last_button = last_button
             self.paused = True
@@ -2129,6 +2152,7 @@ class ReviewSession:
         digits_consumed = start_digits
         inputs_sent = 0
         total_frames_advanced = 0
+        resume_start_frames = self.frames_elapsed
         last_button = self.last_button
         last_state: Path | None = None
         resume_start_digits = start_digits
@@ -2137,6 +2161,14 @@ class ReviewSession:
             if checkpoint is not None:
                 digits_consumed, checkpoint_path = checkpoint
                 resume_start_digits = digits_consumed
+                resume_start_frames = frames_for_digit_range(
+                    self.digits,
+                    0,
+                    resume_start_digits,
+                    self.input_config,
+                    self.hold_frames,
+                    self.release_frames,
+                )
                 with checkpoint_path.open("rb") as state_file:
                     simulator.load_state(state_file)
                 last_state = checkpoint_path
@@ -2177,9 +2209,10 @@ class ReviewSession:
                         rom_path=str(self.rom_path or ROM),
                         digits_consumed=digits_consumed,
                         input_pairs_consumed=digits_consumed // self.input_config.digits_per_input,
-                        frames_elapsed=int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input),
+                        frames_elapsed=resume_start_frames + total_frames_advanced,
                         checkpoints_completed=len(list(checkpoint_dir.glob("checkpoint_*_digits.state"))),
                         elapsed_seconds=elapsed_so_far,
+                        effective_digits_per_second=(digits_consumed - resume_start_digits) / elapsed_so_far,
                         effective_fps=effective_fps_so_far,
                         effective_realtime_x=effective_fps_so_far / GAMEBOY_FPS,
                         last_state=str(last_state),
@@ -2203,7 +2236,7 @@ class ReviewSession:
         with self._lock:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
-            self.frames_elapsed = int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input)
+            self.frames_elapsed = resume_start_frames + total_frames_advanced
             self.inputs_sent += max(0, total_digits_advanced // self.input_config.digits_per_input)
             self.last_button = last_button
             self.paused = True
@@ -2298,7 +2331,14 @@ class ReviewSession:
             self.pyboy.save_state(state_buffer)
         else:
             source_digits, checkpoint_path = checkpoint
-            source_frames = (source_digits // self.input_config.digits_per_input) * self.frames_per_input
+            source_frames = frames_for_digit_range(
+                self.digits,
+                0,
+                source_digits,
+                self.input_config,
+                self.hold_frames,
+                self.release_frames,
+            )
             with self._lock:
                 self._begin_seek_unlocked("Rewinding", source_digits, target)
             simulator = PyBoy(
@@ -2399,7 +2439,14 @@ class ReviewSession:
             self.digits_consumed = digits_consumed
             self.current_input_frame = 0
             self.max_digits = max(self.max_digits, digits_consumed)
-            self.frames_elapsed = int((digits_consumed // self.input_config.digits_per_input) * self.frames_per_input)
+            self.frames_elapsed = frames_for_digit_range(
+                self.digits,
+                0,
+                digits_consumed,
+                self.input_config,
+                self.hold_frames,
+                self.release_frames,
+            )
             self.inputs_sent = inputs_sent
             if inputs_sent:
                 self.last_button = last_button

@@ -69,6 +69,7 @@ class Progress:
     frames_elapsed: int
     checkpoints_completed: int
     elapsed_seconds: float
+    effective_digits_per_second: float
     effective_fps: float
     effective_realtime_x: float
     last_state: str | None
@@ -245,6 +246,10 @@ def frames_for_action(action: PiInputAction, hold_frames: int, release_frames: i
     return action.repetitions * (hold_frames + release_frames)
 
 
+def frames_for_digit_value(value: int, input_config: PiInputConfig, hold_frames: int, release_frames: int) -> int:
+    return frames_for_action(action_for_value(value, input_config), hold_frames, release_frames)
+
+
 def average_frames_per_input(input_config: PiInputConfig, hold_frames: int | None = None, release_frames: int | None = None) -> float:
     hold = input_config.on_frames if hold_frames is None else hold_frames
     release = input_config.off_frames if release_frames is None else release_frames
@@ -253,6 +258,31 @@ def average_frames_per_input(input_config: PiInputConfig, hold_frames: int | Non
         frames_for_action(action_for_value(value, input_config), hold, release)
         for value in range(max_value + 1)
     ) / (max_value + 1)
+
+
+def frames_for_digit_range(
+    digits: str,
+    start_digits: int,
+    end_digits: int,
+    input_config: PiInputConfig,
+    hold_frames: int | None = None,
+    release_frames: int | None = None,
+) -> int:
+    digits_per_input = input_config.digits_per_input
+    start_digits = max(0, int(start_digits))
+    end_digits = max(start_digits, min(int(end_digits), len(digits)))
+    if start_digits % digits_per_input or end_digits % digits_per_input:
+        raise ValueError("Digit range must align to digits_per_input")
+
+    hold = input_config.on_frames if hold_frames is None else hold_frames
+    release = input_config.off_frames if release_frames is None else release_frames
+    if input_config.mapping_mode == "range":
+        return ((end_digits - start_digits) // digits_per_input) * (hold + release)
+
+    return sum(
+        frames_for_digit_value(int(digits[index : index + digits_per_input]), input_config, hold, release)
+        for index in range(start_digits, end_digits, digits_per_input)
+    )
 
 
 def button_for_pair(value: int) -> str:
@@ -344,13 +374,15 @@ def progress_snapshot(
     digits_consumed: int,
     start_digits: int,
     frames_elapsed: int,
+    start_frames_elapsed: int,
     checkpoint_digits: int,
     started_at: float,
     last_state: Path | None,
     input_config: PiInputConfig,
 ) -> Progress:
     elapsed = time.perf_counter() - started_at
-    effective_fps = (digits_consumed - start_digits) / elapsed if elapsed else 0
+    effective_digits_per_second = (digits_consumed - start_digits) / elapsed if elapsed else 0
+    effective_fps = (frames_elapsed - start_frames_elapsed) / elapsed if elapsed else 0
     return Progress(
         run_name=run_name,
         digits_path=str(digits_path),
@@ -360,6 +392,7 @@ def progress_snapshot(
         frames_elapsed=frames_elapsed,
         checkpoints_completed=digits_consumed // checkpoint_digits,
         elapsed_seconds=elapsed,
+        effective_digits_per_second=effective_digits_per_second,
         effective_fps=effective_fps,
         effective_realtime_x=effective_fps / GAMEBOY_FPS,
         last_state=str(last_state) if last_state else None,
@@ -439,8 +472,8 @@ def main() -> None:
         progress_chunk_digits -= progress_chunk_digits % input_config.digits_per_input
     progress_chunk_digits = max(input_config.digits_per_input, progress_chunk_digits)
     digits_consumed = start_digits
-    frames_per_input = average_frames_per_input(input_config, hold_frames, release_frames)
-    frames_elapsed = int((digits_consumed // input_config.digits_per_input) * frames_per_input)
+    frames_elapsed = frames_for_digit_range(digits, 0, digits_consumed, input_config, hold_frames, release_frames)
+    start_frames_elapsed = frames_elapsed
     started_at = time.perf_counter()
     last_state: Path | None = state_to_load
 
@@ -474,6 +507,7 @@ def main() -> None:
                     digits_consumed,
                     start_digits,
                     frames_elapsed,
+                    start_frames_elapsed,
                     args.checkpoint_digits,
                     started_at,
                     last_state,
@@ -482,7 +516,8 @@ def main() -> None:
                 write_progress(progress_path, progress)
                 print(
                     f"checkpoint {digits_consumed:,}/{max_digits:,} digits "
-                    f"({progress.effective_fps:,.0f} fps, {progress.effective_realtime_x:,.0f}x)"
+                    f"({progress.effective_digits_per_second:,.0f} digits/s, "
+                    f"{progress.effective_fps:,.0f} fps, {progress.effective_realtime_x:,.0f}x)"
                 )
                 next_checkpoint = min(next_checkpoint + args.checkpoint_digits, max_digits)
             else:
@@ -495,6 +530,7 @@ def main() -> None:
                         digits_consumed,
                         start_digits,
                         frames_elapsed,
+                        start_frames_elapsed,
                         args.checkpoint_digits,
                         started_at,
                         last_state,
