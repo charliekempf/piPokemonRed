@@ -1786,7 +1786,7 @@ async function refresh() {
     renderCheckpoints([], 0);
     renderTimeline([], 0, 0);
     lastProgressionState = {};
-    renderProgressionGraph({}, 0);
+    renderProgressionGraph({}, 0, { preserveSamples: true });
     renderSplits([], {});
     renderParty([]);
     renderBag([]);
