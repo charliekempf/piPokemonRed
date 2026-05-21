@@ -2,6 +2,7 @@
 roms/*
 saves/*
 results/*
+runs/*
 tas/*
 data/*
 tools/*
@@ -33,6 +34,7 @@ logs/*
 !roms/.gitkeep
 !saves/.gitkeep
 !results/.gitkeep
+!runs/.gitkeep
 !tas/.gitkeep
 !data/.gitkeep
 !tools/.gitkeep

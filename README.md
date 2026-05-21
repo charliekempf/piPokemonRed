@@ -17,13 +17,14 @@ The README screenshot masks the gameplay preview so the public repo does not inc
 ## Layout
 
 - `roms/` - local ROM files, ignored by git
-- `saves/` - emulator RAM/save state files, ignored by git
+- `runs/` - per-config generated run data, ignored by git
+- `saves/` - legacy emulator RAM/save state files, ignored by git
 - `data/` - downloaded pi digit files, ignored by git
 - `tas/` - downloaded TAS/movie files, ignored by git
 - `tools/` - downloaded emulator cores and local tools, ignored by git
 - `src/` - project code
 - `scripts/` - local benchmark and utility scripts
-- `results/` - generated benchmark/output files, ignored by git
+- `results/` - shared generated benchmark/output files and legacy run outputs, ignored by git
 
 ## Publishing / Asset Policy
 
@@ -104,9 +105,9 @@ py scripts\run_pi_pyboy.py --config config\statistical_walk.json --digits data\p
 
 Add `--fresh` to ignore existing checkpoints and restart from reset. Pass `--hold-frames` or `--release-frames` only when intentionally overriding the config for an experiment.
 
-Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`. These generated files are intentionally ignored by git.
+Generated per-config run data now lives together under `runs/<run-name>/`: checkpoints in `checkpoints/`, screenshots in `screenshots/`, exports in `videos/`, progress metadata in `progress.json`, and the run's copied `input_config.json`. These generated files are intentionally ignored by git. The reviewer still reads legacy local data from `saves/<run-name>/` and `results/<run-name>/` so older runs remain usable.
 
-Headless runs can also append one progression-distance sample per pi input to `results/<run-name>/progression_distance.h5`. The HDF5 datasets grow across resumed charting runs and are trimmed back to the loaded checkpoint before new samples are appended. The progression graph loads archived HDF5 samples for the selected range when they are available, including a `Full HDF5 range` option for plotting the entire archived digit span.
+Headless runs can also append one progression-distance sample per pi input to `runs/<run-name>/progression_distance.h5`. The HDF5 datasets grow across resumed charting runs and are trimmed back to the loaded checkpoint before new samples are appended. The progression graph loads archived HDF5 samples for the selected range when they are available, including a `Full HDF5 range` option for plotting the entire archived digit span.
 
 Review a checkpoint in the local web UI:
 

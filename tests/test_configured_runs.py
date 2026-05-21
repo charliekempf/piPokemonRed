@@ -36,8 +36,9 @@ def test_same_config_reuses_base_run_folder(tmp_path: Path) -> None:
 
     assert first == "experiment"
     assert second == "experiment"
-    assert (tmp_path / "saves" / "experiment" / RUN_CONFIG_FILENAME).exists()
-    assert (tmp_path / "results" / "experiment" / RUN_CONFIG_FILENAME).exists()
+    assert (tmp_path / "runs" / "experiment" / RUN_CONFIG_FILENAME).exists()
+    assert not (tmp_path / "saves" / "experiment" / RUN_CONFIG_FILENAME).exists()
+    assert not (tmp_path / "results" / "experiment" / RUN_CONFIG_FILENAME).exists()
 
 
 def test_different_config_gets_separate_run_folder(tmp_path: Path) -> None:
@@ -52,7 +53,7 @@ def test_different_config_gets_separate_run_folder(tmp_path: Path) -> None:
     assert first == "experiment"
     assert second.startswith("alternate_")
     assert second != first
-    assert (tmp_path / "saves" / second / RUN_CONFIG_FILENAME).exists()
+    assert (tmp_path / "runs" / second / RUN_CONFIG_FILENAME).exists()
 
 
 def test_config_name_controls_run_folder_slug(tmp_path: Path) -> None:
@@ -66,7 +67,7 @@ def test_config_name_controls_run_folder_slug(tmp_path: Path) -> None:
 
     assert first == "experiment"
     assert renamed == "statistical_walk"
-    assert config_display_name(tmp_path / "saves" / "statistical_walk" / RUN_CONFIG_FILENAME) == "Statistical Walk"
+    assert config_display_name(tmp_path / "runs" / "statistical_walk" / RUN_CONFIG_FILENAME) == "Statistical Walk"
 
 
 def test_game_version_change_gets_separate_run_folder(tmp_path: Path) -> None:
@@ -94,4 +95,4 @@ def test_adding_game_metadata_keeps_existing_run_folder(tmp_path: Path) -> None:
 
     assert first == "experiment"
     assert updated == "experiment"
-    assert '"game"' in (tmp_path / "saves" / "experiment" / RUN_CONFIG_FILENAME).read_text(encoding="utf-8")
+    assert '"game"' in (tmp_path / "runs" / "experiment" / RUN_CONFIG_FILENAME).read_text(encoding="utf-8")

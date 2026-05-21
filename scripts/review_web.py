@@ -23,7 +23,6 @@ from progression_pathfinding import Tile
 from progression_world import progression_splits, progression_state_for_gate, progression_state_for_tile
 from review_pi_checkpoint import (
     AudioSink,
-    REVIEW_CACHE_DIRNAME,
     ReviewSession,
     checkpoint_digits,
     current_blackout_checkpoint_tile,
@@ -39,23 +38,33 @@ from run_pi_pyboy import (
     ROM,
     RUN_NAME,
     RUN_CONFIG_FILENAME,
-    PROGRESSION_DISTANCE_FILENAME,
     ProgressionDistanceRecorder,
     action_for_value,
     average_frames_per_input,
     advance_pi_inputs,
     button_for_value,
+    checkpoint_search_dirs,
     config_display_name,
+    first_existing_path,
     frames_for_digit_range,
-    latest_checkpoint,
+    latest_checkpoint_for_run,
+    legacy_progress_path,
+    legacy_progression_distance_path,
+    legacy_screenshot_dir,
     load_input_config,
     resolve_configured_run_name,
+    run_checkpoint_dir,
+    run_config_path,
+    run_progress_path,
+    run_progression_distance_path,
+    run_screenshot_dir,
+    run_videos_dir,
     save_checkpoint,
 )
 
 
 WEB_ROOT = Path("web/review")
-REVIEW_SESSION_STATE = Path("results") / "review_session_state.json"
+REVIEW_SESSION_STATE = Path("runs") / "review_session_state.json"
 PROGRESSION_REFRESH_SECONDS = 0.5
 PROGRESSION_GRAPH_CACHE_LIMIT = 16
 RUN_PI_RE = re.compile(r"run_pi_pyboy\.py")
@@ -120,10 +129,11 @@ class RomMissingError(RuntimeError):
 
 
 def read_review_session_state() -> dict[str, object]:
-    if not REVIEW_SESSION_STATE.exists():
+    state_path = first_existing_path([REVIEW_SESSION_STATE, Path("results") / "review_session_state.json"])
+    if state_path is None:
         return {}
     try:
-        return json.loads(REVIEW_SESSION_STATE.read_text(encoding="utf-8"))
+        return json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -137,21 +147,20 @@ def write_review_session_state(run_name: str, digits_consumed: int) -> None:
 
 
 def list_checkpoints(run_name: str) -> list[dict[str, int | str]]:
-    checkpoint_dir = Path("saves") / run_name
-    checkpoints: list[dict[str, int | str]] = []
-    for checkpoint_path in checkpoint_dir.glob("checkpoint_*_digits.state"):
-        try:
-            digits = checkpoint_digits(checkpoint_path, None)
-        except ValueError:
-            continue
-        checkpoints.append({"digits": digits, "filename": checkpoint_path.name})
-    return sorted(checkpoints, key=lambda checkpoint: int(checkpoint["digits"]))
+    checkpoints_by_digit: dict[int, dict[str, int | str]] = {}
+    for checkpoint_dir in checkpoint_search_dirs(run_name):
+        for checkpoint_path in checkpoint_dir.glob("checkpoint_*_digits.state"):
+            try:
+                digits = checkpoint_digits(checkpoint_path, None)
+            except ValueError:
+                continue
+            checkpoints_by_digit.setdefault(digits, {"digits": digits, "filename": checkpoint_path.name})
+    return sorted(checkpoints_by_digit.values(), key=lambda checkpoint: int(checkpoint["digits"]))
 
 
 def seek_checkpoints(run_name: str) -> list[tuple[int, Path]]:
-    checkpoint_dir = Path("saves") / run_name
     candidates: list[tuple[int, Path]] = []
-    for source_dir in (checkpoint_dir, checkpoint_dir / REVIEW_CACHE_DIRNAME):
+    for source_dir in checkpoint_search_dirs(run_name, include_review_cache=True):
         for checkpoint_path in source_dir.glob("checkpoint_*_digits.state"):
             try:
                 candidates.append((checkpoint_digits(checkpoint_path, None), checkpoint_path))
@@ -186,33 +195,36 @@ def list_runs(active_run_name: str) -> list[dict[str, object]]:
             "active": run_name == active_run_name,
         }
 
-    saves_root = Path("saves")
-    if not saves_root.exists():
-        return sorted(runs_by_name.values(), key=lambda run: (str(run["label"]).casefold(), str(run["name"]).casefold()))
-    for run_dir in saves_root.iterdir():
-        if not run_dir.is_dir():
+    for root in (Path("runs"), Path("saves")):
+        if not root.exists():
             continue
-        checkpoints = list_checkpoints(run_dir.name)
-        config_path = run_dir / RUN_CONFIG_FILENAME
-        if not checkpoints and not config_path.exists():
-            continue
-        label = run_dir.name
-        config_available = config_path.exists()
-        if config_available:
-            try:
-                config = load_input_config(config_path)
-                label = f"{config_display_name(config_path)} ({config.digits_per_input}d, {config.on_frames}/{config.off_frames})"
-            except Exception:
-                config_available = False
-        highest_digits = max((int(checkpoint["digits"]) for checkpoint in checkpoints), default=0)
-        runs_by_name[run_dir.name] = {
-            "name": run_dir.name,
-            "label": label,
-            "checkpoint_count": len(checkpoints),
-            "highest_digits": highest_digits,
-            "config_available": config_available,
-            "active": run_dir.name == active_run_name,
-        }
+        for run_dir in root.iterdir():
+            if not run_dir.is_dir():
+                continue
+            checkpoints = list_checkpoints(run_dir.name)
+            config_path = first_existing_path([
+                run_config_path(run_dir.name),
+                Path("saves") / run_dir.name / RUN_CONFIG_FILENAME,
+            ])
+            if not checkpoints and config_path is None:
+                continue
+            label = run_dir.name
+            config_available = config_path is not None
+            if config_available and config_path is not None:
+                try:
+                    config = load_input_config(config_path)
+                    label = f"{config_display_name(config_path)} ({config.digits_per_input}d, {config.on_frames}/{config.off_frames})"
+                except Exception:
+                    config_available = False
+            highest_digits = max((int(checkpoint["digits"]) for checkpoint in checkpoints), default=0)
+            runs_by_name[run_dir.name] = {
+                "name": run_dir.name,
+                "label": label,
+                "checkpoint_count": len(checkpoints),
+                "highest_digits": highest_digits,
+                "config_available": config_available,
+                "active": run_dir.name == active_run_name,
+            }
     return sorted(runs_by_name.values(), key=lambda run: (str(run["label"]).casefold(), str(run["name"]).casefold()))
 
 
@@ -271,12 +283,12 @@ def config_info(config_path: Path) -> dict[str, object]:
 
 
 def load_checkpoint_screenshot(run_name: str, digits_consumed: int) -> Image.Image | None:
-    screenshot_path = (
-        Path("results")
-        / run_name
-        / "screenshots"
-        / f"checkpoint_{digits_consumed}_digits.png"
-    )
+    screenshot_path = first_existing_path([
+        run_screenshot_dir(run_name) / f"checkpoint_{digits_consumed}_digits.png",
+        legacy_screenshot_dir(run_name) / f"checkpoint_{digits_consumed}_digits.png",
+    ])
+    if screenshot_path is None:
+        return None
     if not screenshot_path.exists():
         return None
     with Image.open(screenshot_path) as image:
@@ -302,7 +314,9 @@ def image_to_rgba(image: Image.Image | None) -> bytes:
 
 
 def read_progress(run_name: str) -> dict[str, object]:
-    progress_path = Path("results") / run_name / "progress.json"
+    progress_path = first_existing_path([run_progress_path(run_name), legacy_progress_path(run_name)])
+    if progress_path is None:
+        return {}
     if not progress_path.exists():
         return {}
     try:
@@ -792,7 +806,12 @@ def generate_progression_graph_samples(
 
 
 def archived_progression_graph_samples(run_name: str, start_digits: int, end_digits: int, sample_digits: int) -> list[dict[str, object]]:
-    archive_path = Path("results") / run_name / PROGRESSION_DISTANCE_FILENAME
+    archive_path = first_existing_path([
+        run_progression_distance_path(run_name),
+        legacy_progression_distance_path(run_name),
+    ])
+    if archive_path is None:
+        return []
     if not archive_path.exists():
         return []
     try:
@@ -820,7 +839,12 @@ def archived_progression_graph_samples(run_name: str, start_digits: int, end_dig
 
 
 def archived_progression_digit_bounds(run_name: str) -> tuple[int, int] | None:
-    archive_path = Path("results") / run_name / PROGRESSION_DISTANCE_FILENAME
+    archive_path = first_existing_path([
+        run_progression_distance_path(run_name),
+        legacy_progression_distance_path(run_name),
+    ])
+    if archive_path is None:
+        return None
     if not archive_path.exists():
         return None
     try:
@@ -849,7 +873,7 @@ def append_progression_graph_samples_to_archive(
 ) -> int:
     if not samples:
         return 0
-    archive_path = Path("results") / run_name / PROGRESSION_DISTANCE_FILENAME
+    archive_path = run_progression_distance_path(run_name)
     recorder = ProgressionDistanceRecorder(archive_path, run_name, config_path, digits_path, rom_path)
     try:
         recorder.flush()
@@ -1060,8 +1084,11 @@ class ReviewWebApp:
 
     def select_run(self, run_name: str) -> None:
         run_name = str(run_name)
-        config_path = Path("saves") / run_name / RUN_CONFIG_FILENAME
-        if not config_path.exists():
+        config_path = first_existing_path([
+            run_config_path(run_name),
+            Path("saves") / run_name / RUN_CONFIG_FILENAME,
+        ])
+        if config_path is None:
             raise ValueError(f"Run {run_name} does not have {RUN_CONFIG_FILENAME}.")
 
         input_config = load_input_config(config_path)
@@ -1361,7 +1388,7 @@ class ReviewWebApp:
                 return dict(self.video_export_status)
 
             preset = VIDEO_EXPORT_PRESETS[preset_name]
-            output_dir = Path("results") / self.run_name / "videos"
+            output_dir = run_videos_dir(self.run_name)
             filename = (
                 f"{safe_filename_part(self.run_name)}_{start_digits}_{end_digits}_{preset_name}"
                 f"{preset['extension']}"
@@ -1713,8 +1740,11 @@ def main() -> None:
     remembered_digits: int | None = None
     if restore_requested:
         remembered_run_name = str(remembered_state.get("run_name", "")).strip()
-        remembered_config_path = Path("saves") / remembered_run_name / RUN_CONFIG_FILENAME
-        if remembered_run_name and remembered_config_path.exists():
+        remembered_config_path = first_existing_path([
+            run_config_path(remembered_run_name),
+            Path("saves") / remembered_run_name / RUN_CONFIG_FILENAME,
+        ])
+        if remembered_run_name and remembered_config_path is not None:
             try:
                 remembered_digits = int(remembered_state["digits_consumed"])
             except (KeyError, TypeError, ValueError):
@@ -1744,9 +1774,9 @@ def main() -> None:
         active_config = session_input_config or load_input_config(config_path)
         active_hold_frames = active_config.on_frames if args.hold_frames is None else args.hold_frames
         active_release_frames = active_config.off_frames if args.release_frames is None else args.release_frames
-        checkpoint_dir = Path("saves") / run_name
-        screenshot_dir = Path("results") / run_name / "screenshots"
-        if latest_checkpoint(checkpoint_dir) is None:
+        checkpoint_dir = run_checkpoint_dir(run_name)
+        screenshot_dir = run_screenshot_dir(run_name)
+        if latest_checkpoint_for_run(run_name) is None:
             bootstrap = PyBoy(
                 str(args.rom),
                 window="null",
@@ -1760,7 +1790,7 @@ def main() -> None:
                 save_checkpoint(bootstrap, checkpoint_dir, screenshot_dir, 0, save_screenshot=True)
             finally:
                 bootstrap.stop()
-        newest_checkpoint = latest_checkpoint(Path("saves") / run_name)
+        newest_checkpoint = latest_checkpoint_for_run(run_name)
         newest_checkpoint_digits = newest_checkpoint[0] if newest_checkpoint is not None else 0
         max_digits = min(args.max_digits or len(digits), len(digits))
         if max_digits % active_config.digits_per_input:

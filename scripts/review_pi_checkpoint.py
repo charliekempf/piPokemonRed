@@ -30,9 +30,13 @@ from run_pi_pyboy import (
     advance_pi_inputs,
     button_for_value,
     frames_for_digit_range,
-    latest_checkpoint,
     load_input_config,
     resolve_configured_run_name,
+    checkpoint_search_dirs,
+    run_checkpoint_dir,
+    run_progress_path,
+    run_review_cache_dir,
+    run_screenshot_dir,
     save_checkpoint,
     write_progress,
 )
@@ -2175,10 +2179,8 @@ class ReviewSession:
             self._speed_sample_digits = 0
 
     def _checkpoint_at_or_before(self, target_digits: int, minimum_digits: int = 0) -> tuple[int, Path] | None:
-        checkpoint_dir = Path("saves") / self.run_name
         candidates: list[tuple[int, Path]] = []
-        cache_dir = checkpoint_dir / REVIEW_CACHE_DIRNAME
-        for source_dir in (checkpoint_dir, cache_dir):
+        for source_dir in checkpoint_search_dirs(self.run_name, include_review_cache=True):
             for candidate in source_dir.glob("checkpoint_*_digits.state"):
                 match = CHECKPOINT_RE.match(candidate.name)
                 if match:
@@ -2188,7 +2190,7 @@ class ReviewSession:
         return max(candidates, key=lambda candidate: candidate[0]) if candidates else None
 
     def _review_cache_dir(self) -> Path:
-        return Path("saves") / self.run_name / REVIEW_CACHE_DIRNAME
+        return run_review_cache_dir(self.run_name)
 
     def _cache_review_checkpoint_if_needed(self, pyboy: PyBoy, digits_consumed: int) -> Path | None:
         if digits_consumed <= 0 or digits_consumed % REVIEW_CACHE_INTERVAL_DIGITS:
@@ -2331,9 +2333,9 @@ class ReviewSession:
             log_level="CRITICAL",
         )
         simulator.set_emulation_speed(0)
-        checkpoint_dir = Path("saves") / self.run_name
-        screenshot_dir = Path("results") / self.run_name / "screenshots"
-        progress_path = Path("results") / self.run_name / "progress.json"
+        checkpoint_dir = run_checkpoint_dir(self.run_name)
+        screenshot_dir = run_screenshot_dir(self.run_name)
+        progress_path = run_progress_path(self.run_name)
         digits_consumed = start_digits
         inputs_sent = 0
         total_frames_advanced = 0
@@ -2998,17 +3000,17 @@ def checkpoint_digits(path: Path, explicit_digits: int | None) -> int:
 
 
 def resolve_checkpoint(run_name: str, checkpoint: str, max_digits: int | None = None) -> Path:
-    checkpoint_dir = Path("saves") / run_name
     if checkpoint in {"latest", "penultimate"}:
         candidates = []
-        for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
-            match = CHECKPOINT_RE.match(candidate.name)
-            if match:
-                digits_consumed = int(match.group(1))
-                if max_digits is None or digits_consumed < max_digits:
-                    candidates.append((digits_consumed, candidate))
+        for checkpoint_dir in checkpoint_search_dirs(run_name):
+            for candidate in checkpoint_dir.glob("checkpoint_*_digits.state"):
+                match = CHECKPOINT_RE.match(candidate.name)
+                if match:
+                    digits_consumed = int(match.group(1))
+                    if max_digits is None or digits_consumed < max_digits:
+                        candidates.append((digits_consumed, candidate))
         if not candidates:
-            raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
+            raise FileNotFoundError(f"No checkpoints found for run {run_name}")
         if checkpoint == "penultimate" and len(candidates) >= 2:
             return sorted(candidates)[-2][1]
         return max(candidates)[1]
@@ -3018,9 +3020,10 @@ def resolve_checkpoint(run_name: str, checkpoint: str, max_digits: int | None = 
         return candidate
 
     if checkpoint.isdigit():
-        candidate = checkpoint_dir / f"checkpoint_{int(checkpoint)}_digits.state"
-        if candidate.exists():
-            return candidate
+        for checkpoint_dir in checkpoint_search_dirs(run_name):
+            candidate = checkpoint_dir / f"checkpoint_{int(checkpoint)}_digits.state"
+            if candidate.exists():
+                return candidate
 
     raise FileNotFoundError(f"Checkpoint not found: {checkpoint}")
 

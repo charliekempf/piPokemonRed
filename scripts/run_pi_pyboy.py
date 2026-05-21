@@ -21,6 +21,79 @@ INPUT_CONFIG = Path("config/statistical_walk.json")
 VALID_BUTTONS = {"a", "b", "start", "select", "up", "down", "left", "right"}
 RUN_CONFIG_FILENAME = "input_config.json"
 PROGRESSION_DISTANCE_FILENAME = "progression_distance.h5"
+RUNS_ROOT = Path("runs")
+LEGACY_SAVES_ROOT = Path("saves")
+LEGACY_RESULTS_ROOT = Path("results")
+
+
+def run_root(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return root / run_name
+
+
+def run_config_path(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return run_root(run_name, root) / RUN_CONFIG_FILENAME
+
+
+def run_checkpoint_dir(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return run_root(run_name, root) / "checkpoints"
+
+
+def run_review_cache_dir(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return run_root(run_name, root) / "review_cache"
+
+
+def run_screenshot_dir(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return run_root(run_name, root) / "screenshots"
+
+
+def run_progress_path(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return run_root(run_name, root) / "progress.json"
+
+
+def run_progression_distance_path(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return run_root(run_name, root) / PROGRESSION_DISTANCE_FILENAME
+
+
+def run_videos_dir(run_name: str, root: Path = RUNS_ROOT) -> Path:
+    return run_root(run_name, root) / "videos"
+
+
+def legacy_checkpoint_dir(run_name: str) -> Path:
+    return LEGACY_SAVES_ROOT / run_name
+
+
+def legacy_review_cache_dir(run_name: str) -> Path:
+    return LEGACY_SAVES_ROOT / run_name / "review_cache"
+
+
+def legacy_screenshot_dir(run_name: str) -> Path:
+    return LEGACY_RESULTS_ROOT / run_name / "screenshots"
+
+
+def legacy_progress_path(run_name: str) -> Path:
+    return LEGACY_RESULTS_ROOT / run_name / "progress.json"
+
+
+def legacy_progression_distance_path(run_name: str) -> Path:
+    return LEGACY_RESULTS_ROOT / run_name / PROGRESSION_DISTANCE_FILENAME
+
+
+def checkpoint_search_dirs(run_name: str, include_review_cache: bool = False) -> list[Path]:
+    paths = [run_checkpoint_dir(run_name), legacy_checkpoint_dir(run_name)]
+    if include_review_cache:
+        paths.extend([run_review_cache_dir(run_name), legacy_review_cache_dir(run_name)])
+    unique: list[Path] = []
+    for path in paths:
+        if path not in unique:
+            unique.append(path)
+    return unique
+
+
+def first_existing_path(paths: list[Path]) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
 
 
 @dataclass(frozen=True)
@@ -197,24 +270,27 @@ def config_run_suffix(config_path: Path) -> str:
 def resolve_configured_run_name(
     run_name: str,
     config_path: Path,
-    checkpoint_root: Path = Path("saves"),
-    results_root: Path = Path("results"),
+    checkpoint_root: Path | None = None,
+    results_root: Path | None = None,
+    runs_root: Path = RUNS_ROOT,
 ) -> str:
+    if checkpoint_root is not None and results_root is not None and runs_root == RUNS_ROOT:
+        runs_root = checkpoint_root.parent / "runs"
     config_text = canonical_config_text(config_path)
     configured_run_name = slug_for_name(config_display_name(config_path) or run_name)
-    run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
-    if run_config_path.exists() and not configs_are_compatible(run_config_path, config_path):
+    config_candidates = [
+        run_config_path(configured_run_name, runs_root),
+        (checkpoint_root or LEGACY_SAVES_ROOT) / configured_run_name / RUN_CONFIG_FILENAME,
+        (results_root or LEGACY_RESULTS_ROOT) / configured_run_name / RUN_CONFIG_FILENAME,
+    ]
+    existing_config = first_existing_path(config_candidates)
+    if existing_config is not None and not configs_are_compatible(existing_config, config_path):
         configured_run_name = config_run_suffix(config_path)
-        run_config_path = checkpoint_root / configured_run_name / RUN_CONFIG_FILENAME
+    target_config_path = run_config_path(configured_run_name, runs_root)
 
-    run_config_path.parent.mkdir(parents=True, exist_ok=True)
-    if not run_config_path.exists() or run_config_path.read_text(encoding="utf-8") != config_text:
-        run_config_path.write_text(config_text, encoding="utf-8")
-
-    results_config_path = results_root / configured_run_name / RUN_CONFIG_FILENAME
-    results_config_path.parent.mkdir(parents=True, exist_ok=True)
-    if not results_config_path.exists() or results_config_path.read_text(encoding="utf-8") != config_text:
-        results_config_path.write_text(config_text, encoding="utf-8")
+    target_config_path.parent.mkdir(parents=True, exist_ok=True)
+    if not target_config_path.exists() or target_config_path.read_text(encoding="utf-8") != config_text:
+        target_config_path.write_text(config_text, encoding="utf-8")
 
     return configured_run_name
 
@@ -488,6 +564,15 @@ def latest_checkpoint(checkpoint_dir: Path) -> tuple[int, Path] | None:
     return max(candidates) if candidates else None
 
 
+def latest_checkpoint_for_run(run_name: str) -> tuple[int, Path] | None:
+    candidates: list[tuple[int, Path]] = []
+    for checkpoint_dir in checkpoint_search_dirs(run_name):
+        checkpoint = latest_checkpoint(checkpoint_dir)
+        if checkpoint is not None:
+            candidates.append(checkpoint)
+    return max(candidates) if candidates else None
+
+
 def checkpoint_at_or_before(checkpoint_dir: Path, target_digits: int) -> tuple[int, Path] | None:
     pattern = re.compile(r"checkpoint_(\d+)_digits\.state$")
     candidates: list[tuple[int, Path]] = []
@@ -497,6 +582,15 @@ def checkpoint_at_or_before(checkpoint_dir: Path, target_digits: int) -> tuple[i
             digits = int(match.group(1))
             if digits <= target_digits:
                 candidates.append((digits, path))
+    return max(candidates) if candidates else None
+
+
+def checkpoint_at_or_before_for_run(run_name: str, target_digits: int) -> tuple[int, Path] | None:
+    candidates: list[tuple[int, Path]] = []
+    for checkpoint_dir in checkpoint_search_dirs(run_name):
+        checkpoint = checkpoint_at_or_before(checkpoint_dir, target_digits)
+        if checkpoint is not None:
+            candidates.append(checkpoint)
     return max(candidates) if candidates else None
 
 
@@ -630,10 +724,10 @@ def main() -> None:
     if max_digits % input_config.digits_per_input:
         max_digits -= max_digits % input_config.digits_per_input
 
-    checkpoint_dir = Path("saves") / args.run_name
-    screenshot_dir = Path("results") / args.run_name / "screenshots"
-    progress_path = Path("results") / args.run_name / "progress.json"
-    progression_distance_path = Path("results") / args.run_name / PROGRESSION_DISTANCE_FILENAME
+    checkpoint_dir = run_checkpoint_dir(args.run_name)
+    screenshot_dir = run_screenshot_dir(args.run_name)
+    progress_path = run_progress_path(args.run_name)
+    progression_distance_path = run_progression_distance_path(args.run_name)
 
     start_digits = 0
     state_to_load: Path | None = None
@@ -648,14 +742,14 @@ def main() -> None:
             )
             if missing_digit is not None:
                 resume_target = max(0, missing_digit - input_config.digits_per_input)
-                checkpoint = checkpoint_at_or_before(checkpoint_dir, resume_target)
+                checkpoint = checkpoint_at_or_before_for_run(args.run_name, resume_target)
                 if checkpoint is None:
                     fill_from_reset = True
                     print(f"Re-simulating from reset to fill HDF5 progression distance at {missing_digit:,} digits.")
                 else:
                     print(f"Re-simulating from {checkpoint[0]:,} digits to fill HDF5 progression distance at {missing_digit:,} digits.")
         if checkpoint is None and not fill_from_reset:
-            checkpoint = latest_checkpoint(checkpoint_dir)
+            checkpoint = latest_checkpoint_for_run(args.run_name)
         if checkpoint is not None:
             start_digits, state_to_load = checkpoint
 

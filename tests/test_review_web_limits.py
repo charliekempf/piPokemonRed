@@ -135,7 +135,7 @@ def test_archived_progression_graph_samples_read_hdf5(tmp_path: Path, monkeypatc
     import h5py
 
     monkeypatch.chdir(tmp_path)
-    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path = Path("runs/statistical_walk/progression_distance.h5")
     archive_path.parent.mkdir(parents=True)
     with h5py.File(archive_path, "w") as handle:
         string_dtype = h5py.string_dtype(encoding="utf-8")
@@ -163,7 +163,7 @@ def test_archived_progression_digit_bounds_reads_hdf5(tmp_path: Path, monkeypatc
     import h5py
 
     monkeypatch.chdir(tmp_path)
-    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path = Path("runs/statistical_walk/progression_distance.h5")
     archive_path.parent.mkdir(parents=True)
     with h5py.File(archive_path, "w") as handle:
         handle.create_dataset("digit", data=[18, 2, 10])
@@ -175,7 +175,7 @@ def test_progression_graph_archive_range_centers_current_digit(tmp_path: Path, m
     import h5py
 
     monkeypatch.chdir(tmp_path)
-    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path = Path("runs/statistical_walk/progression_distance.h5")
     archive_path.parent.mkdir(parents=True)
     with h5py.File(archive_path, "w") as handle:
         handle.create_dataset("digit", data=[2, 4, 6, 8, 10, 12, 14, 16, 18])
@@ -272,7 +272,7 @@ def test_append_progression_graph_samples_skips_duplicate_digits(tmp_path: Path,
     import h5py
 
     monkeypatch.chdir(tmp_path)
-    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path = Path("runs/statistical_walk/progression_distance.h5")
     archive_path.parent.mkdir(parents=True)
     with h5py.File(archive_path, "w") as handle:
         handle.create_dataset("digit", shape=(0,), maxshape=(None,), chunks=True, dtype="i8")
