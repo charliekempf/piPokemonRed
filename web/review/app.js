@@ -51,6 +51,7 @@ const generateProgressionGraphButton = document.querySelector("#generate-progres
 const progressionGraphStatusEl = document.querySelector("#progression-graph-status");
 const progressionPointEl = document.querySelector("#progression-point");
 const progressionDistanceEl = document.querySelector("#progression-distance");
+const progressionCloserCheckpointEl = document.querySelector("#progression-closer-checkpoint");
 const progressionGraphEl = document.querySelector("#progression-graph");
 const progressionSigmaEl = document.querySelector("#progression-sigma");
 const progressionProbabilityEl = document.querySelector("#progression-probability");
@@ -1271,6 +1272,19 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
 
   progressionPointEl.textContent = `${pointLabel}${locationLabel}`;
   progressionDistanceEl.textContent = hasDistance ? `${fmt(Math.round(remainingSteps))} steps` : "Awaiting route data";
+  const closerCheckpoint = progression.nearest_closer_checkpoint || {};
+  const closerCheckpointSteps = finiteNumber(closerCheckpoint.steps);
+  if (Number.isFinite(closerCheckpointSteps)) {
+    progressionCloserCheckpointEl.textContent = `${fmt(Math.round(closerCheckpointSteps))} steps to ${closerCheckpoint.label || "checkpoint"}`;
+    const checkpointProgression = finiteNumber(closerCheckpoint.checkpoint_progression_steps);
+    const currentCheckpointProgression = finiteNumber(closerCheckpoint.current_checkpoint_progression_steps);
+    progressionCloserCheckpointEl.title = Number.isFinite(checkpointProgression) && Number.isFinite(currentCheckpointProgression)
+      ? `${closerCheckpoint.label || "Checkpoint"} is ${fmt(Math.round(checkpointProgression))} steps from the objective; current checkpoint is ${fmt(Math.round(currentCheckpointProgression))}.`
+      : "";
+  } else {
+    progressionCloserCheckpointEl.textContent = "None";
+    progressionCloserCheckpointEl.title = "";
+  }
   progressionSampleValueEl.textContent = `${fmt(sampleInterval)} digit${sampleInterval === 1 ? "" : "s"}`;
   if (!options.preserveSamples && lastProgressionSampleInterval !== sampleInterval) {
     progressionSamples = [];

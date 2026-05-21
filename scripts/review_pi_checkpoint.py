@@ -37,7 +37,7 @@ from run_pi_pyboy import (
     write_progress,
 )
 from progression_pathfinding import Tile
-from progression_world import active_progression_gate, progression_state_for_tile
+from progression_world import active_progression_gate, checkpoint_tile_for_blackout_map, progression_state_for_tile
 
 
 CHECKPOINT_RE = re.compile(r"checkpoint_(\d+)_digits\.state$")
@@ -59,6 +59,7 @@ OBTAINED_BADGES_ADDR = 0xD356
 CURRENT_MAP_ADDR = 0xD35E
 PLAYER_Y_ADDR = 0xD361
 PLAYER_X_ADDR = 0xD362
+LAST_BLACKOUT_MAP_ADDR = 0xD719
 EVO_OLD_SPECIES_ADDR = 0xCEE9
 EVO_NEW_SPECIES_ADDR = 0xCEEA
 EVOLUTION_OCCURRED_ADDR = 0xD121
@@ -1339,6 +1340,14 @@ def current_player_tile(pyboy: PyBoy) -> dict[str, int]:
     }
 
 
+def current_blackout_checkpoint_tile(pyboy: PyBoy) -> dict[str, int] | None:
+    checkpoint = checkpoint_tile_for_blackout_map(int(pyboy.memory[LAST_BLACKOUT_MAP_ADDR]))
+    if checkpoint is None:
+        return None
+    map_id, x, y = checkpoint["tile"]
+    return {"map_id": int(map_id), "x": int(x), "y": int(y)}
+
+
 def map_name(map_id: int) -> str:
     name = MAP_NAMES.get(map_id, f"Map ${map_id:02X}")
     context = MAP_CONTEXTS.get(map_id)
@@ -1354,7 +1363,13 @@ def map_name(map_id: int) -> str:
 
 def progression_state(pyboy: PyBoy) -> dict[str, object]:
     tile = current_player_tile(pyboy)
-    return progression_state_for_tile(pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
+    checkpoint_tile = current_blackout_checkpoint_tile(pyboy)
+    respawn_tile = (
+        Tile(checkpoint_tile["map_id"], checkpoint_tile["x"], checkpoint_tile["y"])
+        if checkpoint_tile is not None
+        else None
+    )
+    return progression_state_for_tile(pyboy, Tile(tile["map_id"], tile["x"], tile["y"]), respawn_tile)
 
 
 def move_name(move_id: int) -> str:
@@ -1729,6 +1744,7 @@ class ReviewSession:
                 "digits_consumed": self.digits_consumed,
                 "gate": gate,
                 "current_tile": tile,
+                "checkpoint_tile": current_blackout_checkpoint_tile(self.pyboy),
                 "in_battle": is_in_battle(self.pyboy),
             }
 

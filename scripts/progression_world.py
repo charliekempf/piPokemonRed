@@ -180,6 +180,63 @@ def cached_progression_distance(
     return cached_distance_index("progression_gates", gate_id, path).get(Tile(map_id, tile.x, tile.y))
 
 
+def cached_checkpoint_distance(
+    checkpoint_id: str,
+    tile: Tile,
+    path: str = str(DISTANCE_CACHE_PATH),
+) -> int | None:
+    try:
+        map_id = int(tile.map_id)
+    except (TypeError, ValueError):
+        return None
+    return cached_distance_index("checkpoints", checkpoint_id, path).get(Tile(map_id, tile.x, tile.y))
+
+
+def checkpoint_tile_for_blackout_map(map_id: int) -> dict[str, Any] | None:
+    for checkpoint in CHECKPOINT_TILES:
+        if int(checkpoint["tile"][0]) == map_id:
+            return checkpoint
+    return None
+
+
+def tile_dict(tile: Tile) -> dict[str, int | str]:
+    return {"map_id": tile.map_id, "x": tile.x, "y": tile.y}
+
+
+def nearest_closer_checkpoint(
+    gate_id: str,
+    current_tile: Tile,
+    current_checkpoint_tile: Tile | None,
+    distance_cache_path: str = str(DISTANCE_CACHE_PATH),
+) -> dict[str, Any] | None:
+    if current_checkpoint_tile is None:
+        return None
+    current_checkpoint_progression = cached_progression_distance(gate_id, current_checkpoint_tile, distance_cache_path)
+    if current_checkpoint_progression is None:
+        return None
+
+    best: dict[str, Any] | None = None
+    for checkpoint in CHECKPOINT_TILES:
+        checkpoint_tile = Tile(*checkpoint["tile"])
+        checkpoint_progression = cached_progression_distance(gate_id, checkpoint_tile, distance_cache_path)
+        if checkpoint_progression is None or checkpoint_progression >= current_checkpoint_progression:
+            continue
+        distance_to_checkpoint = cached_checkpoint_distance(str(checkpoint["id"]), current_tile, distance_cache_path)
+        if distance_to_checkpoint is None:
+            continue
+        candidate = {
+            "id": checkpoint["id"],
+            "label": checkpoint["label"],
+            "tile": tile_dict(checkpoint_tile),
+            "steps": distance_to_checkpoint,
+            "checkpoint_progression_steps": checkpoint_progression,
+            "current_checkpoint_progression_steps": current_checkpoint_progression,
+        }
+        if best is None or distance_to_checkpoint < int(best["steps"]):
+            best = candidate
+    return best
+
+
 def active_progression_gate(pyboy: object) -> dict[str, Any]:
     from review_pi_checkpoint import (
         BAG_ITEMS_ADDR,
@@ -263,6 +320,7 @@ def progression_state_for_gate(
         respawn_tile = respawn_tile or current_tile
         cached_total = cached_progression_distance(str(gate["id"]), respawn_tile, distance_cache_path)
         total_steps = cached_total if cached_total is not None else cached_remaining
+        closer_checkpoint = nearest_closer_checkpoint(str(gate["id"]), current_tile, respawn_tile, distance_cache_path)
         return {
             **base,
             "remaining_steps": cached_remaining,
@@ -270,6 +328,8 @@ def progression_state_for_gate(
             "graph_max_steps": max(1, int(total_steps or cached_remaining) * 2),
             "reachable": True,
             "distance_source": "cache",
+            "current_checkpoint_tile": tile_dict(respawn_tile),
+            "nearest_closer_checkpoint": closer_checkpoint,
         }
 
     world = load_world(world_path)

@@ -26,6 +26,7 @@ from review_pi_checkpoint import (
     REVIEW_CACHE_DIRNAME,
     ReviewSession,
     checkpoint_digits,
+    current_blackout_checkpoint_tile,
     current_player_tile,
     is_in_battle,
     render_loaded_state,
@@ -657,9 +658,15 @@ def generate_progression_graph_samples(
             pyboy.load_state(state_file)
 
         checkpoint_tile = current_player_tile(pyboy)
+        checkpoint_respawn_tile = current_blackout_checkpoint_tile(pyboy)
         checkpoint_progression = progression_state_for_tile(
             pyboy,
             Tile(checkpoint_tile["map_id"], checkpoint_tile["x"], checkpoint_tile["y"]),
+            (
+                Tile(checkpoint_respawn_tile["map_id"], checkpoint_respawn_tile["x"], checkpoint_respawn_tile["y"])
+                if checkpoint_respawn_tile is not None
+                else None
+            ),
         )
         checkpoint_steps = checkpoint_progression.get("remaining_steps")
 
@@ -696,7 +703,16 @@ def generate_progression_graph_samples(
                 }
             else:
                 tile = current_player_tile(pyboy)
-                progression = progression_state_for_tile(pyboy, Tile(tile["map_id"], tile["x"], tile["y"]))
+                respawn_tile = current_blackout_checkpoint_tile(pyboy)
+                progression = progression_state_for_tile(
+                    pyboy,
+                    Tile(tile["map_id"], tile["x"], tile["y"]),
+                    (
+                        Tile(respawn_tile["map_id"], respawn_tile["x"], respawn_tile["y"])
+                        if respawn_tile is not None
+                        else None
+                    ),
+                )
                 sample = {
                     "digit": digits_consumed,
                     "steps": progression.get("remaining_steps"),
@@ -821,7 +837,13 @@ class ReviewWebApp:
                     continue
                 gate = snapshot["gate"]
                 tile_info = snapshot["current_tile"]
+                checkpoint_info = snapshot.get("checkpoint_tile")
                 tile = Tile(int(tile_info["map_id"]), int(tile_info["x"]), int(tile_info["y"]))
+                checkpoint_tile = (
+                    Tile(int(checkpoint_info["map_id"]), int(checkpoint_info["x"]), int(checkpoint_info["y"]))
+                    if isinstance(checkpoint_info, dict)
+                    else None
+                )
                 signature = f"{snapshot['digits_consumed']}:{gate['id']}:{tile.map_id}:{tile.x}:{tile.y}"
                 with self._lock:
                     if signature == self.progression_signature:
@@ -830,7 +852,7 @@ class ReviewWebApp:
                         self.progression_signature = signature
                         state = "compute"
                 if state:
-                    progression = progression_state_for_gate(gate, tile)
+                    progression = progression_state_for_gate(gate, tile, checkpoint_tile)
                     progression["computed_digits"] = int(snapshot["digits_consumed"])
                     with self._lock:
                         if self.progression_signature == signature:

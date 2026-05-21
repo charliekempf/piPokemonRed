@@ -65,10 +65,23 @@ def test_progression_state_uses_cached_distance_when_available() -> None:
                     "progression_gates": {
                         "test_gate": {
                             "distances": {
-                                "1": [[2, 3, 17], [4, 5, 41]],
+                                "0": [[5, 6, 100]],
+                                "1": [[2, 3, 17], [4, 5, 41], [23, 26, 30]],
                             }
                         }
-                    }
+                    },
+                    "checkpoints": {
+                        "pallet_home": {
+                            "distances": {
+                                "1": [[2, 3, 12]],
+                            }
+                        },
+                        "viridian_pokecenter": {
+                            "distances": {
+                                "1": [[2, 3, 8]],
+                            }
+                        },
+                    },
                 }
             ),
             encoding="utf-8",
@@ -84,6 +97,9 @@ def test_progression_state_uses_cached_distance_when_available() -> None:
         assert state["remaining_steps"] == 17
         assert state["total_steps_from_respawn"] == 41
         assert state["graph_max_steps"] == 82
+        assert state["nearest_closer_checkpoint"]["id"] == "viridian_pokecenter"
+        assert state["nearest_closer_checkpoint"]["steps"] == 8
+        assert state["nearest_closer_checkpoint"]["checkpoint_progression_steps"] == 30
 
 
 def test_progression_state_falls_back_when_cache_misses() -> None:

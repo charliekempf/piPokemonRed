@@ -1482,6 +1482,10 @@ button:disabled {
 }
 
 .progression-graph-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: center;
   min-height: 24px;
   padding: 7px 9px;
   background: #1c1f26;
@@ -1494,6 +1498,7 @@ button:disabled {
 .progression-graph-meta strong {
   color: #f3f1e8;
   font-size: 13px;
+  text-align: right;
 }
 
 .progression-graph-status {
