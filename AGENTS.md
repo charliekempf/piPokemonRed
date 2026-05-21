@@ -101,6 +101,8 @@ Current reviewer UI behavior:
 - Prefer the web reviewer (`scripts/review_web.py`) for UI work.
 - Do not update `docs/review-player.png` or other README screenshots unless Charlie explicitly asks for a screenshot update.
 - The launcher uses the full local pi digit file by default; pass `-MaxDigits <n>` only when a capped review is wanted.
+- `scripts/open_review.ps1` should launch the local reviewer server for the Codex in-app browser by default. Do not open the system web browser unless Charlie explicitly asks; use `-OpenExternalBrowser` only for that opt-in case.
+- After launching the reviewer, open or refresh `http://127.0.0.1:8765/` in the Codex in-app browser when visual verification is needed.
 - The launcher and web reviewer default to `penultimate` checkpoint selection so review opens one checkpoint behind the newest available checkpoint while the digit limit follows the newest checkpoint.
 - The reviewer default speed is `10x`; pass `-Speed 1` or `--speed 1` when audio fidelity matters.
 - The launcher default run should be `statistical_spread`; do not switch it back to removed old runs.

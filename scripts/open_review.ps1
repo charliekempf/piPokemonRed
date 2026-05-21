@@ -9,7 +9,8 @@ param(
     [int]$ReleaseFrames = -1,
     [int]$SoundVolume = 100,
     [int]$SoundSampleRate = 48000,
-    [int]$Scale = 4
+    [int]$Scale = 4,
+    [switch]$OpenExternalBrowser
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,9 +34,12 @@ $arguments = @(
     "--speed", "$Speed",
     "--sound-volume", "$SoundVolume",
     "--sound-sample-rate", "$SoundSampleRate",
-    "--scale", "$Scale",
-    "--open-browser"
+    "--scale", "$Scale"
 )
+
+if ($OpenExternalBrowser) {
+    $arguments += "--open-browser"
+}
 
 if ($MaxDigits -gt 0) {
     $arguments += @("--max-digits", "$MaxDigits")
@@ -49,3 +53,4 @@ if ($ReleaseFrames -ge 0) {
 
 $process = Start-Process -FilePath "py" -ArgumentList $arguments -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru
 Write-Host "Started review process PID=$($process.Id)"
+Write-Host "Open the reviewer in Codex at http://127.0.0.1:8765/"
