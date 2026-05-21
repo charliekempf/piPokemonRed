@@ -668,6 +668,33 @@ input[type="range"] {
   padding: 0 10px;
 }
 
+.simulator-toggle {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  box-sizing: border-box;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+  background: #1c1f26;
+  color: #f3f1e8;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.simulator-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #6f89af;
+}
+
+.simulator-toggle:has(input:disabled) {
+  opacity: 0.58;
+}
+
 .checkpoint-panel .simulator-panel {
   grid-template-columns: 1fr;
   gap: 8px;

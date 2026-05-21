@@ -926,7 +926,12 @@ class ReviewWebApp:
             old_thread.join(timeout=2)
         self.start_emulator_thread()
 
-    def start_chart_simulation(self, target_digits: int, checkpoint_interval_digits: int) -> int:
+    def start_chart_simulation(
+        self,
+        target_digits: int,
+        checkpoint_interval_digits: int,
+        log_progression_distance: bool = True,
+    ) -> int:
         target_digits = max(0, int(target_digits))
         checkpoint_interval_digits = max(self.digits_per_input, int(checkpoint_interval_digits))
         if checkpoint_interval_digits % self.digits_per_input:
@@ -952,6 +957,8 @@ class ReviewWebApp:
                 "--max-digits",
                 str(target_digits),
             ]
+            if not log_progression_distance:
+                command.append("--no-progression-distance")
             self.chart_simulation = subprocess.Popen(
                 command,
                 cwd=Path.cwd(),
@@ -1377,6 +1384,7 @@ def make_handler(app: ReviewWebApp):
                 target_digits = app.start_chart_simulation(
                     int(body.get("target_digits", body.get("digits", 1000))),
                     int(body.get("checkpoint_interval_digits", 1_000_000)),
+                    bool(body.get("log_progression_distance", True)),
                 )
                 self._send_json({"ok": True, "target_digits": target_digits})
             elif path == "/api/jump":

@@ -28,6 +28,7 @@ const warpLimitEl = document.querySelector("#warp-limit");
 const warpStateButton = document.querySelector("#warp-state-button");
 const simulateCheckpointIntervalEl = document.querySelector("#simulate-checkpoint-interval");
 const simulateTargetDigitsEl = document.querySelector("#simulate-target-digits");
+const simulateProgressionDistanceEl = document.querySelector("#simulate-progression-distance");
 const simulateButton = document.querySelector("#simulate-button");
 const stopSimulateButton = document.querySelector("#stop-simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
@@ -457,6 +458,7 @@ simulateButton.addEventListener("click", () => {
   post("/api/simulate", {
     target_digits: targetDigits,
     checkpoint_interval_digits: Number(simulateCheckpointIntervalEl.value),
+    log_progression_distance: simulateProgressionDistanceEl.checked,
   });
 });
 
@@ -1673,6 +1675,7 @@ function renderStats(state) {
   jumpButton.disabled = backendBusy;
   warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
+  simulateProgressionDistanceEl.disabled = backendBusy;
   videoExportButton.disabled = backendBusy;
   generateProgressionGraphButton.disabled = progressionGraphGenerationRunning;
   stopSimulateButton.disabled = true;
@@ -1682,6 +1685,7 @@ function renderStats(state) {
     jumpButton.disabled = true;
     warpStateButton.disabled = true;
     simulateButton.disabled = true;
+    simulateProgressionDistanceEl.disabled = true;
     videoExportButton.disabled = true;
     generateProgressionGraphButton.disabled = true;
     manualModeEl.disabled = true;
