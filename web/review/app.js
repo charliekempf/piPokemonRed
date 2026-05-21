@@ -29,6 +29,7 @@ const warpStateButton = document.querySelector("#warp-state-button");
 const simulateCheckpointIntervalEl = document.querySelector("#simulate-checkpoint-interval");
 const simulateTargetDigitsEl = document.querySelector("#simulate-target-digits");
 const simulateProgressionDistanceEl = document.querySelector("#simulate-progression-distance");
+const simulateFillMissingProgressionEl = document.querySelector("#simulate-fill-missing-progression");
 const simulateButton = document.querySelector("#simulate-button");
 const stopSimulateButton = document.querySelector("#stop-simulate-button");
 const simulateStatusEl = document.querySelector("#simulate-status");
@@ -457,7 +458,12 @@ simulateButton.addEventListener("click", () => {
     target_digits: targetDigits,
     checkpoint_interval_digits: Number(simulateCheckpointIntervalEl.value),
     log_progression_distance: simulateProgressionDistanceEl.checked,
+    fill_missing_progression_distance: simulateFillMissingProgressionEl.checked,
   });
+});
+
+simulateProgressionDistanceEl.addEventListener("change", () => {
+  simulateFillMissingProgressionEl.disabled = !simulateProgressionDistanceEl.checked;
 });
 
 stopSimulateButton.addEventListener("click", () => {
@@ -1668,6 +1674,7 @@ function renderStats(state) {
   warpStateButton.disabled = backendBusy;
   simulateButton.disabled = backendBusy;
   simulateProgressionDistanceEl.disabled = backendBusy;
+  simulateFillMissingProgressionEl.disabled = backendBusy || !simulateProgressionDistanceEl.checked;
   videoExportButton.disabled = backendBusy;
   generateProgressionGraphButton.disabled = progressionGraphGenerationRunning;
   stopSimulateButton.disabled = true;
@@ -1678,6 +1685,7 @@ function renderStats(state) {
     warpStateButton.disabled = true;
     simulateButton.disabled = true;
     simulateProgressionDistanceEl.disabled = true;
+    simulateFillMissingProgressionEl.disabled = true;
     videoExportButton.disabled = true;
     generateProgressionGraphButton.disabled = true;
     manualModeEl.disabled = true;

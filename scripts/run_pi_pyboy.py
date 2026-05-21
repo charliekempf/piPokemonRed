@@ -488,6 +488,42 @@ def latest_checkpoint(checkpoint_dir: Path) -> tuple[int, Path] | None:
     return max(candidates) if candidates else None
 
 
+def checkpoint_at_or_before(checkpoint_dir: Path, target_digits: int) -> tuple[int, Path] | None:
+    pattern = re.compile(r"checkpoint_(\d+)_digits\.state$")
+    candidates: list[tuple[int, Path]] = []
+    for path in checkpoint_dir.glob("checkpoint_*_digits.state"):
+        match = pattern.match(path.name)
+        if match:
+            digits = int(match.group(1))
+            if digits <= target_digits:
+                candidates.append((digits, path))
+    return max(candidates) if candidates else None
+
+
+def first_missing_progression_distance_digit(
+    archive_path: Path,
+    max_digits: int,
+    digits_per_input: int,
+) -> int | None:
+    if max_digits <= 0:
+        return None
+    if not archive_path.exists():
+        return digits_per_input
+    try:
+        import h5py
+    except ImportError as error:
+        raise RuntimeError("Install h5py to inspect progression distance archives.") from error
+
+    with h5py.File(archive_path, "r") as handle:
+        if "digit" not in handle:
+            return digits_per_input
+        archived_digits = {int(value) for value in handle["digit"][:] if int(value) <= max_digits}
+    for digit in range(digits_per_input, max_digits + 1, digits_per_input):
+        if digit not in archived_digits:
+            return digit
+    return None
+
+
 def save_checkpoint(
     pyboy: PyBoy,
     checkpoint_dir: Path,
@@ -570,6 +606,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not append per-input progression distance samples to the run HDF5 dataset.",
     )
+    parser.add_argument(
+        "--fill-missing-progression-distance",
+        action="store_true",
+        help="Resume before the first missing HDF5 progression-distance row, even if later checkpoints already exist.",
+    )
     return parser.parse_args()
 
 
@@ -597,7 +638,24 @@ def main() -> None:
     start_digits = 0
     state_to_load: Path | None = None
     if not args.fresh:
-        checkpoint = latest_checkpoint(checkpoint_dir)
+        checkpoint = None
+        fill_from_reset = False
+        if args.fill_missing_progression_distance and not args.no_progression_distance:
+            missing_digit = first_missing_progression_distance_digit(
+                progression_distance_path,
+                max_digits,
+                input_config.digits_per_input,
+            )
+            if missing_digit is not None:
+                resume_target = max(0, missing_digit - input_config.digits_per_input)
+                checkpoint = checkpoint_at_or_before(checkpoint_dir, resume_target)
+                if checkpoint is None:
+                    fill_from_reset = True
+                    print(f"Re-simulating from reset to fill HDF5 progression distance at {missing_digit:,} digits.")
+                else:
+                    print(f"Re-simulating from {checkpoint[0]:,} digits to fill HDF5 progression distance at {missing_digit:,} digits.")
+        if checkpoint is None and not fill_from_reset:
+            checkpoint = latest_checkpoint(checkpoint_dir)
         if checkpoint is not None:
             start_digits, state_to_load = checkpoint
 

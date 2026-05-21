@@ -1082,6 +1082,7 @@ class ReviewWebApp:
         target_digits: int,
         checkpoint_interval_digits: int,
         log_progression_distance: bool = True,
+        fill_missing_progression_distance: bool = False,
     ) -> int:
         target_digits = max(0, int(target_digits))
         checkpoint_interval_digits = max(self.digits_per_input, int(checkpoint_interval_digits))
@@ -1110,6 +1111,8 @@ class ReviewWebApp:
             ]
             if not log_progression_distance:
                 command.append("--no-progression-distance")
+            elif fill_missing_progression_distance:
+                command.append("--fill-missing-progression-distance")
             self.chart_simulation = subprocess.Popen(
                 command,
                 cwd=Path.cwd(),
@@ -1557,6 +1560,7 @@ def make_handler(app: ReviewWebApp):
                     int(body.get("target_digits", body.get("digits", 1000))),
                     int(body.get("checkpoint_interval_digits", 1_000_000)),
                     bool(body.get("log_progression_distance", True)),
+                    bool(body.get("fill_missing_progression_distance", False)),
                 )
                 self._send_json({"ok": True, "target_digits": target_digits})
             elif path == "/api/jump":

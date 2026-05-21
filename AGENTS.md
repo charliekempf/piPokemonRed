@@ -65,6 +65,7 @@ Current reviewer UI behavior:
 - Clicking `Warp` sets reviewer playback to `1x` before searching.
 - The `Headless simulator` panel in the checkpoint pane advances the real run to an absolute `Simulate up to` target with a configurable `Checkpoint every` interval, then writes checkpoints, screenshots, and `results/<run>/progress.json` so the headless run can continue from the new state.
 - Headless charting also records `results/<run>/progression_distance.h5` with per-input digits, frame counts, map/tile, active objective, remaining steps, total respawn distance, nearest-closer-checkpoint distance, reachability, and battle flags. It requires `h5py` from `requirements.txt`.
+- The headless panel has a `Fill missing HDF5 ranges` checkbox. When enabled with progression-distance logging, `scripts/run_pi_pyboy.py --fill-missing-progression-distance` resumes before the first missing HDF5 input sample, even if later savestate checkpoints already exist.
 - Headless charting simulation must be a separate PyBoy instance/process from the reviewer jump/seek backend. Killing the headless simulator means only processes whose command line includes `run_pi_pyboy.py`; do not kill the reviewer unless asked.
 - The headless simulator UI reports charting status, progress, speed in digits/s, and ETA, and should remember a running chart operation instead of claiming `Ready`.
 - After backend fast-forward, automatic in-memory snapshot capture is disabled for that review session because PyBoy can hang when saving reviewer snapshots after loading the backend-simulated state.
