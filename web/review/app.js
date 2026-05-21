@@ -1322,7 +1322,7 @@ async function pollProgressionGraph() {
         ? `Loaded ${fmt(sampleCount)} archived HDF5 samples`
         : status.cache_hit
           ? `Loaded ${fmt(sampleCount)} cached samples`
-          : `Generated ${fmt(sampleCount)} samples`;
+          : `Generated ${fmt(sampleCount)} samples, archived ${fmt(Number(status.archived_count) || 0)} new`;
       if (completionKey !== lastProgressionGraphCompletion) {
         lastProgressionGraphCompletion = completionKey;
         applyGeneratedProgressionSamples(status.samples || []);

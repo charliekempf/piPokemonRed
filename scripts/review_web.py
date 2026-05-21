@@ -40,6 +40,7 @@ from run_pi_pyboy import (
     RUN_NAME,
     RUN_CONFIG_FILENAME,
     PROGRESSION_DISTANCE_FILENAME,
+    ProgressionDistanceRecorder,
     action_for_value,
     average_frames_per_input,
     advance_pi_inputs,
@@ -689,13 +690,17 @@ def generate_progression_graph_samples(
                 sample = {
                     **last_sample,
                     "digit": digits_consumed,
+                    "input_index": digits_consumed // input_config.digits_per_input,
                     "in_battle": True,
                 }
             elif is_in_battle(pyboy):
                 sample = {
                     "digit": digits_consumed,
+                    "input_index": digits_consumed // input_config.digits_per_input,
                     "steps": None,
+                    "remaining_steps": None,
                     "label": "In battle",
+                    "gate_label": "In battle",
                     "objective_location": "",
                     "reachable": False,
                     "baseline_steps": checkpoint_steps,
@@ -716,12 +721,27 @@ def generate_progression_graph_samples(
                 )
                 sample = {
                     "digit": digits_consumed,
+                    "input_index": digits_consumed // input_config.digits_per_input,
+                    "map_id": tile["map_id"],
+                    "x": tile["x"],
+                    "y": tile["y"],
+                    "respawn_map_id": respawn_tile["map_id"] if respawn_tile is not None else -1,
+                    "respawn_x": respawn_tile["x"] if respawn_tile is not None else -1,
+                    "respawn_y": respawn_tile["y"] if respawn_tile is not None else -1,
                     "steps": progression.get("remaining_steps"),
+                    "remaining_steps": progression.get("remaining_steps"),
+                    "gate_id": progression.get("id", ""),
                     "label": progression.get("label", ""),
+                    "gate_label": progression.get("label", ""),
                     "objective_location": progression.get("objective_location", ""),
                     "reachable": bool(progression.get("reachable", False)),
                     "baseline_steps": checkpoint_steps,
                     "total_steps_from_respawn": progression.get("total_steps_from_respawn"),
+                    "nearest_closer_checkpoint_steps": (
+                        progression.get("nearest_closer_checkpoint", {}).get("steps")
+                        if isinstance(progression.get("nearest_closer_checkpoint"), dict)
+                        else None
+                    ),
                     "in_battle": False,
                 }
                 last_sample = sample
@@ -745,6 +765,13 @@ def generate_progression_graph_samples(
                 sound=False,
             )
 
+        archived_count = append_progression_graph_samples_to_archive(
+            app.run_name,
+            app.config_path,
+            app.digits_path,
+            app.rom_path,
+            samples,
+        )
         final_status = {
             "state": "Complete",
             "running": False,
@@ -754,6 +781,7 @@ def generate_progression_graph_samples(
             "sample_digits": sample_digits,
             "sample_count": len(samples),
             "samples": samples,
+            "archived_count": archived_count,
             "cache_hit": False,
             "error": "",
         }
@@ -789,6 +817,69 @@ def archived_progression_graph_samples(run_name: str, start_digits: int, end_dig
             return [archived_progression_graph_sample(handle, index) for index in selected_indexes]
     except OSError:
         return []
+
+
+def append_progression_graph_samples_to_archive(
+    run_name: str,
+    config_path: Path,
+    digits_path: Path,
+    rom_path: Path,
+    samples: list[dict[str, object]],
+) -> int:
+    if not samples:
+        return 0
+    archive_path = Path("results") / run_name / PROGRESSION_DISTANCE_FILENAME
+    recorder = ProgressionDistanceRecorder(archive_path, run_name, config_path, digits_path, rom_path)
+    try:
+        recorder.flush()
+        existing_digits = set(int(value) for value in recorder.datasets["digit"][:])
+        appended = 0
+        for sample in samples:
+            digit = int(sample.get("digit", -1))
+            if digit < 0 or digit in existing_digits:
+                continue
+            recorder.append(graph_sample_to_archive_sample(sample))
+            existing_digits.add(digit)
+            appended += 1
+        recorder.flush()
+        if appended:
+            sort_progression_distance_archive(recorder)
+        return appended
+    finally:
+        recorder.close()
+
+
+def graph_sample_to_archive_sample(sample: dict[str, object]) -> dict[str, object]:
+    return {
+        "digit": sample.get("digit"),
+        "input_index": sample.get("input_index"),
+        "frames_elapsed": sample.get("frames_elapsed"),
+        "map_id": sample.get("map_id"),
+        "x": sample.get("x"),
+        "y": sample.get("y"),
+        "respawn_map_id": sample.get("respawn_map_id"),
+        "respawn_x": sample.get("respawn_x"),
+        "respawn_y": sample.get("respawn_y"),
+        "remaining_steps": sample.get("remaining_steps", sample.get("steps")),
+        "total_steps_from_respawn": sample.get("total_steps_from_respawn", sample.get("baseline_steps")),
+        "nearest_closer_checkpoint_steps": sample.get("nearest_closer_checkpoint_steps"),
+        "gate_id": sample.get("gate_id"),
+        "gate_label": sample.get("gate_label", sample.get("label", "")),
+        "objective_location": sample.get("objective_location"),
+        "reachable": sample.get("reachable"),
+        "in_battle": sample.get("in_battle"),
+    }
+
+
+def sort_progression_distance_archive(recorder: ProgressionDistanceRecorder) -> None:
+    digits = [int(value) for value in recorder.datasets["digit"][:]]
+    order = sorted(range(len(digits)), key=lambda index: digits[index])
+    if order == list(range(len(order))):
+        return
+    for dataset in recorder.datasets.values():
+        values = dataset[:]
+        dataset[:] = values[order]
+    recorder.flush()
 
 
 def archived_progression_graph_sample(handle, index: int) -> dict[str, object]:

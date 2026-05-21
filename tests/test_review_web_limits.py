@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import review_web
-from review_web import ReviewWebApp, archived_progression_graph_samples
+from review_web import ReviewWebApp, append_progression_graph_samples_to_archive, archived_progression_graph_samples
 
 
 class FakeSession:
@@ -153,3 +153,41 @@ def test_progression_graph_archive_range_centers_current_digit(tmp_path: Path, m
     assert status["end_digits"] == 14
     assert status["sample_digits"] == 2
     assert [sample["digit"] for sample in status["samples"]] == [6, 8, 10, 12, 14]
+
+
+def test_append_progression_graph_samples_skips_duplicate_digits(tmp_path: Path, monkeypatch) -> None:
+    import h5py
+
+    monkeypatch.chdir(tmp_path)
+    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path.parent.mkdir(parents=True)
+    with h5py.File(archive_path, "w") as handle:
+        handle.create_dataset("digit", shape=(0,), maxshape=(None,), chunks=True, dtype="i8")
+        handle.create_dataset("remaining_steps", shape=(0,), maxshape=(None,), chunks=True, dtype="i4")
+
+    first_count = append_progression_graph_samples_to_archive(
+        "statistical_walk",
+        Path("config/statistical_walk.json"),
+        Path("data/test.txt"),
+        Path("roms/test.gb"),
+        [
+            {"digit": 6, "input_index": 3, "steps": 12, "label": "Oak", "reachable": True},
+            {"digit": 4, "input_index": 2, "steps": 14, "label": "Oak", "reachable": True},
+        ],
+    )
+    second_count = append_progression_graph_samples_to_archive(
+        "statistical_walk",
+        Path("config/statistical_walk.json"),
+        Path("data/test.txt"),
+        Path("roms/test.gb"),
+        [
+            {"digit": 4, "input_index": 2, "steps": 14, "label": "Oak", "reachable": True},
+            {"digit": 8, "input_index": 4, "steps": 10, "label": "Oak", "reachable": True},
+        ],
+    )
+
+    assert first_count == 2
+    assert second_count == 1
+    with h5py.File(archive_path, "r") as handle:
+        assert handle["digit"][:].tolist() == [4, 6, 8]
+        assert handle["remaining_steps"][:].tolist() == [14, 12, 10]
