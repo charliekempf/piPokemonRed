@@ -64,7 +64,7 @@ Native emulator cores such as Gambatte should be benchmarked next for a higher c
 
 ## Pi Input Run
 
-The active input scheme consumes two decimal digits at a time and presses the mapped button for two frames, followed by one blank frame:
+The default `Statistical Walk` input scheme consumes two decimal digits at a time and presses the mapped button for two frames, followed by one blank frame:
 
 - `00-53` -> A
 - `54-63` -> Up
@@ -74,7 +74,13 @@ The active input scheme consumes two decimal digits at a time and presses the ma
 - `94-98` -> B
 - `99` -> Start
 
-The input timing and mapping live in `config/statistical_walk.json`:
+Input timing and mapping live in config JSON files. The currently tracked configs are:
+
+- `config/statistical_walk.json` - the default two-digit statistical button spread.
+- `config/super_walk.json` - a movement-heavy two-digit walk mapping using longer step-safe timing.
+- `config/super_stride.json` - a stride mapping where the first digit chooses the action/direction and the second digit chooses a 1-10 step stride for directions.
+
+Each config includes:
 
 - `name` is the friendly label shown in the config dropdown.
 - `game` records the target game title, version, and region. The current config targets `Pokemon Red` version `1.0`, region `USA/Europe`.
@@ -82,6 +88,7 @@ The input timing and mapping live in `config/statistical_walk.json`:
 - `off_frames` controls how many blank frames follow the button press.
 - `digits_per_input` controls how many pi digits are consumed for each input.
 - `mapping` assigns each decimal range to a Game Boy button.
+- `mapping_mode`, `first_digit_mapping`, `step_digit`, and `start_combo` are used by stride configs.
 
 Run or resume a headless PyBoy test with:
 
@@ -99,7 +106,7 @@ Add `--fresh` to ignore existing checkpoints and restart from reset. Pass `--hol
 
 Generated savestates go under `saves/<run-name>/`, screenshots under `results/<run-name>/screenshots/`, and progress metadata under `results/<run-name>/progress.json`. These generated files are intentionally ignored by git.
 
-Headless runs also append one progression-distance sample per pi input to `results/<run-name>/progression_distance.h5`. The HDF5 datasets grow across resumed charting runs and are trimmed back to the loaded checkpoint before new samples are appended. The progression graph loads archived HDF5 samples for the selected range when they are available, avoiding a PyBoy resimulation pass.
+Headless runs can also append one progression-distance sample per pi input to `results/<run-name>/progression_distance.h5`. The HDF5 datasets grow across resumed charting runs and are trimmed back to the loaded checkpoint before new samples are appended. The progression graph loads archived HDF5 samples for the selected range when they are available, including a `Full HDF5 range` option for plotting the entire archived digit span.
 
 Review a checkpoint in the local web UI:
 
@@ -131,15 +138,18 @@ The web reviewer continues the same pi input stream from the checkpoint. It serv
 - A speed slider from `0.1x` through `1000x` to `Unlimited`, with a mute/unmute audio toggle.
 - Digit-based rewind and fast-forward controls folded into the jump panel.
 - Arbitrary jump-to-digit support, using the nearest checkpoint first and simulating the remaining gap.
-- A checkpoint list, clickable timeline, and current charted-checkpoint progress fill.
-- An input preview showing the last three inputs, current input, and upcoming inputs.
+- A checkpoint list with config selection and load controls.
+- A right-side review stack where Inputs and Progress are equal-height panes, with Party and Player side by side below them.
+- An input preview showing the last three inputs, current input, and upcoming inputs. Stride configs display directional inputs as step counts, for example `4 Steps Up`.
+- A Progress pane listing the required progression objectives in order.
 - Live location display, including building context such as `Pallet Town | Oak's Lab`.
-- Live party panel with expandable moves and PP.
+- Live party panel with Pokemon names, HP bars, expandable moves, and PP.
 - Player panel with money, Pokedex seen/caught, actual elapsed emulator time with days, bag contents, and gym badges.
-- Config panel showing game version/region, digits per input, button ranges, and a button-spread chart.
+- Progression Distance graph with generated or archived HDF5 samples, nearest-closer-checkpoint distance, probability estimates, and a `No Data` empty state when the chosen range has no samples.
+- Config and Video Export panels side by side below the graph. Config shows game version/region, digits per input, button ranges, and a button-spread chart. Video Export can export digit ranges through ffmpeg presets such as MP4, AV1, FFV1, and ProRes.
 - Event Finder for warping to the next battle, wild battle, trainer battle, location change, item pickup, level up, evolution, or blackout, with a digit-limit dropdown to prevent long searches.
 
-The Headless simulator panel can extend a run from the browser. Enter an absolute `Simulate up to` digit target and choose `Checkpoint every` to control how frequently savestates/screenshots are written. The simulator resumes from the highest usable checkpoint at or before the target, so extending a run does not replay already-saved work. The resume path has been checked by comparing a full 49M -> 50M advance against loading the 50M checkpoint; the final PyBoy savestates matched byte-for-byte.
+The Headless simulator panel can extend a run from the browser. Enter an absolute `Simulate up to` digit target and choose `Checkpoint every` to control how frequently savestates/screenshots are written. The simulator resumes from the highest usable checkpoint at or before the target, so extending a run does not replay already-saved work. Progression-distance logging is enabled by default, and the `Fill missing HDF5 ranges` checkbox can force the simulator to re-run checkpointed sections that are missing archived graph samples. The resume path has been checked by comparing a full 49M -> 50M advance against loading the 50M checkpoint; the final PyBoy savestates matched byte-for-byte.
 
 ## TAS Button Tally
 
