@@ -53,6 +53,6 @@ def test_progression_state_is_reachable_with_generated_database_when_available()
     state = progression_state_for_tile(pyboy, Tile(0x0C, 8, 20))
 
     assert state["label"] == "Receive Oak's Parcel"
-    assert state["remaining_steps"] == 51
-    assert state["graph_max_steps"] == 102
+    assert state["remaining_steps"] == 61
+    assert state["graph_max_steps"] == 122
     assert state["reachable"] is True

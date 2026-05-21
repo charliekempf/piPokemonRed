@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from progression_pathfinding import MapGrid, Tile, Warp, WorldGraph, progression_distance, shortest_path
+from progression_pathfinding import Ledge, MapGrid, Tile, Warp, WorldGraph, progression_distance, shortest_path
 
 
 DATABASE_PATH = Path("results") / "progression_world.json"
@@ -86,7 +86,29 @@ def load_world(path: str = str(DATABASE_PATH)) -> WorldGraph | None:
             for x in range(width)
             if (x, y) not in walkable
         }
-        maps[map_id] = MapGrid(map_id, width, height, blocked=blocked)
+        blocked_edges = {
+            (
+                Tile(int(raw_edge["source"][0]), int(raw_edge["source"][1]), int(raw_edge["source"][2])),
+                Tile(
+                    int(raw_edge["destination"][0]),
+                    int(raw_edge["destination"][1]),
+                    int(raw_edge["destination"][2]),
+                ),
+            )
+            for raw_edge in raw_map.get("blocked_edges", [])
+        }
+        ledges = [
+            Ledge(
+                Tile(int(raw_ledge["source"][0]), int(raw_ledge["source"][1]), int(raw_ledge["source"][2])),
+                Tile(
+                    int(raw_ledge["destination"][0]),
+                    int(raw_ledge["destination"][1]),
+                    int(raw_ledge["destination"][2]),
+                ),
+            )
+            for raw_ledge in raw_map.get("ledges", [])
+        ]
+        maps[map_id] = MapGrid(map_id, width, height, blocked=blocked, blocked_edges=blocked_edges, ledges=ledges)
 
     warps = [
         Warp(
