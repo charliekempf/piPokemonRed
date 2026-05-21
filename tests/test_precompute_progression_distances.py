@@ -102,6 +102,40 @@ def test_progression_state_uses_cached_distance_when_available() -> None:
         assert state["nearest_closer_checkpoint"]["checkpoint_progression_steps"] == 30
 
 
+def test_progression_state_allows_no_nearest_closer_checkpoint() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        cache_path = Path(temp_dir) / "cache.json"
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "progression_gates": {
+                        "test_gate": {
+                            "distances": {
+                                "1": [[2, 3, 17], [4, 5, 30], [23, 26, 30]],
+                            }
+                        }
+                    },
+                    "checkpoints": {
+                        "viridian_pokecenter": {
+                            "distances": {
+                                "1": [[2, 3, 8]],
+                            }
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        state = progression_state_for_gate(
+            {"id": "test_gate", "label": "Test gate", "targets": [(1, 0, 0)]},
+            Tile(1, 2, 3),
+            Tile(1, 4, 5),
+            distance_cache_path=str(cache_path),
+        )
+
+        assert state["nearest_closer_checkpoint"] is None
+
+
 def test_progression_state_falls_back_when_cache_misses() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         world_path = Path(temp_dir) / "world.json"

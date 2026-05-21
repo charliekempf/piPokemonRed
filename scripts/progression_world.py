@@ -340,6 +340,7 @@ def progression_state_for_gate(
         "total_steps_from_respawn": None,
         "graph_max_steps": None,
         "reachable": False,
+        "nearest_closer_checkpoint": None,
     }
 
     cached_remaining = cached_progression_distance(str(gate["id"]), current_tile, distance_cache_path)
