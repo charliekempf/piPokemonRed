@@ -48,8 +48,6 @@ const checkpointsEl = document.querySelector("#checkpoints");
 const loadCheckpointButton = document.querySelector("#load-checkpoint-button");
 const timelineEl = document.querySelector("#timeline");
 const progressionRangeEl = document.querySelector("#progression-range");
-const progressionSampleEl = document.querySelector("#progression-sample");
-const progressionSampleValueEl = document.querySelector("#progression-sample-value");
 const generateProgressionGraphButton = document.querySelector("#generate-progression-graph");
 const progressionGraphStatusEl = document.querySelector("#progression-graph-status");
 const progressionPointEl = document.querySelector("#progression-point");
@@ -536,20 +534,14 @@ progressionRangeEl.addEventListener("change", () => {
   renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
 });
 
-progressionSampleEl.addEventListener("input", () => {
-  renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0);
-});
-
 generateProgressionGraphButton.addEventListener("click", async () => {
   const currentDigits = Math.max(0, Number(lastProgressionState.digits_consumed) || 0);
   const rangeDigits = Math.max(1, Number(progressionRangeEl.value) || 10000);
-  const sampleDigits = progressionSampleInterval();
   generateProgressionGraphButton.disabled = true;
   progressionGraphStatusEl.textContent = "Starting graph generation";
   const result = await post("/api/generate-progression-graph", {
     center_digits: currentDigits,
     range_digits: rangeDigits,
-    sample_digits: sampleDigits,
   });
   if (!result.ok) {
     generateProgressionGraphButton.disabled = false;
@@ -1292,12 +1284,6 @@ function renderTimeline(checkpoints, currentDigits, maxDigits) {
   timelineEl.replaceChildren(track);
 }
 
-function progressionSampleInterval() {
-  const exponent = Math.max(0, Math.min(4, Math.round(finiteNumber(progressionSampleEl.value) || 0)));
-  progressionSampleEl.value = String(exponent);
-  return 10 ** exponent;
-}
-
 function applyGeneratedProgressionSamples(samples = []) {
   const mapped = samples
     .map((sample) => {
@@ -1311,7 +1297,7 @@ function applyGeneratedProgressionSamples(samples = []) {
     .filter((sample) => Number.isFinite(sample.digit));
   progressionSamples = mapped;
   lastProgressionSampleDigit = mapped.length ? mapped[mapped.length - 1].digit : null;
-  lastProgressionSampleInterval = progressionSampleInterval();
+  lastProgressionSampleInterval = Math.max(1, Number(lastProgressionState.digits_per_input) || 1);
   renderProgressionGraph(lastProgressionState.progression || {}, lastProgressionState.digits_consumed || 0, { preserveSamples: true });
 }
 
@@ -1367,7 +1353,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   const totalSteps = finiteNumber(rawTotalSteps);
   const graphMaxSteps = finiteNumber(rawGraphMaxSteps);
   const selectableRange = Math.max(1, finiteNumber(progressionRangeEl.value) || 10000);
-  const sampleInterval = progressionSampleInterval();
+  const sampleInterval = Math.max(1, Number(lastProgressionState.digits_per_input) || 1);
   const halfRange = selectableRange / 2;
   const hasGeneratedSamples = options.preserveSamples && progressionSamples.length > 0;
   const generatedMaxDigit = hasGeneratedSamples
@@ -1397,7 +1383,6 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     progressionCloserCheckpointEl.textContent = "None";
     progressionCloserCheckpointEl.title = "";
   }
-  progressionSampleValueEl.textContent = `${fmt(sampleInterval)} digit${sampleInterval === 1 ? "" : "s"}`;
   if (!options.preserveSamples && lastProgressionSampleInterval !== sampleInterval) {
     progressionSamples = [];
     lastProgressionSampleDigit = null;

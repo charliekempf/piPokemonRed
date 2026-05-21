@@ -146,9 +146,10 @@ def test_progression_graph_archive_range_centers_current_digit(tmp_path: Path, m
         session_factory=lambda: session,
     )
 
-    status = app.start_progression_graph_generation(center_digits=10, range_digits=8, sample_digits=2)
+    status = app.start_progression_graph_generation(center_digits=10, range_digits=8)
 
     assert status["state"] == "Archived"
     assert status["start_digits"] == 6
     assert status["end_digits"] == 14
+    assert status["sample_digits"] == 2
     assert [sample["digit"] for sample in status["samples"]] == [6, 8, 10, 12, 14]

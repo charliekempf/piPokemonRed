@@ -1582,25 +1582,13 @@ button:disabled {
   min-width: 0;
 }
 
-.progression-range-field,
-.progression-sample-field {
+.progression-range-field {
   display: flex;
   align-items: center;
   gap: 8px;
   color: #aeb4c0;
   font-size: 12px;
   font-weight: 700;
-}
-
-.progression-sample-field input {
-  width: 150px;
-}
-
-.progression-sample-field strong {
-  min-width: 78px;
-  color: #f3f1e8;
-  font-size: 12px;
-  text-align: right;
 }
 
 .progression-generate-button {

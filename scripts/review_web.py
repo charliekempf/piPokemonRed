@@ -1122,16 +1122,13 @@ class ReviewWebApp:
         self,
         center_digits: int,
         range_digits: int,
-        sample_digits: int,
     ) -> dict[str, object]:
         if self.session is None:
             raise ValueError("ROM required.")
         digits_per_input = self.digits_per_input
         center_digits = normalize_digit(max(0, int(center_digits)), digits_per_input)
         range_digits = max(digits_per_input, int(range_digits))
-        sample_digits = max(digits_per_input, int(sample_digits))
-        if sample_digits % digits_per_input:
-            sample_digits += digits_per_input - (sample_digits % digits_per_input)
+        sample_digits = digits_per_input
         half_range = normalize_digit(range_digits // 2, digits_per_input)
         start_digits = normalize_digit(max(0, center_digits - half_range), digits_per_input)
         end_digits = normalize_digit(min(len(self.digits), start_digits + range_digits), digits_per_input)
@@ -1432,7 +1429,6 @@ def make_handler(app: ReviewWebApp):
                     status = app.start_progression_graph_generation(
                         int(body.get("center_digits", body.get("end_digits", 0))),
                         int(body.get("range_digits", 10000)),
-                        int(body.get("sample_digits", 100)),
                     )
                     self._send_json({"ok": True, "graph": status})
                 except Exception as error:
