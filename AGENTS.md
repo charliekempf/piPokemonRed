@@ -30,6 +30,7 @@ Current core approach:
 Important scripts:
 
 - `scripts/run_pi_pyboy.py` runs the headless deterministic simulation and writes savestates/screenshots/progress.
+- During headless charting, `scripts/run_pi_pyboy.py` also appends one progression-distance sample after each pi input to `results/<run>/progression_distance.h5`. The HDF5 file is ignored/local, expandable across resumed runs, and trimmed back to the resume checkpoint before appending.
 - `scripts/review_web.py` runs the local web reviewer/control surface with WebGL canvas rendering, speed control, digit-based rewind/fast-forward, backend simulation controls, and an upcoming-input preview.
 - `scripts/review_pi_checkpoint.py` is the older Tk-based reviewer kept for reference.
 - `scripts/open_review.ps1` safely closes older reviewer instances and opens a fresh web reviewer.
@@ -62,6 +63,7 @@ Current reviewer UI behavior:
 - Event Finder is a matching strip below Jump with `Warp to next`, an alphabetized dropdown (`Battle`, `Blackout`, `Evolution`, `Item pickup`, `Level up`, `Location change`, `Trainer battle`, `Wild Pokemon battle`), `Warp`, `Timeout`, and a digit-limit dropdown.
 - Clicking `Warp` sets reviewer playback to `1x` before searching.
 - The `Headless simulator` panel in the checkpoint pane advances the real run to an absolute `Simulate up to` target with a configurable `Checkpoint every` interval, then writes checkpoints, screenshots, and `results/<run>/progress.json` so the headless run can continue from the new state.
+- Headless charting also records `results/<run>/progression_distance.h5` with per-input digits, frame counts, map/tile, active objective, remaining steps, total respawn distance, nearest-closer-checkpoint distance, reachability, and battle flags. It requires `h5py` from `requirements.txt`.
 - Headless charting simulation must be a separate PyBoy instance/process from the reviewer jump/seek backend. Killing the headless simulator means only processes whose command line includes `run_pi_pyboy.py`; do not kill the reviewer unless asked.
 - The headless simulator UI reports charting status, progress, speed in digits/s, and ETA, and should remember a running chart operation instead of claiming `Ready`.
 - After backend fast-forward, automatic in-memory snapshot capture is disabled for that review session because PyBoy can hang when saving reviewer snapshots after loading the backend-simulated state.

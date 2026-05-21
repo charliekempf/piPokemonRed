@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from run_pi_pyboy import (
+    ProgressionDistanceRecorder,
     action_for_value,
     advance_pi_inputs,
     average_frames_per_input,
@@ -133,6 +134,66 @@ def test_super_stride_repeats_directional_cycles() -> None:
     assert result.frames_advanced == (10 + 10 + 1) * (config.on_frames + config.off_frames)
     assert sum(1 for event in pyboy.events if event == ("press", "up")) == 20
     assert sum(1 for event in pyboy.events if event == ("press", "start")) == 1
+
+
+def test_advance_pi_inputs_reports_each_input_to_callback() -> None:
+    config = load_input_config(Path("config/statistical_walk.json"))
+    pyboy = FakePyBoy()
+    callbacks: list[tuple[int, int, str, int]] = []
+
+    result = advance_pi_inputs(
+        pyboy,  # type: ignore[arg-type]
+        "065499",
+        0,
+        6,
+        config.on_frames,
+        config.off_frames,
+        input_config=config,
+        after_input=lambda digits, inputs, button, frames: callbacks.append((digits, inputs, button, frames)),
+    )
+
+    assert result.inputs_sent == 3
+    assert callbacks == [(2, 1, "a", 3), (4, 2, "up", 6), (6, 3, "start", 9)]
+
+
+def test_progression_distance_recorder_appends_and_trims_hdf5(tmp_path: Path) -> None:
+    path = tmp_path / "progression_distance.h5"
+    recorder = ProgressionDistanceRecorder(path, "run", Path("config/statistical_walk.json"), Path("digits.txt"), Path("rom.gb"))
+
+    recorder.append(
+        {
+            "digit": 2,
+            "input_index": 1,
+            "frames_elapsed": 3,
+            "map_id": 1,
+            "x": 2,
+            "y": 3,
+            "respawn_map_id": 1,
+            "respawn_x": 4,
+            "respawn_y": 5,
+            "remaining_steps": 10,
+            "total_steps_from_respawn": 20,
+            "nearest_closer_checkpoint_steps": None,
+            "gate_id": "choose_starter",
+            "gate_label": "Choose starter",
+            "objective_location": "Oak's Lab",
+            "reachable": True,
+            "in_battle": False,
+        }
+    )
+    recorder.append({"digit": 4, "input_index": 2, "frames_elapsed": 6})
+    recorder.flush()
+    recorder.trim_after(2)
+    recorder.close()
+
+    import h5py
+
+    with h5py.File(path, "r") as handle:
+        assert handle.attrs["schema"] == "pi_pokemon_progression_distance_v1"
+        assert handle["digit"][:].tolist() == [2]
+        assert handle["remaining_steps"][:].tolist() == [10]
+        assert handle["reachable"][:].tolist() == [True]
+        assert handle["gate_id"].asstr()[:].tolist() == ["choose_starter"]
 
 
 def test_super_stride_frame_count_is_digit_exact() -> None:

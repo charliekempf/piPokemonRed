@@ -8,6 +8,7 @@ import re
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Callable
 
 from pyboy import PyBoy
 
@@ -19,6 +20,7 @@ GAMEBOY_FPS = 4194304 / 70224
 INPUT_CONFIG = Path("config/statistical_walk.json")
 VALID_BUTTONS = {"a", "b", "start", "select", "up", "down", "left", "right"}
 RUN_CONFIG_FILENAME = "input_config.json"
+PROGRESSION_DISTANCE_FILENAME = "progression_distance.h5"
 
 
 @dataclass(frozen=True)
@@ -299,6 +301,7 @@ def advance_pi_inputs(
     render_final: bool = False,
     input_config: PiInputConfig | None = None,
     sound: bool = True,
+    after_input: Callable[[int, int, str, int], None] | None = None,
 ) -> AdvanceResult:
     config = input_config or load_input_config()
     digits_per_input = config.digits_per_input
@@ -322,7 +325,157 @@ def advance_pi_inputs(
         digits_consumed += digits_per_input
         inputs_sent += 1
         last_button = button
+        if after_input is not None:
+            after_input(digits_consumed, inputs_sent, last_button, frames_advanced)
     return AdvanceResult(digits_consumed, inputs_sent, last_button, frames_advanced)
+
+
+class ProgressionDistanceRecorder:
+    STRING_FIELDS = ("gate_id", "gate_label", "objective_location")
+    INT_FIELDS = (
+        "digit",
+        "input_index",
+        "frames_elapsed",
+        "map_id",
+        "x",
+        "y",
+        "respawn_map_id",
+        "respawn_x",
+        "respawn_y",
+        "remaining_steps",
+        "total_steps_from_respawn",
+        "nearest_closer_checkpoint_steps",
+    )
+    BOOL_FIELDS = ("reachable", "in_battle")
+
+    def __init__(self, path: Path, run_name: str, config_path: Path, digits_path: Path, rom_path: Path) -> None:
+        try:
+            import h5py
+        except ImportError as error:
+            raise RuntimeError("Install h5py to record progression distance: py -m pip install -r requirements.txt") from error
+
+        self.h5py = h5py
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.file = h5py.File(path, "a")
+        self.file.attrs["run_name"] = run_name
+        self.file.attrs["config_path"] = str(config_path)
+        self.file.attrs["digits_path"] = str(digits_path)
+        self.file.attrs["rom_path"] = str(rom_path)
+        self.file.attrs["schema"] = "pi_pokemon_progression_distance_v1"
+        self.datasets = self._open_datasets()
+        self.buffer: list[dict[str, object]] = []
+
+    def _open_datasets(self):
+        string_dtype = self.h5py.string_dtype(encoding="utf-8")
+        datasets = {}
+        for field in self.INT_FIELDS:
+            dtype = "i8" if field in {"digit", "input_index", "frames_elapsed"} else "i4"
+            datasets[field] = self._dataset(field, dtype)
+        for field in self.BOOL_FIELDS:
+            datasets[field] = self._dataset(field, "?")
+        for field in self.STRING_FIELDS:
+            datasets[field] = self._dataset(field, string_dtype)
+        return datasets
+
+    def _dataset(self, name: str, dtype):
+        if name in self.file:
+            return self.file[name]
+        return self.file.create_dataset(name, shape=(0,), maxshape=(None,), chunks=True, dtype=dtype)
+
+    def trim_after(self, digits_consumed: int) -> None:
+        digit_dataset = self.datasets["digit"]
+        keep_count = 0
+        for value in digit_dataset:
+            if int(value) <= digits_consumed:
+                keep_count += 1
+            else:
+                break
+        for dataset in self.datasets.values():
+            if len(dataset) != keep_count:
+                dataset.resize((keep_count,))
+        self.file.flush()
+
+    def append(self, sample: dict[str, object]) -> None:
+        self.buffer.append(sample)
+        if len(self.buffer) >= 8192:
+            self._write_buffer()
+
+    def _write_buffer(self) -> None:
+        if not self.buffer:
+            return
+        row = len(self.datasets["digit"])
+        count = len(self.buffer)
+        for dataset in self.datasets.values():
+            dataset.resize((row + count,))
+        for offset, sample in enumerate(self.buffer):
+            self._write_sample(row + offset, sample)
+        self.buffer.clear()
+
+    def _write_sample(self, row: int, sample: dict[str, object]) -> None:
+        for field in self.INT_FIELDS:
+            self.datasets[field][row] = int(sample.get(field, -1) if sample.get(field) is not None else -1)
+        for field in self.BOOL_FIELDS:
+            self.datasets[field][row] = bool(sample.get(field, False))
+        for field in self.STRING_FIELDS:
+            self.datasets[field][row] = str(sample.get(field, ""))
+
+    def flush(self) -> None:
+        self._write_buffer()
+        self.file.flush()
+
+    def close(self) -> None:
+        self.flush()
+        self.file.close()
+
+
+def progression_distance_sample(pyboy: PyBoy, digits_consumed: int, frames_elapsed: int, input_config: PiInputConfig) -> dict[str, object]:
+    from progression_pathfinding import Tile
+    from progression_world import progression_state_for_tile
+    from review_pi_checkpoint import current_blackout_checkpoint_tile, current_player_tile, is_in_battle
+
+    tile = current_player_tile(pyboy)
+    respawn = current_blackout_checkpoint_tile(pyboy)
+    base: dict[str, object] = {
+        "digit": digits_consumed,
+        "input_index": digits_consumed // input_config.digits_per_input,
+        "frames_elapsed": frames_elapsed,
+        "map_id": tile["map_id"],
+        "x": tile["x"],
+        "y": tile["y"],
+        "respawn_map_id": respawn["map_id"] if respawn is not None else -1,
+        "respawn_x": respawn["x"] if respawn is not None else -1,
+        "respawn_y": respawn["y"] if respawn is not None else -1,
+        "remaining_steps": None,
+        "total_steps_from_respawn": None,
+        "nearest_closer_checkpoint_steps": None,
+        "gate_id": "",
+        "gate_label": "",
+        "objective_location": "",
+        "reachable": False,
+        "in_battle": is_in_battle(pyboy),
+    }
+    if base["in_battle"]:
+        return base
+
+    progression = progression_state_for_tile(
+        pyboy,
+        Tile(tile["map_id"], tile["x"], tile["y"]),
+        Tile(respawn["map_id"], respawn["x"], respawn["y"]) if respawn is not None else None,
+    )
+    nearest = progression.get("nearest_closer_checkpoint")
+    if isinstance(nearest, dict):
+        base["nearest_closer_checkpoint_steps"] = nearest.get("steps")
+    base.update(
+        {
+            "remaining_steps": progression.get("remaining_steps"),
+            "total_steps_from_respawn": progression.get("total_steps_from_respawn"),
+            "gate_id": progression.get("id", ""),
+            "gate_label": progression.get("label", ""),
+            "objective_location": progression.get("objective_location", ""),
+            "reachable": bool(progression.get("reachable", False)),
+        }
+    )
+    return base
 
 
 def latest_checkpoint(checkpoint_dir: Path) -> tuple[int, Path] | None:
@@ -412,6 +565,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sound-sample-rate", type=int, default=48000)
     parser.add_argument("--fresh", action="store_true", help="Ignore existing checkpoints and start from reset.")
     parser.add_argument("--no-screenshots", action="store_true")
+    parser.add_argument(
+        "--no-progression-distance",
+        action="store_true",
+        help="Do not append per-input progression distance samples to the run HDF5 dataset.",
+    )
     return parser.parse_args()
 
 
@@ -434,6 +592,7 @@ def main() -> None:
     checkpoint_dir = Path("saves") / args.run_name
     screenshot_dir = Path("results") / args.run_name / "screenshots"
     progress_path = Path("results") / args.run_name / "progress.json"
+    progression_distance_path = Path("results") / args.run_name / PROGRESSION_DISTANCE_FILENAME
 
     start_digits = 0
     state_to_load: Path | None = None
@@ -476,10 +635,41 @@ def main() -> None:
     start_frames_elapsed = frames_elapsed
     started_at = time.perf_counter()
     last_state: Path | None = state_to_load
+    recorder: ProgressionDistanceRecorder | None = None
+    if not args.no_progression_distance:
+        if args.fresh and progression_distance_path.exists():
+            progression_distance_path.unlink()
+        recorder = ProgressionDistanceRecorder(
+            progression_distance_path,
+            args.run_name,
+            args.config,
+            args.digits,
+            args.rom,
+        )
+        recorder.trim_after(start_digits)
 
     try:
         while digits_consumed < max_digits:
             chunk_target = min(next_checkpoint, digits_consumed + progress_chunk_digits, max_digits)
+            chunk_start_frames_elapsed = frames_elapsed
+
+            def record_progression_distance(
+                sample_digits_consumed: int,
+                _inputs_sent: int,
+                _last_button: str,
+                sample_frames_advanced: int,
+            ) -> None:
+                if recorder is None:
+                    return
+                recorder.append(
+                    progression_distance_sample(
+                        pyboy,
+                        sample_digits_consumed,
+                        chunk_start_frames_elapsed + sample_frames_advanced,
+                        input_config,
+                    )
+                )
+
             advance_result = advance_pi_inputs(
                 pyboy,
                 digits,
@@ -488,6 +678,7 @@ def main() -> None:
                 hold_frames,
                 release_frames,
                 input_config=input_config,
+                after_input=record_progression_distance,
             )
             digits_consumed, _, _ = advance_result
             frames_elapsed += advance_result.frames_advanced
@@ -514,6 +705,8 @@ def main() -> None:
                     input_config,
                 )
                 write_progress(progress_path, progress)
+                if recorder is not None:
+                    recorder.flush()
                 print(
                     f"checkpoint {digits_consumed:,}/{max_digits:,} digits "
                     f"({progress.effective_digits_per_second:,.0f} digits/s, "
@@ -537,7 +730,11 @@ def main() -> None:
                         input_config,
                     ),
                 )
+                if recorder is not None:
+                    recorder.flush()
     finally:
+        if recorder is not None:
+            recorder.close()
         pyboy.stop()
 
 
