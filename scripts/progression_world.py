@@ -10,6 +10,13 @@ from progression_pathfinding import Ledge, MapGrid, Tile, Warp, WorldGraph, prog
 
 DATABASE_PATH = Path("results") / "progression_world.json"
 DISTANCE_CACHE_PATH = Path("results") / "progression_distance_cache.json"
+EVENT_FLAGS_ADDR = 0xD747
+EVENT_GOT_STARTER = 34
+EVENT_BATTLED_RIVAL_IN_OAKS_LAB = 35
+EVENT_GOT_POKEDEX = 37
+EVENT_OAK_GOT_PARCEL = 56
+EVENT_GOT_OAKS_PARCEL = 57
+OAKS_PARCEL_ITEM_ID = 0x46
 
 PROGRESSION_GATES: tuple[dict[str, Any], ...] = (
     {"id": "choose_starter", "label": "Choose starter", "targets": [(0x28, 6, 4), (0x28, 7, 4), (0x28, 8, 4)]},
@@ -250,10 +257,8 @@ def nearest_closer_checkpoint(
 
 def active_progression_gate(pyboy: object) -> dict[str, Any]:
     from review_pi_checkpoint import (
-        BAG_ITEMS_ADDR,
         OBTAINED_BADGES_ADDR,
         PARTY_COUNT_ADDR,
-        POKEDEX_OWNED_ADDR,
         bag_quantities,
     )
 
@@ -261,13 +266,19 @@ def active_progression_gate(pyboy: object) -> dict[str, Any]:
     party_count = int(memory[PARTY_COUNT_ADDR])
     bag_items = bag_quantities(pyboy)
     badges = int(memory[OBTAINED_BADGES_ADDR])
-    pokedex_enabled = int(memory[POKEDEX_OWNED_ADDR]) != 0
+    got_starter = event_flag(pyboy, EVENT_GOT_STARTER)
+    battled_lab_rival = event_flag(pyboy, EVENT_BATTLED_RIVAL_IN_OAKS_LAB)
+    got_pokedex = event_flag(pyboy, EVENT_GOT_POKEDEX)
+    oak_got_parcel = event_flag(pyboy, EVENT_OAK_GOT_PARCEL)
+    got_oaks_parcel = event_flag(pyboy, EVENT_GOT_OAKS_PARCEL)
 
-    if party_count <= 0:
+    if party_count <= 0 or not got_starter:
         return PROGRESSION_GATES[0]
-    if 0x46 not in bag_items and not pokedex_enabled:
+    if not battled_lab_rival:
+        return PROGRESSION_GATES[1]
+    if not got_oaks_parcel and not oak_got_parcel and OAKS_PARCEL_ITEM_ID not in bag_items:
         return PROGRESSION_GATES[2]
-    if not pokedex_enabled:
+    if not got_pokedex or OAKS_PARCEL_ITEM_ID in bag_items:
         return PROGRESSION_GATES[3]
 
     badge_gate_ids = [
@@ -295,6 +306,10 @@ def active_progression_gate(pyboy: object) -> dict[str, Any]:
         if not badges & (1 << badge_bits[gate_id]):
             return gates_by_id[gate_id]
     return PROGRESSION_GATES[-1]
+
+
+def event_flag(pyboy: object, event_id: int) -> bool:
+    return bool(int(pyboy.memory[EVENT_FLAGS_ADDR + (event_id // 8)]) & (1 << (event_id % 8)))
 
 
 def progression_state_for_tile(
