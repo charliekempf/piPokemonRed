@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import heapq
 from collections.abc import Iterable
+from collections import defaultdict
 from dataclasses import dataclass, field
 
 
@@ -90,6 +91,20 @@ class WorldGraph:
             if warp.required_flags.issubset(active_flags) and self.has_tile(warp.destination):
                 yield warp.destination, warp.cost
 
+    def walkable_tiles(self) -> Iterable[Tile]:
+        for grid in self.maps.values():
+            for y in range(grid.height):
+                for x in range(grid.width):
+                    if grid.is_walkable(x, y):
+                        yield grid.tile(x, y)
+
+    def reverse_edges(self, flags: set[str] | frozenset[str] | None = None) -> dict[Tile, list[tuple[Tile, int]]]:
+        edges: dict[Tile, list[tuple[Tile, int]]] = defaultdict(list)
+        for tile in self.walkable_tiles():
+            for neighbor, cost in self.neighbors(tile, flags):
+                edges[neighbor].append((tile, cost))
+        return dict(edges)
+
 
 @dataclass(frozen=True)
 class PathResult:
@@ -128,6 +143,35 @@ def shortest_path(
                 heapq.heappush(frontier, (next_steps, neighbor))
 
     return None
+
+
+def distances_to_targets(
+    world: WorldGraph,
+    targets: Iterable[Tile],
+    flags: set[str] | frozenset[str] | None = None,
+) -> dict[Tile, int]:
+    target_set = {target for target in targets if world.has_tile(target)}
+    if not target_set:
+        return {}
+
+    reverse_edges = world.reverse_edges(flags)
+    frontier: list[tuple[int, Tile]] = [(0, target) for target in target_set]
+    heapq.heapify(frontier)
+    best: dict[Tile, int] = {target: 0 for target in target_set}
+
+    while frontier:
+        steps, tile = heapq.heappop(frontier)
+        if steps != best[tile]:
+            continue
+        for neighbor, cost in reverse_edges.get(tile, ()):
+            if cost < 0:
+                raise ValueError("Path costs must be non-negative.")
+            next_steps = steps + cost
+            if next_steps < best.get(neighbor, 1_000_000_000):
+                best[neighbor] = next_steps
+                heapq.heappush(frontier, (next_steps, neighbor))
+
+    return best
 
 
 def reconstruct_path(previous: dict[Tile, Tile | None], end: Tile) -> tuple[Tile, ...]:

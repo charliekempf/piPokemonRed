@@ -3,7 +3,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from progression_pathfinding import Ledge, MapGrid, Tile, Warp, WorldGraph, progression_distance, shortest_path
+from progression_pathfinding import (
+    Ledge,
+    MapGrid,
+    Tile,
+    Warp,
+    WorldGraph,
+    distances_to_targets,
+    progression_distance,
+    shortest_path,
+)
 
 
 def test_shortest_path_routes_around_walls() -> None:
@@ -84,3 +93,21 @@ def test_progression_distance_compares_current_to_respawn_route() -> None:
     assert distance["total_steps"] == 5
     assert distance["remaining_steps"] == 3
     assert distance["progress"] == 0.4
+
+
+def test_distances_to_targets_uses_reverse_directed_edges() -> None:
+    upper = Tile("route", 1, 1)
+    lower = Tile("route", 1, 2)
+    grid = MapGrid(
+        "route",
+        3,
+        4,
+        blocked_edges={(upper, lower), (lower, upper)},
+        ledges=[Ledge(upper, lower)],
+    )
+    world = WorldGraph({"route": grid})
+
+    distances = distances_to_targets(world, [lower])
+
+    assert distances[lower] == 0
+    assert distances[upper] == 1

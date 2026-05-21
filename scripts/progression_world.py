@@ -49,6 +49,22 @@ PROGRESSION_GATES: tuple[dict[str, Any], ...] = (
     {"id": "elite_four", "label": "Elite Four + Champion", "targets": [(0x76, 5, 5)]},
 )
 
+CHECKPOINT_TILES: tuple[dict[str, Any], ...] = (
+    {"id": "pallet_home", "label": "Pallet Town home", "tile": (0x00, 5, 6)},
+    {"id": "viridian_pokecenter", "label": "Viridian Pokecenter", "tile": (0x01, 23, 26)},
+    {"id": "pewter_pokecenter", "label": "Pewter Pokecenter", "tile": (0x02, 13, 26)},
+    {"id": "cerulean_pokecenter", "label": "Cerulean Pokecenter", "tile": (0x03, 19, 18)},
+    {"id": "lavender_pokecenter", "label": "Lavender Pokecenter", "tile": (0x04, 3, 6)},
+    {"id": "vermilion_pokecenter", "label": "Vermilion Pokecenter", "tile": (0x05, 11, 4)},
+    {"id": "celadon_pokecenter", "label": "Celadon Pokecenter", "tile": (0x06, 41, 10)},
+    {"id": "fuchsia_pokecenter", "label": "Fuchsia Pokecenter", "tile": (0x07, 19, 28)},
+    {"id": "cinnabar_pokecenter", "label": "Cinnabar Pokecenter", "tile": (0x08, 11, 12)},
+    {"id": "indigo_plateau_pokecenter", "label": "Indigo Plateau Pokecenter", "tile": (0x09, 9, 6)},
+    {"id": "saffron_pokecenter", "label": "Saffron Pokecenter", "tile": (0x0A, 9, 30)},
+    {"id": "mt_moon_pokecenter", "label": "Mt. Moon Pokecenter", "tile": (0x0F, 11, 6)},
+    {"id": "rock_tunnel_pokecenter", "label": "Rock Tunnel Pokecenter", "tile": (0x15, 11, 20)},
+)
+
 
 def map_display_name(map_id: int) -> str:
     try:
