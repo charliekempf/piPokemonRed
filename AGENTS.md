@@ -71,7 +71,7 @@ Current reviewer UI behavior:
 - After backend fast-forward, automatic in-memory snapshot capture is disabled for that review session because PyBoy can hang when saving reviewer snapshots after loading the backend-simulated state.
 - Checkpoint and rewind frame displays use a one-frame render/restore path so the screen is populated after loading state.
 - The Player panel combines money, Pokedex seen/caught, actual elapsed emulator time computed from frames (not the capped in-game 255-hour clock), elapsed days in brackets, bag contents, and badges.
-- The Party panel shows Pokemon names, levels, HP bars with in-game health colors, expandable moves, and PP shown as current/max.
+- The right stack has Inputs and Progress as equal-height panes in the top row, with Party and Player side by side below them. The Party panel shows Pokemon names, levels, HP bars with in-game health colors, expandable moves, and PP shown as current/max.
 - The Config and Video Export panels sit side by side below the Progression Distance graph. Config shows game/version/region, digits per input, button ranges, and a pie chart of the mapping spread.
 - The Progression Distance graph lives below the main reviewer panes. It uses `results/progression_world.json`, which is generated locally and ignored because it derives from Pokemon map data. If the graph says the database is missing, run `py scripts\build_progression_world.py` after cloning/updating `tools/pokered`.
 - The Progression Distance graph range dropdown includes `Full HDF5 range`, which plots the complete min/max digit span currently archived in `results/<run>/progression_distance.h5`.

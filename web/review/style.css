@@ -852,7 +852,21 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(250px, 1fr) minmax(220px, 240px);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.side-bottom-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.next-panel,
+.splits-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
 }
 
 .event-panel,
@@ -1412,7 +1426,8 @@ button:disabled {
 }
 
 .splits-list {
-  max-height: 442px;
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
   list-style: none;
   margin: 0;
