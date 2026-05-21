@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from precompute_progression_distances import build_cache, encode_distances_by_map
 from progression_pathfinding import Tile
+from progression_world import progression_state_for_gate
 
 
 def test_encode_distances_by_map_sorts_tiles() -> None:
@@ -53,3 +54,65 @@ def test_build_cache_includes_progression_gates_and_checkpoints() -> None:
         assert cache["checkpoint_count"] == 13
         assert cache["progression_gates"]["choose_starter"]["targets"] == [[40, 6, 4], [40, 7, 4], [40, 8, 4]]
         assert cache["checkpoints"]["pallet_home"]["tile"] == [0, 5, 6]
+
+
+def test_progression_state_uses_cached_distance_when_available() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        cache_path = Path(temp_dir) / "cache.json"
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "progression_gates": {
+                        "test_gate": {
+                            "distances": {
+                                "1": [[2, 3, 17], [4, 5, 41]],
+                            }
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        state = progression_state_for_gate(
+            {"id": "test_gate", "label": "Test gate", "targets": [(1, 0, 0)]},
+            Tile(1, 2, 3),
+            Tile(1, 4, 5),
+            distance_cache_path=str(cache_path),
+        )
+
+        assert state["distance_source"] == "cache"
+        assert state["remaining_steps"] == 17
+        assert state["total_steps_from_respawn"] == 41
+        assert state["graph_max_steps"] == 82
+
+
+def test_progression_state_falls_back_when_cache_misses() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        world_path = Path(temp_dir) / "world.json"
+        cache_path = Path(temp_dir) / "cache.json"
+        world_path.write_text(
+            json.dumps(
+                {
+                    "maps": {
+                        "1": {
+                            "width": 3,
+                            "height": 1,
+                            "walkable": [[0, 0], [1, 0], [2, 0]],
+                        }
+                    },
+                    "warps": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        cache_path.write_text(json.dumps({"progression_gates": {"test_gate": {"distances": {}}}}), encoding="utf-8")
+        state = progression_state_for_gate(
+            {"id": "test_gate", "label": "Test gate", "targets": [(1, 2, 0)]},
+            Tile(1, 0, 0),
+            world_path=str(world_path),
+            distance_cache_path=str(cache_path),
+        )
+
+        assert "distance_source" not in state
+        assert state["remaining_steps"] == 2
+        assert state["reachable"] is True

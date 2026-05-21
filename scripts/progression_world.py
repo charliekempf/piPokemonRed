@@ -9,6 +9,7 @@ from progression_pathfinding import Ledge, MapGrid, Tile, Warp, WorldGraph, prog
 
 
 DATABASE_PATH = Path("results") / "progression_world.json"
+DISTANCE_CACHE_PATH = Path("results") / "progression_distance_cache.json"
 
 PROGRESSION_GATES: tuple[dict[str, Any], ...] = (
     {"id": "choose_starter", "label": "Choose starter", "targets": [(0x28, 6, 4), (0x28, 7, 4), (0x28, 8, 4)]},
@@ -75,7 +76,7 @@ def map_display_name(map_id: int) -> str:
         return f"Map ${map_id:02X}"
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=4)
 def load_progression_database(path: str = str(DATABASE_PATH)) -> dict[str, Any] | None:
     database_path = Path(path)
     if not database_path.exists():
@@ -84,7 +85,7 @@ def load_progression_database(path: str = str(DATABASE_PATH)) -> dict[str, Any] 
         return json.load(handle)
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=4)
 def load_world(path: str = str(DATABASE_PATH)) -> WorldGraph | None:
     database = load_progression_database(path)
     if not database:
@@ -138,6 +139,45 @@ def load_world(path: str = str(DATABASE_PATH)) -> WorldGraph | None:
         for raw_warp in database.get("warps", [])
     ]
     return WorldGraph(maps, warps)
+
+
+@lru_cache(maxsize=4)
+def load_distance_cache(path: str = str(DISTANCE_CACHE_PATH)) -> dict[str, Any] | None:
+    cache_path = Path(path)
+    if not cache_path.exists():
+        return None
+    with cache_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+@lru_cache(maxsize=64)
+def cached_distance_index(
+    category: str,
+    target_id: str,
+    path: str = str(DISTANCE_CACHE_PATH),
+) -> dict[Tile, int]:
+    cache = load_distance_cache(path)
+    if not cache:
+        return {}
+    raw_target = cache.get(category, {}).get(target_id, {})
+    distances: dict[Tile, int] = {}
+    for raw_map_id, raw_tiles in raw_target.get("distances", {}).items():
+        map_id = int(raw_map_id)
+        for x, y, steps in raw_tiles:
+            distances[Tile(map_id, int(x), int(y))] = int(steps)
+    return distances
+
+
+def cached_progression_distance(
+    gate_id: str,
+    tile: Tile,
+    path: str = str(DISTANCE_CACHE_PATH),
+) -> int | None:
+    try:
+        map_id = int(tile.map_id)
+    except (TypeError, ValueError):
+        return None
+    return cached_distance_index("progression_gates", gate_id, path).get(Tile(map_id, tile.x, tile.y))
 
 
 def active_progression_gate(pyboy: object) -> dict[str, Any]:
@@ -202,8 +242,9 @@ def progression_state_for_gate(
     gate: dict[str, Any],
     current_tile: Tile,
     respawn_tile: Tile | None = None,
+    world_path: str = str(DATABASE_PATH),
+    distance_cache_path: str = str(DISTANCE_CACHE_PATH),
 ) -> dict[str, object]:
-    world = load_world()
     target_tiles = [Tile(map_id, x, y) for map_id, x, y in gate["targets"]]
     target_map_id = int(gate["targets"][0][0])
 
@@ -216,6 +257,22 @@ def progression_state_for_gate(
         "graph_max_steps": None,
         "reachable": False,
     }
+
+    cached_remaining = cached_progression_distance(str(gate["id"]), current_tile, distance_cache_path)
+    if cached_remaining is not None:
+        respawn_tile = respawn_tile or current_tile
+        cached_total = cached_progression_distance(str(gate["id"]), respawn_tile, distance_cache_path)
+        total_steps = cached_total if cached_total is not None else cached_remaining
+        return {
+            **base,
+            "remaining_steps": cached_remaining,
+            "total_steps_from_respawn": total_steps,
+            "graph_max_steps": max(1, int(total_steps or cached_remaining) * 2),
+            "reachable": True,
+            "distance_source": "cache",
+        }
+
+    world = load_world(world_path)
     if world is None:
         return {**base, "label": f"{gate['label']} (database missing)"}
 

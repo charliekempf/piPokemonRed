@@ -35,7 +35,7 @@ Important scripts:
 - `scripts/tally_tas_buttons.py` parses BizHawk `.bk2` TAS files to tally button usage.
 - `scripts/build_progression_world.py` builds the local progression pathfinding database from a local `pret/pokered` checkout in `tools/pokered` and writes `results/progression_world.json`.
 - `scripts/progression_world.py` loads that ignored local database, selects the active required progression point, and feeds step-distance data to the reviewer graph.
-- `scripts/precompute_progression_distances.py` brute-forces ledge-aware reverse distances from every valid tile to each progression gate and each blackout checkpoint tile, writing the ignored cache `results/progression_distance_cache.json`.
+- `scripts/precompute_progression_distances.py` brute-forces ledge-aware reverse distances from every valid tile to each progression gate and each blackout checkpoint tile, writing the ignored cache `results/progression_distance_cache.json`. The reviewer uses this cache for progression-distance lookups and falls back to live pathfinding only if the cache is missing or does not contain the requested tile.
 - `src/LibretroBench/` is an optional native libretro benchmark harness kept for comparison; PyBoy is the practical path right now.
 
 Typical commands:
