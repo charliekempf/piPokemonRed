@@ -542,12 +542,14 @@ progressionRangeEl.addEventListener("change", () => {
 
 generateProgressionGraphButton.addEventListener("click", async () => {
   const currentDigits = Math.max(0, Number(lastProgressionState.digits_consumed) || 0);
-  const rangeDigits = Math.max(1, Number(progressionRangeEl.value) || 10000);
+  const fullRange = progressionRangeEl.value === "full";
+  const rangeDigits = fullRange ? 0 : Math.max(1, Number(progressionRangeEl.value) || 10000);
   generateProgressionGraphButton.disabled = true;
   progressionGraphStatusEl.textContent = "Starting graph generation";
   const result = await post("/api/generate-progression-graph", {
     center_digits: currentDigits,
     range_digits: rangeDigits,
+    full_range: fullRange,
   });
   if (!result.ok) {
     generateProgressionGraphButton.disabled = false;
@@ -1358,18 +1360,30 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
   const remainingSteps = finiteNumber(rawRemainingSteps);
   const totalSteps = finiteNumber(rawTotalSteps);
   const graphMaxSteps = finiteNumber(rawGraphMaxSteps);
-  const selectableRange = Math.max(1, finiteNumber(progressionRangeEl.value) || 10000);
+  const fullRange = progressionRangeEl.value === "full";
+  let selectableRange = fullRange ? 10000 : Math.max(1, finiteNumber(progressionRangeEl.value) || 10000);
   const sampleInterval = Math.max(1, Number(lastProgressionState.digits_per_input) || 1);
-  const halfRange = selectableRange / 2;
   const hasGeneratedSamples = options.preserveSamples && progressionSamples.length > 0;
-  const generatedMaxDigit = hasGeneratedSamples
-    ? progressionSamples.reduce((maximum, sample) => Math.max(maximum, Number.isFinite(sample.digit) ? sample.digit : 0), 0)
-    : NaN;
-  const graphCenterDigit = hasGeneratedSamples && Number.isFinite(generatedMaxDigit)
-    ? Math.min(digit, Math.max(0, generatedMaxDigit - halfRange))
-    : digit;
-  const startDigit = Math.max(0, graphCenterDigit - halfRange);
-  const graphEndDigit = startDigit + selectableRange;
+  const sampleDigits = progressionSamples
+    .map((sample) => sample.digit)
+    .filter(Number.isFinite);
+  let startDigit = 0;
+  let graphEndDigit = selectableRange;
+  if (fullRange && sampleDigits.length > 0) {
+    startDigit = Math.max(0, Math.min(...sampleDigits));
+    graphEndDigit = Math.max(...sampleDigits);
+    selectableRange = Math.max(1, graphEndDigit - startDigit);
+  } else {
+    const halfRange = selectableRange / 2;
+    const generatedMaxDigit = hasGeneratedSamples
+      ? sampleDigits.reduce((maximum, sampleDigit) => Math.max(maximum, sampleDigit), 0)
+      : NaN;
+    const graphCenterDigit = hasGeneratedSamples && Number.isFinite(generatedMaxDigit)
+      ? Math.min(digit, Math.max(0, generatedMaxDigit - halfRange))
+      : digit;
+    startDigit = Math.max(0, graphCenterDigit - halfRange);
+    graphEndDigit = startDigit + selectableRange;
+  }
   const hasDistance = Number.isFinite(remainingSteps);
   const pointLabel = progression.label || "Progression route data pending";
   const locationLabel = progression.objective_location ? ` | ${progression.objective_location}` : "";
@@ -1412,7 +1426,9 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     });
     lastProgressionSampleDigit = digit;
   }
-  progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= graphEndDigit);
+  if (!fullRange || !hasGeneratedSamples) {
+    progressionSamples = progressionSamples.filter((sample) => sample.digit >= startDigit && sample.digit <= graphEndDigit);
+  }
 
   const width = Math.max(640, Math.floor(progressionGraphEl.getBoundingClientRect().width || progressionGraphEl.clientWidth || 640));
   const height = 260;
@@ -1554,7 +1570,7 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     context.fillText(hasDistance ? "Collecting samples" : "Awaiting progression route data", plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) - 8);
     context.font = "12px Segoe UI, system-ui, sans-serif";
     context.fillStyle = "#aeb4c0";
-    context.fillText(`Range: centered ${fmt(selectableRange)} digits`, plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) + 16);
+    context.fillText(fullRange ? "Range: full HDF5 archive" : `Range: centered ${fmt(selectableRange)} digits`, plot.left + (plotWidth / 2), plot.top + (plotHeight / 2) + 16);
     progressionGraphEl.title = hasDistance
       ? "Collecting progression distance samples."
       : "The graph is ready, but the Kanto route data has not been populated yet.";
@@ -1574,9 +1590,12 @@ function renderProgressionGraph(progression = {}, currentDigits = 0, options = {
     context.stroke();
   }
 
+  const rangeDescription = fullRange
+    ? `across the full HDF5 archive from ${fmt(Math.round(startDigit))} to ${fmt(Math.round(graphEndDigit))}`
+    : `over ${fmt(selectableRange)} digits centered on the current digit`;
   progressionGraphEl.title = Number.isFinite(globalBaselineSteps)
-    ? `${fmt(visibleSamples.length)} samples over ${fmt(selectableRange)} digits centered on the current digit. Gray line: ${fmt(Math.round(globalBaselineSteps))} checkpoint-tile steps.`
-    : `${fmt(visibleSamples.length)} samples over ${fmt(selectableRange)} digits centered on the current digit.`;
+    ? `${fmt(visibleSamples.length)} samples ${rangeDescription}. Gray line: ${fmt(Math.round(globalBaselineSteps))} checkpoint-tile steps.`
+    : `${fmt(visibleSamples.length)} samples ${rangeDescription}.`;
 }
 
 function setInitialControls(state) {

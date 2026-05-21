@@ -4,7 +4,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import review_web
-from review_web import ReviewWebApp, append_progression_graph_samples_to_archive, archived_progression_graph_samples
+from review_web import (
+    ReviewWebApp,
+    append_progression_graph_samples_to_archive,
+    archived_progression_digit_bounds,
+    archived_progression_graph_samples,
+)
 
 
 class FakeSession:
@@ -154,6 +159,18 @@ def test_archived_progression_graph_samples_read_hdf5(tmp_path: Path, monkeypatc
     assert all(sample["source"] == "hdf5" for sample in samples)
 
 
+def test_archived_progression_digit_bounds_reads_hdf5(tmp_path: Path, monkeypatch) -> None:
+    import h5py
+
+    monkeypatch.chdir(tmp_path)
+    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path.parent.mkdir(parents=True)
+    with h5py.File(archive_path, "w") as handle:
+        handle.create_dataset("digit", data=[18, 2, 10])
+
+    assert archived_progression_digit_bounds("statistical_walk") == (2, 18)
+
+
 def test_progression_graph_archive_range_centers_current_digit(tmp_path: Path, monkeypatch) -> None:
     import h5py
 
@@ -187,6 +204,42 @@ def test_progression_graph_archive_range_centers_current_digit(tmp_path: Path, m
     assert status["end_digits"] == 14
     assert status["sample_digits"] == 2
     assert [sample["digit"] for sample in status["samples"]] == [6, 8, 10, 12, 14]
+
+
+def test_progression_graph_full_range_uses_hdf5_bounds(tmp_path: Path, monkeypatch) -> None:
+    import h5py
+
+    monkeypatch.chdir(tmp_path)
+    archive_path = Path("results/statistical_walk/progression_distance.h5")
+    archive_path.parent.mkdir(parents=True)
+    with h5py.File(archive_path, "w") as handle:
+        handle.create_dataset("digit", data=[2, 4, 6, 8, 10, 12, 14, 16, 18])
+        handle.create_dataset("remaining_steps", data=[9, 8, 7, 6, 5, 4, 3, 2, 1])
+        handle.create_dataset("total_steps_from_respawn", data=[10] * 9)
+
+    session = FakeSession()
+    app = ReviewWebApp(
+        session=session,
+        scale=4,
+        run_name="statistical_walk",
+        digits_per_input=2,
+        frames_per_input=3,
+        hard_max_digits=None,
+        rom_path=Path("roms/test.gb"),
+        digits_path=Path("data/test.txt"),
+        digits=session.digits,
+        config_path=Path("config/statistical_walk.json"),
+        session_factory=lambda: session,
+    )
+
+    status = app.start_progression_graph_generation(center_digits=10, range_digits=8, full_range=True)
+
+    assert status["state"] == "Archived"
+    assert status["start_digits"] == 2
+    assert status["end_digits"] == 18
+    assert status["sample_digits"] == 2
+    assert status["full_range"] is True
+    assert [sample["digit"] for sample in status["samples"]] == [2, 4, 6, 8, 10, 12, 14, 16, 18]
 
 
 def test_append_progression_graph_samples_skips_duplicate_digits(tmp_path: Path, monkeypatch) -> None:

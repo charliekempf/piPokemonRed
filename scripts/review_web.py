@@ -819,6 +819,27 @@ def archived_progression_graph_samples(run_name: str, start_digits: int, end_dig
         return []
 
 
+def archived_progression_digit_bounds(run_name: str) -> tuple[int, int] | None:
+    archive_path = Path("results") / run_name / PROGRESSION_DISTANCE_FILENAME
+    if not archive_path.exists():
+        return None
+    try:
+        import h5py
+    except ImportError:
+        return None
+
+    try:
+        with h5py.File(archive_path, "r") as handle:
+            if "digit" not in handle:
+                return None
+            digits = handle["digit"][:]
+            if len(digits) == 0:
+                return None
+            return int(min(digits)), int(max(digits))
+    except OSError:
+        return None
+
+
 def append_progression_graph_samples_to_archive(
     run_name: str,
     config_path: Path,
@@ -1216,20 +1237,27 @@ class ReviewWebApp:
         self,
         center_digits: int,
         range_digits: int,
+        full_range: bool = False,
     ) -> dict[str, object]:
         if self.session is None:
             raise ValueError("ROM required.")
         digits_per_input = self.digits_per_input
-        center_digits = normalize_digit(max(0, int(center_digits)), digits_per_input)
-        range_digits = max(digits_per_input, int(range_digits))
         sample_digits = digits_per_input
-        half_range = normalize_digit(range_digits // 2, digits_per_input)
-        start_digits = normalize_digit(max(0, center_digits - half_range), digits_per_input)
-        end_digits = normalize_digit(min(len(self.digits), start_digits + range_digits), digits_per_input)
-        if center_digits + half_range <= len(self.digits):
-            end_digits = normalize_digit(center_digits + half_range, digits_per_input)
-        if end_digits <= start_digits:
-            end_digits = min(len(self.digits), start_digits + digits_per_input)
+        if full_range:
+            bounds = archived_progression_digit_bounds(self.run_name)
+            if bounds is None:
+                raise ValueError("No HDF5 progression-distance archive is available for this run.")
+            start_digits, end_digits = bounds
+        else:
+            center_digits = normalize_digit(max(0, int(center_digits)), digits_per_input)
+            range_digits = max(digits_per_input, int(range_digits))
+            half_range = normalize_digit(range_digits // 2, digits_per_input)
+            start_digits = normalize_digit(max(0, center_digits - half_range), digits_per_input)
+            end_digits = normalize_digit(min(len(self.digits), start_digits + range_digits), digits_per_input)
+            if center_digits + half_range <= len(self.digits):
+                end_digits = normalize_digit(center_digits + half_range, digits_per_input)
+            if end_digits <= start_digits:
+                end_digits = min(len(self.digits), start_digits + digits_per_input)
         cache_key = self.progression_graph_cache_key(start_digits, end_digits, sample_digits)
         archived_samples = archived_progression_graph_samples(self.run_name, start_digits, end_digits, sample_digits)
         if archived_samples:
@@ -1244,11 +1272,15 @@ class ReviewWebApp:
                 "samples": archived_samples,
                 "cache_hit": False,
                 "archive_hit": True,
+                "full_range": full_range,
                 "error": "",
             }
             self.cache_progression_graph(cache_key, archived_status)
             self.update_progression_graph(**archived_status)
             return archived_status
+
+        if full_range:
+            raise ValueError("No archived HDF5 samples are available for the full range.")
 
         checkpoint = checkpoint_at_or_before(self.run_name, start_digits)
         if checkpoint is None:
@@ -1523,6 +1555,7 @@ def make_handler(app: ReviewWebApp):
                     status = app.start_progression_graph_generation(
                         int(body.get("center_digits", body.get("end_digits", 0))),
                         int(body.get("range_digits", 10000)),
+                        bool(body.get("full_range", False)),
                     )
                     self._send_json({"ok": True, "graph": status})
                 except Exception as error:
