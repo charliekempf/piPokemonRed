@@ -20,7 +20,7 @@ from PIL import Image
 from pyboy import PyBoy
 
 from progression_pathfinding import Tile
-from progression_world import progression_state_for_gate, progression_state_for_tile
+from progression_world import progression_splits, progression_state_for_gate, progression_state_for_tile
 from review_pi_checkpoint import (
     AudioSink,
     REVIEW_CACHE_DIRNAME,
@@ -1180,6 +1180,7 @@ class ReviewWebApp:
                 "map_id": None,
                 "location": "-",
                 "progression": {},
+                "progression_splits": progression_splits(),
                 "speed": 10,
                 "actual_speed_x": 0,
                 "actual_digits_per_second": 0,
@@ -1225,6 +1226,7 @@ class ReviewWebApp:
             "rom_missing": False,
             "rom_path": str(self.rom_path),
             "progression": self.progression_info(),
+            "progression_splits": progression_splits(),
             "frame_version": self.frame_version,
             "inputs": self.session.input_window(previous_count=3, next_count=11),
             "party": self.session.party(),

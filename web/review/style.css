@@ -15,7 +15,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: 340px auto 280px;
+  grid-template-columns: 340px auto 540px;
   gap: 18px;
   align-items: start;
   padding: 18px;
@@ -79,6 +79,7 @@ body {
 .party-panel,
 .player-panel,
 .next-panel,
+.splits-panel,
 .timeline-panel,
 .progression-graph-panel,
 .config-panel,
@@ -807,11 +808,19 @@ button:disabled {
   gap: 14px;
 }
 
+.side-top-row {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) minmax(220px, 240px);
+  gap: 14px;
+  align-items: start;
+}
+
 .event-panel,
 .config-panel,
 .party-panel,
 .player-panel,
 .next-panel,
+.splits-panel,
 .timeline-panel,
 .progression-graph-panel,
 .video-export-panel {
@@ -822,6 +831,7 @@ button:disabled {
 .config-panel h1,
 .party-panel h1,
 .next-panel h1,
+.splits-panel h1,
 .timeline-panel h1,
 .progression-graph-panel h1 {
   margin: 0 0 10px;
@@ -1361,6 +1371,76 @@ button:disabled {
   display: block;
   width: 100%;
   min-height: 72px;
+}
+
+.splits-list {
+  max-height: 442px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  background: #1c1f26;
+  border: 1px solid #454b58;
+  border-radius: 6px;
+}
+
+.split-item,
+.split-empty {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.split-item strong,
+.split-empty {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.split-index {
+  color: #aeb4c0;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.split-item.is-complete {
+  color: #8ea997;
+}
+
+.split-item.is-current {
+  background: #344257;
+  border-color: #6f89af;
+  color: #f3f1e8;
+}
+
+.split-item.is-current .split-index {
+  color: #fff4b8;
+}
+
+.split-item.is-upcoming {
+  color: #d8dce6;
+}
+
+.split-empty {
+  grid-template-columns: 1fr;
+  color: #aeb4c0;
+  background: #30333c;
+  border-color: #454b58;
 }
 
 .pair {

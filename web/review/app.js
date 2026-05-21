@@ -65,6 +65,7 @@ const badgesCountEl = document.querySelector("#badges-count");
 const playerInfoEl = document.querySelector("#player-info");
 const badgesEl = document.querySelector("#badges");
 const inputsEl = document.querySelector("#inputs");
+const splitsEl = document.querySelector("#splits");
 const configDigitsPerInputEl = document.querySelector("#config-digits-per-input");
 const configGameTitleEl = document.querySelector("#config-game-title");
 const configGameVersionEl = document.querySelector("#config-game-version");
@@ -94,6 +95,7 @@ let checkpointListSignature = "";
 let partyRenderSignature = "";
 let bagRenderSignature = "";
 let inputRenderSignature = "";
+let splitsRenderSignature = "";
 let configRenderSignature = "";
 let lastInputFetchAt = 0;
 let lastPartyMembers = [];
@@ -692,6 +694,47 @@ function renderInputs(items, state = {}) {
     const y = INPUT_CANVAS_PADDING + (index * (INPUT_ROW_HEIGHT + INPUT_ROW_GAP));
     drawInputRow(context, item, role, 0.5, y + 0.5, width - 1, INPUT_ROW_HEIGHT);
   });
+}
+
+function renderSplits(splits = [], progression = {}) {
+  const activeId = progression.id || "";
+  const activeIndex = splits.findIndex((split) => split.id === activeId);
+  const signature = JSON.stringify({ splits, activeId });
+  if (signature === splitsRenderSignature) {
+    return;
+  }
+  splitsRenderSignature = signature;
+
+  if (!splits.length) {
+    const empty = document.createElement("li");
+    empty.className = "split-empty";
+    empty.textContent = "No objectives loaded";
+    splitsEl.replaceChildren(empty);
+    return;
+  }
+
+  const rows = splits.map((split, index) => {
+    const row = document.createElement("li");
+    row.className = "split-item";
+    if (activeIndex >= 0 && index < activeIndex) {
+      row.classList.add("is-complete");
+    } else if (activeIndex < 0 ? index === 0 : index === activeIndex) {
+      row.classList.add("is-current");
+    } else {
+      row.classList.add("is-upcoming");
+    }
+
+    const marker = document.createElement("span");
+    marker.className = "split-index";
+    marker.textContent = String(split.index || index + 1).padStart(2, "0");
+
+    const label = document.createElement("strong");
+    label.textContent = split.label || split.id || "Objective";
+
+    row.append(marker, label);
+    return row;
+  });
+  splitsEl.replaceChildren(...rows);
 }
 
 function renderConfigInfo(config = {}) {
@@ -1626,6 +1669,7 @@ async function refresh() {
     renderCheckpoints(state.checkpoints || [], state.digits_consumed);
     renderTimeline(state.checkpoints || [], state.digits_consumed, state.max_digits);
     renderProgressionGraph(state.progression || {}, state.digits_consumed);
+    renderSplits(state.progression_splits || [], state.progression || {});
     renderParty(state.party || []);
     renderBag(state.bag || []);
     renderPlayerInfo(state.player_info || {});
@@ -1654,6 +1698,7 @@ async function refresh() {
     renderTimeline([], 0, 0);
     lastProgressionState = {};
     renderProgressionGraph({}, 0);
+    renderSplits([], {});
     renderParty([]);
     renderBag([]);
     renderPlayerInfo({});

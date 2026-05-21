@@ -50,6 +50,17 @@ PROGRESSION_GATES: tuple[dict[str, Any], ...] = (
     {"id": "elite_four", "label": "Elite Four + Champion", "targets": [(0x76, 5, 5)]},
 )
 
+
+def progression_splits() -> list[dict[str, object]]:
+    return [
+        {
+            "id": str(gate["id"]),
+            "label": str(gate["label"]),
+            "index": index + 1,
+        }
+        for index, gate in enumerate(PROGRESSION_GATES)
+    ]
+
 CHECKPOINT_TILES: tuple[dict[str, Any], ...] = (
     {"id": "pallet_home", "label": "Pallet Town home", "tile": (0x00, 5, 6)},
     {"id": "viridian_pokecenter", "label": "Viridian Pokecenter", "tile": (0x01, 23, 26)},
@@ -306,6 +317,7 @@ def progression_state_for_gate(
     target_map_id = int(gate["targets"][0][0])
 
     base = {
+        "id": gate["id"],
         "label": gate["label"],
         "objective_location": map_display_name(target_map_id),
         "current_tile": {"map_id": current_tile.map_id, "x": current_tile.x, "y": current_tile.y},
